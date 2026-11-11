@@ -4,10 +4,10 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 ## Status
 
-- **Phase:** Hackathon MVP — not started
-- **Active PRD:** none
-- **Branch:** none
-- **Last updated:** 2026-11-11 — Notion + Linear wiring done
+- **Phase:** Hackathon MVP — in progress (M0 Foundations)
+- **Active PRD:** chore-repo-setup
+- **Branch:** integration/v1-foundations
+- **Last updated:** 2026-11-12 — Started SHIP-204 (Monorepo scaffolding)
 
 ## External Tools
 
@@ -18,7 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
-| —   | —      | —      | No PRDs yet |
+| chore-repo-setup | integration/v1-foundations | in progress | SHIP-204: Monorepo skeleton and tooling |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 
