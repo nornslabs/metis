@@ -6,26 +6,17 @@ Entry point for any AI coding agent working on Metis. Read this first, then load
 
 Metis is built incrementally with a spec-driven workflow. Context files define what to build and how; PRDs define the current unit of work; the progress tracker records state. Always implement against these files. Do not infer or invent behavior.
 
-## External Tools
-
-- **Docs (source of truth for design):** Notion. Project pages live under [Projects](https://app.notion.com/p/41543c736c23814db62dd743520ca198). Metis design is split into [Metis HLD](https://app.notion.com/p/41543c736c23817787a0e5504448f089) (high-level: components, stack, build plan) and [Metis LLD](https://app.notion.com/p/41543c736c23816499c2e66bd6b82401) (low-level: modules, schema, state machine, contracts, agents, config, errors, tests). Sync any change to architecture, boundaries or invariants into `architecture.md` and the matching Notion page.
-- **Issue tracking:** Linear. The Metis project is [`P-SHIP-3`](https://linear.app/heimdallabs/project/metis-5864eaf29689) (team `SHIP`). Create issues and milestones there via the Linear MCP integration; Metis stores only the returned ids.
-
-## Notion Tool Selection (for agents)
-
-Use the Notion Memory page **[Notion tool usage](https://app.notion.com/p/41543c736c2381f5a2dbc064086a307e)** as the reference. In short:
-
-| Task | Tool |
-|---|---|
-| Find page by name/content | `notion-search` (never `list_private_pages`/`list_recent_pages`) |
-| Look up a person by name/email | `notion-search` with `query_type: "user"` |
-| Read page, database, data source, doc | `notion-fetch` (accepts ID, URL, `notion://docs/*`) |
-| Create page(s) under a parent | `notion-create-pages` with `parent: {page_id, type: "page_id"}` |
-| Edit content (targeted) | `notion-update-page` with `command: "update_content"` |
-| Edit full content/replace | `notion-update-page` with `command: "replace_content"` |
-| Edit properties/icon/cover | `notion-update-page` with `command: "update_properties"` |
-| Save durable context to Memory | `notion-create-pages` with `parent: "memory"` + `Type` in {Profile, Preference, Work, People, Notes} |
-| Search Memory | `notion-memory-search` (or fetch id `"memory"` then query data source) |
+| Task                                  | Tool                                                                                                 |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Find page by name/content             | `notion-search` (never `list_private_pages`/`list_recent_pages`)                                     |
+| Look up a person by name/email        | `notion-search` with `query_type: "user"`                                                            |
+| Read page, database, data source, doc | `notion-fetch` (accepts ID, URL, `notion://docs/*`)                                                  |
+| Create page(s) under a parent         | `notion-create-pages` with `parent: {page_id, type: "page_id"}`                                      |
+| Edit content (targeted)               | `notion-update-page` with `command: "update_content"`                                                |
+| Edit full content/replace             | `notion-update-page` with `command: "replace_content"`                                               |
+| Edit properties/icon/cover            | `notion-update-page` with `command: "update_properties"`                                             |
+| Save durable context to Memory        | `notion-create-pages` with `parent: "memory"` + `Type` in {Profile, Preference, Work, People, Notes} |
+| Search Memory                         | `notion-memory-search` (or fetch id `"memory"` then query data source)                               |
 
 **Never** invent Notion-flavored Markdown. Read `notion://docs/notion-flavored-markdown-spec` via `notion-fetch` before writing content.
 
@@ -148,3 +139,12 @@ Update the matching file in `.agents/ctx/` in the same change when you alter:
 3. Server: `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
 4. Web: `npm run lint`, `npm run typecheck`, `npm run build` pass.
 5. The PRD status and `progress-tracker.md` are updated.
+
+## External Tools
+
+- **Docs (source of truth for design):** Notion. Project pages live under [Projects](https://app.notion.com/p/41543c736c23814db62dd743520ca198). Metis design is split into [Metis HLD](https://app.notion.com/p/41543c736c23817787a0e5504448f089) (high-level: components, stack, build plan) and [Metis LLD](https://app.notion.com/p/41543c736c23816499c2e66bd6b82401) (low-level: modules, schema, state machine, contracts, agents, config, errors, tests). Sync any change to architecture, boundaries or invariants into `architecture.md` and the matching Notion page.
+- **Issue tracking:** Linear. The Metis project is [`P-SHIP-3`](https://linear.app/heimdallabs/project/metis-5864eaf29689) (team `SHIP`). Create issues and milestones there via the Linear MCP integration; Metis stores only the returned ids.
+
+## Notion Tool Selection (for agents)
+
+Use the Notion Memory page **[Notion tool usage](https://app.notion.com/p/41543c736c2381f5a2dbc064086a307e)** as the reference. In short:
