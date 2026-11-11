@@ -1,0 +1,65 @@
+# ---------- Secrets & env ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------- OS / editors ----------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# ---------- Python (server/) ----------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.ipynb_checkpoints/
+
+# ---------- Node / Next.js (web/) ----------
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---------- Tests ----------
+playwright-report/
+test-results/
+blob-report/
+
+# ---------- Docker / local data ----------
+docker-compose.override.yml
+compose.override.yaml
+.data/
+pgdata/
+redisdata/
+
+# ---------- Logs ----------
+logs/
+*.log
+
+# ---------- Agents (keep ctx, PRDs, tracker; ignore scratch) ----------
+.agents/scratch/
+.agents/**/*.local.md
