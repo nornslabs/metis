@@ -17,7 +17,7 @@ class TestSecretRedaction:
     def test_secret_keys_are_redacted(self) -> None:
         """Values under keys matching secret patterns should be redacted."""
         # Get the redaction processor directly
-        from metis.core.logging import _SECRET_PATTERNS, _redact_secrets
+        from metis.core.logging import _redact_secrets
 
         event_dict = {
             "event": "test",

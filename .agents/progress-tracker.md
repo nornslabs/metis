@@ -24,12 +24,20 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 | chore-repo-setup | integration/v1-foundations | done | SHIP-204: Monorepo skeleton and tooling |
 | chore-compose-stack | chore/compose-stack | done | SHIP-205: docker compose up for full local stack |
 | feat-health-route | feat/health-route-refactored | done | SHIP-208: `GET /v1/health` with proper controller-service separation |
+| chore-ci-pipeline | chore/ci-pipeline | done | SHIP-210: CI pipeline (server/web/docker jobs + smoke) |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 
-## Next Up (MVP build order)
+## Active PRD
 
-1. `chore-core-config` — Pydantic Settings, .env.example, validation (SHIP-259)
+—
+## Branch
+
+—
+## Session Notes
+
+- PR #13 created: https://github.com/nornslabs/metis/pull/13
+- CI pipeline complete: `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge added; pre-existing linting errors fixed in test files.
 2. `feat-health-route` — `GET /v1/health` (DB + Redis) (SHIP-208)
 3. `feat-auth-workspaces` — Auth.js JWT, users, workspaces, RLS
 4. `feat-provider-keys` — encrypted BYO LLM + Exa keys
