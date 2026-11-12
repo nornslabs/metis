@@ -32,14 +32,14 @@ async def query_postgres(dsn: str, query: str, timeout_secs: float = 1.0) -> boo
         conn = await asyncio.wait_for(asyncpg.connect(dsn=dsn), timeout=timeout_secs)
         try:
             await conn.execute(query)
-            await conn.close()
             return True
         except Exception:
+            return False
+        finally:
             try:
                 await conn.close()
             except Exception:
                 pass
-            return False
     except Exception:
         return False
 

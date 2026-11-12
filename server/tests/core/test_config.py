@@ -118,6 +118,70 @@ class TestSettingsValidation:
         assert settings.log_json is True
 
 
+class TestCorsOriginsParsing:
+    """Tests for CORS_ORIGINS parsing from environment variables."""
+
+    def test_cors_origins_default_is_list(self) -> None:
+        """Default cors_origins should return a list with localhost:3000."""
+        settings = Settings(
+            database_url="postgresql://test:5432/db",
+            redis_url="redis://localhost",
+            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            auth_jwt_audience="audience",
+            encryption_master_key=get_valid_secret(),
+        )
+        assert settings.get_cors_origins() == ["http://localhost:3000"]
+
+    def test_cors_origins_single_origin_from_env(self) -> None:
+        """Single origin string from env should be parsed as a list."""
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "postgresql://test:5432/db",
+                "REDIS_URL": "redis://localhost",
+                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "AUTH_JWT_AUDIENCE": "audience",
+                "ENCRYPTION_MASTER_KEY": get_valid_secret(),
+                "CORS_ORIGINS": "http://localhost:3000",
+            },
+        ):
+            get_settings.cache_clear()
+            settings = get_settings()
+            assert settings.get_cors_origins() == ["http://localhost:3000"]
+
+    def test_cors_origins_comma_separated_from_env(self) -> None:
+        """Comma-separated origins should be parsed as a list."""
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "postgresql://test:5432/db",
+                "REDIS_URL": "redis://localhost",
+                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "AUTH_JWT_AUDIENCE": "audience",
+                "ENCRYPTION_MASTER_KEY": get_valid_secret(),
+                "CORS_ORIGINS": "http://localhost:3000,http://localhost:8000",
+            },
+        ):
+            get_settings.cache_clear()
+            settings = get_settings()
+            assert settings.get_cors_origins() == [
+                "http://localhost:3000",
+                "http://localhost:8000",
+            ]
+
+    def test_cors_origins_stored_as_string(self) -> None:
+        """cors_origins should be stored as a string (not a list) to avoid env parsing issues."""
+        settings = Settings(
+            database_url="postgresql://test:5432/db",
+            redis_url="redis://localhost",
+            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            auth_jwt_audience="audience",
+            encryption_master_key=get_valid_secret(),
+        )
+        assert isinstance(settings.cors_origins, str)
+        assert settings.cors_origins == "http://localhost:3000"
+
+
 class TestSecretsRedaction:
     """Tests for secret value redaction."""
 
