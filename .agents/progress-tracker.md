@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** feat-health-route
-- **Branch:** feat/health-route
-- **Last updated:** 2026-11-12 — Created PRD for health check route (SHIP-207), starting implementation
+- **Active PRD:** —
+- **Branch:** —
+- **Last updated:** 2026-11-12 — Completed health route with controller-service pattern: `modules/health/` with schemas.py (data), repository.py (DB/Redis ops), service.py (orchestration), parse.py (transformers), api.py (controller). 17 tests pass, all linting clean.
 
 ## External Tools
 
@@ -18,11 +18,11 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
-| feat-health-route | feat/health-route | in progress | SHIP-207: health check route with DB+Redis |
 | chore-core-errors | chore/core-errors | done | SHIP-261: global error handler + error code catalog; merged onto `core/config.py` |
 | chore-core-config | chore/core-config | done | SHIP-259: Pydantic Settings global config |
 | chore-repo-setup | integration/v1-foundations | done | SHIP-204: Monorepo skeleton and tooling |
 | chore-compose-stack | chore/compose-stack | done | SHIP-205: docker compose up for full local stack |
+| feat-health-route | feat/health-route-refactored | done | SHIP-208: `GET /v1/health` with proper controller-service separation |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 

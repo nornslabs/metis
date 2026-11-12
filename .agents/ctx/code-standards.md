@@ -3,9 +3,54 @@
 ## General
 
 - Small, single-purpose modules; fix root causes, no workarounds.
-- Respect boundaries in `architecture.md`; cross-module calls only via `service.py`.
+- Respect boundaries in `architecture.md`; cross-module calls only via `service.py` or adapters.
 - Validate all external input (HTTP, LLM output, Exa, MCP) before use.
 - No secrets in code, logs or tests. Config from env via settings.
+
+## Module Structure (Standard Pattern)
+
+Each module in `server/metis/modules/<name>/` follows this structure:
+
+```
+modules/<name>/
+├── __init__.py      # Exports public API
+├── api.py           # Controller layer: HTTP routes
+├── service.py       # Service layer: business logic/orchestration
+├── repository.py    # Repository layer: data access (DB, cache)
+├── adapter.py       # External adapters: HTTP clients, MCP, etc.
+├── schemas.py       # Pydantic models (data structures)
+├── models.py        # SQLAlchemy models (if DB tables owned)
+├── repo.py          # SQLAlchemy repository (if complex queries)
+├── events.py        # Domain events (if applicable)
+└── parse.py         # Transformers/normalizers (optional)
+```
+
+### Layer Responsibilities
+
+1. **`api.py` (Controller)**: HTTP routes only
+   - Parse request, call service, return schema
+   - No business logic, no DB calls
+   - Thin handlers that delegate to service layer
+
+2. **`service.py` (Service)**: Business logic orchestration
+   - Coordinates calls between repository and adapters
+   - Pure business rules, no HTTP concerns
+   - Raises domain errors from `core/errors.py`
+
+3. **`repository.py` (Repository)**: Data access
+   - Direct DB queries, cache operations
+   - Low-level connection handling
+   - Returns domain objects or primitives
+
+4. **`adapter.py` (Adapter)**: External integrations
+   - HTTP clients for external APIs
+   - MCP tool wrappers
+   - Third-party SDK usage
+
+5. **`schemas.py` (Data)**: Pydantic models
+   - Request/response schemas
+   - Input validation models
+   - Data transfer objects
 
 ## Python
 
@@ -56,3 +101,4 @@
 
 - Unit tests with fake ports (fake LLM, recorded Exa, fake MCP); no real external calls.
 - Integration tests on Docker Postgres + Redis; graph tests cover interrupt/resume.
+- Test each layer independently: mock repository when testing service, mock service when testing controller.

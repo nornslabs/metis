@@ -25,6 +25,12 @@ app = FastAPI(title="Metis", version="0.1.0")
 # Register centralized error handlers (application/problem+json responses)
 register_error_handlers(app)
 
+# Include health check router (first route, before auth-required routes)
+# noqa: E402 - import after app creation to avoid circular deps
+from metis.modules.health import router as health_router  # noqa: E402
+
+app.include_router(health_router)
+
 
 @app.get("/")
 def root() -> dict[str, str]:
