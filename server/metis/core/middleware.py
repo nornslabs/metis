@@ -95,6 +95,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         headers["X-Request-ID"] = request_id
 
         # Clear context
-        clear_context(request_id=True)
+        clear_context("request_id")
 
         return response

@@ -155,15 +155,15 @@ def bind_context(**kwargs: Any) -> None:
     structlog.contextvars.bind_contextvars(**kwargs)
 
 
-def clear_context(**kwargs: Any) -> None:
+def clear_context(*keys: str) -> None:
     """Clear context variables from the logging context.
 
     Args:
-        **kwargs: Key-value pairs to clear from the logging context.
-                  If empty, clears all context variables.
+        *keys: Names of context variables to unbind (e.g. "request_id").
+               If empty, clears all context variables.
     """
-    if kwargs:
-        structlog.contextvars.unbind_contextvars(**kwargs)
+    if keys:
+        structlog.contextvars.unbind_contextvars(*keys)
     else:
         structlog.contextvars.clear_contextvars()
 
