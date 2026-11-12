@@ -64,15 +64,15 @@ Every failure, from any route, returns the same JSON body with a stable custom e
 
 ## Dependencies
 
-Blocked by: 03.2 · Global logger (needs `request_id` and the logger). (SHIP-260, not yet done)
+Blocked by: 03.2 · Global logger (needs `request_id` and the logger). (SHIP-260, done)
 
 ## Acceptance Criteria
 
-- [ ] A test asserts every `ErrorCode` has a catalog entry.
-- [ ] One test per handler: status, `code`, `request_id` and content type are correct.
-- [ ] An unhandled exception returns 500 `common.internal_error` with no stack trace or internal message in the body.
-- [ ] `ruff` bans `HTTPException` outside `core/error_handlers.py`.
-- [ ] `ruff check`, `mypy --strict`, `pytest` all pass.
+- [x] A test asserts every `ErrorCode` has a catalog entry.
+- [x] One test per handler: status, `code`, `request_id` and content type are correct.
+- [x] An unhandled exception returns 500 `common.internal_error` with no stack trace or internal message in the body.
+- [x] `ruff` bans `HTTPException` outside `core/error_handlers.py`.
+- [x] `ruff check`, `mypy --strict`, `pytest` all pass.
 
 ## Status
 

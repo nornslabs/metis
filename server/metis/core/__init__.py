@@ -1,7 +1,7 @@
 """Core infrastructure module.
 
 This module contains shared infrastructure components:
-- settings: Global settings loaded from environment
+- config: Global settings loaded from environment
 - db: Database session management
 - jobs: Arq worker configuration
 - middleware: Request context middleware
@@ -11,6 +11,7 @@ This module contains shared infrastructure components:
 - error_handlers: Centralized error handlers
 """
 
+from metis.core.config import Settings, get_settings
 from metis.core.errors import (
     ERROR_CATALOG,
     AuthError,
@@ -25,7 +26,6 @@ from metis.core.errors import (
     RateLimitError,
     UpstreamError,
 )
-from metis.core.settings import Settings, get_settings
 
 __all__ = [
     "Settings",

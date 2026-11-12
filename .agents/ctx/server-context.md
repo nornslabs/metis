@@ -12,7 +12,7 @@ One Python codebase (`server/metis`), one Docker image, three processes. API rec
 
 ## Configuration
 
-All config via env, loaded into `core/settings.py` (pydantic-settings). No hardcoded values.
+All config via env, loaded into `core/config.py` (pydantic-settings). No hardcoded values.
 
 | Purpose          | Env var                                                   |
 | ---------------- | --------------------------------------------------------- |
