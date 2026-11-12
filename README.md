@@ -1,5 +1,7 @@
 # Metis
 
+[![CI](https://github.com/heimdallabs/metis/actions/workflows/ci.yml/badge.svg)](https://github.com/heimdallabs/metis/actions/workflows/ci.yml)
+
 Metis is an agentic planning application.
 
 ## Structure

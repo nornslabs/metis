@@ -17,7 +17,7 @@ class TestSecretRedaction:
     def test_secret_keys_are_redacted(self) -> None:
         """Values under keys matching secret patterns should be redacted."""
         # Get the redaction processor directly
-        from metis.core.logging import _SECRET_PATTERNS, _redact_secrets
+        from metis.core.logging import _redact_secrets
 
         event_dict = {
             "event": "test",
@@ -74,6 +74,16 @@ class TestLoggingFunctions:
         # Should not raise
         structlog.contextvars.bind_contextvars(test_key="test_value")
         clear_context()
+
+    def test_clear_context_unbinds_only_named_keys(self) -> None:
+        """clear_context("a") removes only key a."""
+        from metis.core.logging import clear_context
+
+        structlog.contextvars.bind_contextvars(request_id="r1", run_id="x")
+        clear_context("request_id")
+
+        assert structlog.contextvars.get_contextvars() == {"run_id": "x"}
+        structlog.contextvars.clear_contextvars()
 
     def test_configure_logging_imports_successfully(self) -> None:
         """configure_logging function should be importable."""

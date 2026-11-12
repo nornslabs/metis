@@ -18,8 +18,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
-
+from sqlalchemy.ext.asyncio import create_async_engine
 
 config = context.config
 
@@ -45,7 +44,7 @@ def _resolve_database_url() -> str:
         if url is None:
             raise RuntimeError(
                 "DATABASE_URL is not set and sqlalchemy.url is not configured in alembic.ini"
-            )
+            ) from None
         return url
 
 

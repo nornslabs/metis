@@ -1,0 +1,193 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: metis
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Sync dependencies
+        working-directory: server
+        run: uv sync
+
+      - name: Ruff lint
+        working-directory: server
+        run: uv run ruff check .
+
+      - name: Mypy type check
+        working-directory: server
+        run: uv run mypy
+
+      - name: Database migrations
+        working-directory: server
+        run: uv run alembic upgrade head
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
+
+      - name: Pytest
+        working-directory: server
+        run: uv run pytest
+        env:
+          DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
+          REDIS_URL: redis://localhost:6379/0
+
+  web:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Lint
+        working-directory: web
+        run: npm run lint
+
+      - name: Build
+        working-directory: web
+        run: npm run build
+
+      - name: Type check
+        working-directory: web
+        run: npm run typecheck
+
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build server image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: false
+          tags: metis-server:test
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./web
+          push: false
+          tags: metis-web:test
+
+  smoke:
+    runs-on: ubuntu-latest
+    needs: [server, docker]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: metis
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build server image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./server
+          push: false
+          tags: metis-server:test
+
+      - name: Start API
+        run: |
+          # Host networking: service containers are published on the runner's localhost.
+          # Secrets below are throwaway CI-only values (empty database, no real data).
+          docker run -d --name metis-smoke \
+            --network host \
+            -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/metis" \
+            -e REDIS_URL="redis://localhost:6379/0" \
+            -e AUTH_JWT_SECRET="ci-only-jwt-secret-not-for-production" \
+            -e AUTH_JWT_AUDIENCE="metis" \
+            -e ENCRYPTION_MASTER_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" \
+            metis-server:test \
+            uvicorn metis.entrypoints.api:app --host 0.0.0.0 --port 8000
+
+      - name: Health check
+        run: |
+          max_attempts=30
+          for i in $(seq 1 "$max_attempts"); do
+            if [ "$(docker inspect -f '{{.State.Running}}' metis-smoke)" != "true" ]; then
+              echo "Container exited before becoming healthy"
+              break
+            fi
+            response=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/health 2>/dev/null || true)
+            if [ "$response" = "200" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i/$max_attempts: health check returned $response, retrying..."
+            sleep 1
+          done
+          echo "Health check failed"
+          echo "=== Container logs ==="
+          docker logs metis-smoke 2>&1 | tail -30
+          exit 1
+
+      - name: Stop API
+        if: always()
+        run: docker stop metis-smoke 2>/dev/null || true

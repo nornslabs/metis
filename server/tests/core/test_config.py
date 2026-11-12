@@ -325,7 +325,11 @@ class TestSettingsFromEnvFile:
     """Tests for Settings loading from .env file."""
 
     def test_settings_loadable_from_env_file(self, tmp_path: Path) -> None:
-        """Settings can be loaded from a .env file."""
+        """Settings can be loaded from a .env file.
+
+        pydantic-settings precedence is env vars > .env file > defaults, so the
+        relevant env vars must be cleared for the file to be the source.
+        """
         env_file = tmp_path / ".env"
         env_file.write_text(
             "DATABASE_URL=postgresql://from-dotenv:5432/db\n"
@@ -335,12 +339,19 @@ class TestSettingsFromEnvFile:
             f"ENCRYPTION_MASTER_KEY={get_valid_secret()}\n"
         )
 
-        # pydantic-settings uses _env_file as a private argument
-        settings = Settings(_env_file=str(env_file))  # type: ignore[call-arg, unused-ignore]
-
-        assert settings.database_url == "postgresql://from-dotenv:5432/db"
-        assert settings.redis_url == "redis://from-dotenv"
-        assert settings.auth_jwt_audience == "dotenv-audience"
+        # Clear env vars so the .env file is the source of truth.
+        # pydantic-settings uses _env_file as a private argument.
+        keys = ["DATABASE_URL", "REDIS_URL", "AUTH_JWT_SECRET", "AUTH_JWT_AUDIENCE"]
+        saved = {k: os.environ.pop(k, None) for k in keys}
+        try:
+            settings = Settings(_env_file=str(env_file))  # type: ignore[call-arg, unused-ignore]
+            assert settings.database_url == "postgresql://from-dotenv:5432/db"
+            assert settings.redis_url == "redis://from-dotenv"
+            assert settings.auth_jwt_audience == "dotenv-audience"
+        finally:
+            for k, v in saved.items():
+                if v is not None:
+                    os.environ[k] = v
 
     def test_env_vars_override_env_file(self, tmp_path: Path) -> None:
         """Environment variables should override .env file values."""

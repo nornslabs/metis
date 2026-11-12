@@ -17,6 +17,15 @@ from metis.core.config import get_settings
 from metis.modules.health.schemas import HealthStatus
 
 
+def to_asyncpg_dsn(url: str) -> str:
+    """Strip the SQLAlchemy driver suffix so asyncpg accepts the DSN.
+
+    DATABASE_URL uses ``postgresql+asyncpg://`` for SQLAlchemy, but
+    ``asyncpg.connect`` only accepts ``postgresql://`` or ``postgres://``.
+    """
+    return url.replace("postgresql+asyncpg://", "postgresql://", 1)
+
+
 async def query_postgres(dsn: str, query: str, timeout_secs: float = 1.0) -> bool:
     """Execute a query against PostgreSQL and return success status.
 
@@ -78,7 +87,7 @@ async def check_postgres_connection() -> str:
     """
     settings = get_settings()
     success = await query_postgres(
-        dsn=settings.database_url,
+        dsn=to_asyncpg_dsn(settings.database_url),
         query="SELECT 1",
         timeout_secs=1.0,
     )
@@ -104,4 +113,5 @@ __all__ = [
     "check_redis_connection",
     "ping_redis",
     "query_postgres",
+    "to_asyncpg_dsn",
 ]
