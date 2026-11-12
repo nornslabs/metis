@@ -15,13 +15,23 @@ from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
+from sqlalchemy.engine import Connection
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-database_url = os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+def _resolve_database_url() -> str:
+    url = os.environ.get("DATABASE_URL") or config.get_main_option("sqlalchemy.url")
+    if url is None:
+        raise RuntimeError(
+            "DATABASE_URL is not set and sqlalchemy.url is not configured in alembic.ini"
+        )
+    return url
+
+
+database_url = _resolve_database_url()
 config.set_main_option("sqlalchemy.url", database_url)
 
 
@@ -32,21 +42,22 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def _do_migrations(sync_conn) -> None:
+def _do_migrations(sync_conn: Connection) -> None:
     context.configure(connection=sync_conn, target_metadata=None)
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
-    url = config.get_main_option("sqlalchemy.url")
-    if "+asyncpg" in url:
+    if "+asyncpg" in database_url:
         from sqlalchemy.ext.asyncio import create_async_engine
 
-        connectable = create_async_engine(url, poolclass=pool.AsyncAdaptedQueuePool)
+        async_connectable = create_async_engine(
+            database_url, poolclass=pool.AsyncAdaptedQueuePool
+        )
 
         async def _run() -> None:
-            async with connectable.connect() as connection:
+            async with async_connectable.connect() as connection:
                 await connection.run_sync(_do_migrations)
 
         asyncio.run(_run())
