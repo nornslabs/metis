@@ -6,20 +6,6 @@ Entry point for any AI coding agent working on Metis. Read this first, then load
 
 Metis is built incrementally with a spec-driven workflow. Context files define what to build and how; PRDs define the current unit of work; the progress tracker records state. Always implement against these files. Do not infer or invent behavior.
 
-| Task                                  | Tool                                                                                                 |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Find page by name/content             | `notion-search` (never `list_private_pages`/`list_recent_pages`)                                     |
-| Look up a person by name/email        | `notion-search` with `query_type: "user"`                                                            |
-| Read page, database, data source, doc | `notion-fetch` (accepts ID, URL, `notion://docs/*`)                                                  |
-| Create page(s) under a parent         | `notion-create-pages` with `parent: {page_id, type: "page_id"}`                                      |
-| Edit content (targeted)               | `notion-update-page` with `command: "update_content"`                                                |
-| Edit full content/replace             | `notion-update-page` with `command: "replace_content"`                                               |
-| Edit properties/icon/cover            | `notion-update-page` with `command: "update_properties"`                                             |
-| Save durable context to Memory        | `notion-create-pages` with `parent: "memory"` + `Type` in {Profile, Preference, Work, People, Notes} |
-| Search Memory                         | `notion-memory-search` (or fetch id `"memory"` then query data source)                               |
-
-**Never** invent Notion-flavored Markdown. Read `notion://docs/notion-flavored-markdown-spec` via `notion-fetch` before writing content.
-
 ## Folder Structure
 
 ```text
@@ -51,7 +37,7 @@ All agent-related files (context, PRDs, tracker, prompts for coding agents, scra
 | Agent graph, tools, prompts | + `architecture.md`, `server-context.md`   |
 | Web UI                      | + `architecture.md`                        |
 
-Always load the active PRD and `progress-tracker.md`.
+Always load the active PRD and `progress-tracker.md`. How PRDs are created and implemented: see "Workflow: Two Commands".
 
 ## PRDs
 
@@ -60,21 +46,40 @@ A PRD (product requirements document) defines one feature: what to build, for wh
 - Location: `.agents/PRDs/<type>-<name>.md`, e.g. `feat-health-route.md`, `fix-sse-reconnect.md`.
   - `<type>`: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`.
   - `<name>`: short kebab-case, the most relevant name for the work (2–4 words).
-- Sections: **Problem / Goal**, **User stories**, **Requirements**, **Out of scope**, **Touches** (folders/modules), **Dependencies** (other PRDs), **Acceptance criteria**, **Status** (`draft`, `in progress`, `done`).
+- Sections: **Source** (Linear id and URL), **Problem / Goal**, **User stories**, **Requirements**, **Out of scope**, **Touches** (folders/modules), **Dependencies** (other PRDs), **Acceptance criteria**, **Status** (`draft`, `in progress`, `done`).
 - Work on one PRD at a time. Do not start a PRD whose dependencies are not done.
 
-## Working with a Spec
+## Workflow: Two Commands
 
-When given a PRD (a file or a request in chat), follow these steps in order:
+All work goes through two global skills. Every agent (Claude Code, Codex, Cursor, any other) follows the same steps below, whether it has the skill installed or is following this file by hand.
 
-1. **Name the PRD.** Pick `<type>-<name>.md` and save it in `.agents/PRDs/`. If the user wrote the PRD under another name, rename it; if the request came in chat, write the PRD from it using the sections above. Example: "add a health route to the API" → `.agents/PRDs/feat-health-route.md`.
-2. **Create the branch** from an up-to-date `main`, named like the PRD with a slash:
-   `git checkout main && git pull && git checkout -b feat/health-route`
-3. **Read context**: the PRD, `progress-tracker.md`, and the context files for the task (see table above). Note any gaps as open questions before coding.
-4. **Update the tracker, then build.** Set the PRD Status to `in progress`, update `progress-tracker.md` (Status block + PRD Board row with branch), then implement within the PRD's scope only.
-5. **Verify**: acceptance criteria plus the checks in "Before Moving to the Next PRD".
-6. **Finish**: set Status to `done`, update `progress-tracker.md`, and commit all changes (code, tests, PRD, tracker, synced docs) on the branch with conventional commits, e.g. `feat(health-route): add GET /v1/health`.
-7. **Do not merge or push to `main`.** Leave the branch for review unless told otherwise.
+| Command                      | Input                                                               | Output                                            |
+| ---------------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
+| `/to-spec <LINEAR-ID>`       | A Linear issue id, e.g. `/to-spec SHIP-206`                         | A PRD in `.agents/PRDs/`. No code.                |
+| `/implement-spec <PRD-PATH>` | A PRD path, e.g. `/implement-spec .agents/PRDs/chore-core-infra.md` | The implemented PRD on its own branch, committed. |
+
+Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never implement straight from a Linear issue or a chat request.
+
+### `/to-spec <LINEAR-ID>`: Linear issue → PRD
+
+1. **Fetch the issue** from Linear with its description, Agent notes, parent, sub-issues, milestone and blocked-by links.
+2. **Check order.** If a blocked-by issue has no PRD with Status `done`, stop and report which issues must come first.
+3. **Read context**: the context files for the task (see "Which Context to Load") and `progress-tracker.md`.
+4. **Name the PRD.** Use the PRD path in the issue's Agent notes if there is one; otherwise pick `<type>-<name>.md` (see PRDs). One issue = one PRD. A parent issue with sub-issues gets one PRD per sub-issue, unless the user asks for one combined PRD.
+5. **Write the PRD** in `.agents/PRDs/` with every section from PRDs, plus a **Source** line at the top: `Linear: <ID> · <issue URL>`. Map the issue's Steps to **Requirements**, its Acceptance criteria to **Acceptance criteria**, and its blocked-by issues to **Dependencies**. Add only what the issue or `.agents/ctx/` defines; put anything unclear under **Open questions** in the PRD.
+6. **Set Status `draft`**, add the PRD to Next Up in `progress-tracker.md`, and stop. Report the PRD path and its open questions. Do not create a branch or write code.
+
+### `/implement-spec <PRD-PATH>`: PRD → code
+
+1. **Read the PRD** at the given path. If it does not exist, its Status is not `draft` or `in progress`, or it has unresolved open questions, stop and report.
+2. **Check dependencies.** Every PRD in **Dependencies** must be `done`; otherwise stop.
+3. **Create the branch** from an up-to-date `main`, named like the PRD with a slash:
+   `git checkout main && git pull && git checkout -b chore/core-infra`
+4. **Read context**: `progress-tracker.md` and the context files for the task (see "Which Context to Load").
+5. **Update the tracker, then build.** Set the PRD Status to `in progress`, update `progress-tracker.md` (Status block + PRD Board row with branch), then implement within the PRD's scope only.
+6. **Verify**: acceptance criteria plus the checks in "Before Moving to the Next PRD".
+7. **Finish**: set Status to `done`, update `progress-tracker.md`, sync docs (see Keeping Docs in Sync), and commit all changes (code, tests, PRD, tracker, docs) on the branch with conventional commits, e.g. `chore(core-infra): add global settings`. Reference the Linear id from the PRD's Source line in the commit body.
+8. **Do not merge or push to `main`.** Leave the branch for review unless told otherwise.
 
 One PRD = one branch. Never mix two PRDs on the same branch.
 

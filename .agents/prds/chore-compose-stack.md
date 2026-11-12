@@ -39,4 +39,4 @@ Blocked by: Scaffold monorepo and tooling (SHIP-204, done).
 
 ## Status
 
-in progress
+done
