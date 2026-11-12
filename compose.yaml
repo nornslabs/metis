@@ -2,14 +2,13 @@ name: metis
 services:
   postgres:
     image: pgvector/pgvector:pg16
-    ports:
-      - "5432:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-metis}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/01-vector.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
       interval: 5s
@@ -18,8 +17,6 @@ services:
 
   redis:
     image: redis:7
-    ports:
-      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -28,7 +25,7 @@ services:
 
   migrate:
     build:
-      context: ../server
+      context: server
       dockerfile: Dockerfile
     command: ["alembic", "upgrade", "head"]
     environment:
@@ -39,13 +36,13 @@ services:
 
   api:
     build:
-      context: ../server
+      context: server
       dockerfile: Dockerfile
     command: ["uvicorn", "metis.entrypoints.api:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
     env_file:
-      - path: ../.env
+      - path: .env
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
@@ -60,11 +57,11 @@ services:
 
   worker:
     build:
-      context: ../server
+      context: server
       dockerfile: Dockerfile
     command: ["arq", "metis.core.jobs.WorkerSettings"]
     env_file:
-      - path: ../.env
+      - path: .env
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
@@ -74,14 +71,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   scheduler:
     build:
-      context: ../server
+      context: server
       dockerfile: Dockerfile
     command: ["python", "-m", "metis.entrypoints.scheduler"]
     env_file:
-      - path: ../.env
+      - path: .env
         required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
@@ -91,18 +90,20 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   web:
     build:
-      context: ..
-      dockerfile: web/Dockerfile
+      context: web
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     env_file:
-      - path: ../.env
+      - path: .env
         required: false
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/v1
+      NEXT_PUBLIC_API_URL: http://api:8000/v1
     depends_on:
       api:
         condition: service_started
