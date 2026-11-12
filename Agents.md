@@ -86,11 +86,11 @@ Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never i
 3. **Read context**: the context files for the task (see "Which Context to Load") and `progress-tracker.md`.
 4. **Name the PRD.** Use the PRD path in the issue's Agent notes if there is one; otherwise pick `<type>-<name>.md` (see PRDs). One issue = one PRD. A parent issue with sub-issues gets one PRD per sub-issue, unless the user asks for one combined PRD.
 5. **Write the PRD** in `.agents/prds/` with every section from PRDs, plus a **Source** line at the top: `Linear: <ID> · <issue URL>`. Map the issue's Steps to **Requirements**, its Acceptance criteria to **Acceptance criteria**, and its blocked-by issues to **Dependencies**. Add only what the issue or `.agents/ctx/` defines; put anything unclear under **Open questions** in the PRD.
-6. **Set Status `draft`**, add the PRD to Next Up in `progress-tracker.md`, and stop. Report the PRD path and its open questions. Do not create a branch or write code.
+6. **Set Status `draft`**, add the PRD to Next Up in `progress-tracker.md`, and stop. Report the PRD path, then ask its open questions in the chat, each with a recommended step (see "Open Questions"). Do not create a branch or write code.
 
 ### `/implement-spec <PRD-PATH>`: PRD → code
 
-1. **Read the PRD** at the given path. If it does not exist, its Status is not `draft` or `in progress`, or it has unresolved open questions, stop and report.
+1. **Read the PRD** at the given path. If it does not exist or its Status is not `draft` or `in progress`, stop and report. If it has unresolved open questions, stop and ask them in the chat (see "Open Questions"); once answered, record the answers in the PRD and continue.
 2. **Check dependencies.** Every PRD in **Dependencies** must be `done`; otherwise stop.
 3. **Create the branch** from an up-to-date `main`, named like the PRD with a slash:
    `git checkout main && git pull && git checkout -b chore/core-infra`
@@ -134,7 +134,17 @@ If a change cannot be verified end to end quickly, the scope is too broad. Split
 
 - Never invent product behavior, scoring rules, enums or API shapes not in `.agents/ctx/`.
 - If a requirement is ambiguous, propose the resolution in the relevant context file, then implement.
-- If a requirement is missing, add it under **Open questions** in `progress-tracker.md` and stop that part of the work.
+- If a requirement is missing, add it under **Open questions** in `progress-tracker.md`, ask it in the chat (see "Open Questions"), and stop that part of the work.
+
+## Open Questions
+
+Whenever an open question arises (in `/to-spec`, `/implement-spec` or mid-work), do not leave it only in a file. Ask the user in the chat, right then:
+
+- One question at a time or a short numbered list; each stands on its own.
+- Each question carries a **recommended step**: the option you would pick and why, listed first and marked "(Recommended)".
+- Use the interactive question tool when available; otherwise plain chat text.
+- After the answer, record it: remove it from **Open questions** in the PRD or tracker and, if it is a design choice, add a row to Decisions.
+- Still list unresolved questions in the PRD and `progress-tracker.md` so the next session sees them.
 
 ## Protected Files
 
