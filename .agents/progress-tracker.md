@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** chore-core-config
-- **Branch:** chore/core-config
-- **Last updated:** 2026-11-12 — Finished SHIP-259 (Global config with Pydantic Settings)
+- **Active PRD:** chore-core-errors
+- **Branch:** chore/core-errors
+- **Last updated:** 2026-11-12 — Resolved PR #4 conflict: renamed `core/settings.py` → `core/config.py`, wired `register_error_handlers` into the API app factory
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| chore-core-errors | chore/core-errors | done | SHIP-261: global error handler + error code catalog; merged onto `core/config.py` |
 | chore-core-config | chore/core-config | done | SHIP-259: Pydantic Settings global config |
 | chore-repo-setup | integration/v1-foundations | done | SHIP-204: Monorepo skeleton and tooling |
 | chore-compose-stack | chore/compose-stack | done | SHIP-205: docker compose up for full local stack |
