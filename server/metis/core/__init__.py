@@ -10,6 +10,7 @@ This module contains shared infrastructure components:
 - security: Security-related utilities
 - errors: Error types and error code catalog
 - error_handlers: Centralized error handlers
+- logging: Structured logging configuration
 """
 
 from metis.core.config import Settings, get_settings
@@ -27,6 +28,7 @@ from metis.core.errors import (
     RateLimitError,
     UpstreamError,
 )
+from metis.core.logging import bind_context, clear_context, configure_logging, get_logger
 
 __all__ = [
     "Settings",
@@ -43,4 +45,9 @@ __all__ = [
     "UpstreamError",
     "BudgetError",
     "RateLimitError",
+    # Logging exports
+    "configure_logging",
+    "get_logger",
+    "bind_context",
+    "clear_context",
 ]

@@ -5,19 +5,27 @@ This is a minimal app so the API binds and stays up. The real ``/v1`` routes
 land. See ``server-context.md`` for the API conventions.
 """
 
+from __future__ import annotations
+
 import sys
 
 from fastapi import FastAPI
 
 from metis.core.config import get_settings
 from metis.core.error_handlers import register_error_handlers
+from metis.core.logging import configure_logging
 
-# Validate settings at import time - this will raise ValidationError if
-# required fields are missing and exit with a clear message
+# Configure logging first (before any other imports that might log)
 try:
     settings = get_settings()
+    configure_logging(settings)
 except Exception as e:
-    print(f"Configuration error: {e}", file=sys.stderr)
+    # Use structlog for error logging since we may not have configured it yet
+    import structlog
+
+    structlog.configure(processors=[structlog.processors.JSONRenderer()])
+    logger = structlog.get_logger()
+    logger.error("Configuration error", error=str(e))
     sys.exit(1)
 
 app = FastAPI(title="Metis", version="0.1.0")
@@ -25,7 +33,12 @@ app = FastAPI(title="Metis", version="0.1.0")
 # Register centralized error handlers (application/problem+json responses)
 register_error_handlers(app)
 
-# Include health check router (first route, before auth-required routes)
+# Add request context middleware for logging with request_id
+from metis.core.middleware import RequestContextMiddleware  # noqa: E402
+
+app.add_middleware(RequestContextMiddleware)
+
+# Include health check router (before auth-required routes)
 # noqa: E402 - import after app creation to avoid circular deps
 from metis.modules.health import router as health_router  # noqa: E402
 

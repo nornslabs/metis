@@ -53,6 +53,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-12 | Global logger: structlog with request context middleware                | One unified logging pipeline for all services; request tracing            |
 | 2026-11-11 | One LangGraph graph: supervisor + 7 specialists with scoped tools       | Autonomous agents with controlled tool choice, interrupts and checkpoints |
 | 2026-11-11 | Modular monolith, 3 processes (api, worker, scheduler)                  | 2 people, ~30 hours; modules can be split later                           |
 | 2026-11-11 | Integrations via MCP (Linear, Notion)                                   | One pattern for every tool                                                |
