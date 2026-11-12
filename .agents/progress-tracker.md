@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** —
-- **Branch:** —
-- **Last updated:** 2026-11-12 — Completed health route with controller-service pattern: `modules/health/` with schemas.py (data), repository.py (DB/Redis ops), service.py (orchestration), parse.py (transformers), api.py (controller). 17 tests pass, all linting clean.
+- **Active PRD:** feat-global-logger
+- **Branch:** feat/global-logger
+- **Last updated:** 2026-11-12 — Completed global logger: added core/logging.py with configure_logging, get_logger, bind_context, clear_context; added core/middleware.py with RequestContextMiddleware; updated all entrypoints to configure logging at startup; added T201 ruff rule for no print; 543 lines added across 10 files; 64 tests pass.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-global-logger | feat/global-logger | done | SHIP-260: structlog with request context middleware; merged |
 | chore-core-errors | chore/core-errors | done | SHIP-261: global error handler + error code catalog; merged onto `core/config.py` |
 | chore-core-config | chore/core-config | done | SHIP-259: Pydantic Settings global config |
 | chore-repo-setup | integration/v1-foundations | done | SHIP-204: Monorepo skeleton and tooling |
