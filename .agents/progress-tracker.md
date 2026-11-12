@@ -29,7 +29,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 ## Next Up (MVP build order)
 
 1. `chore-core-config` — Pydantic Settings, .env.example, validation (SHIP-259)
-2. `feat-health-route` — `GET /v1/health` (DB + Redis)
+2. `feat-health-route` — `GET /v1/health` (DB + Redis) (SHIP-208)
 3. `feat-auth-workspaces` — Auth.js JWT, users, workspaces, RLS
 4. `feat-provider-keys` — encrypted BYO LLM + Exa keys
 5. `feat-ideas-crud` — ideas, stages, runs
