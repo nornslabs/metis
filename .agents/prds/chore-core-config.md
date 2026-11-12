@@ -52,15 +52,15 @@ Blocked by: 02 · Scaffold monorepo and tooling. (SHIP-204, done)
 
 ## Acceptance Criteria
 
-- [ ] A missing or malformed required var raises one `ValidationError` listing every bad var, and the process exits non-zero.
-- [ ] Real env vars override `.env` values (testable).
-- [ ] Secrets print as `**********` in `repr(settings)`.
-- [ ] A test asserts `.env.example` keys equal the `Settings` fields.
-- [ ] Tests can override settings with `app.dependency_overrides[get_settings]` or `get_settings.cache_clear()`.
-- [ ] `ruff check`, `mypy --strict`, `pytest` all pass.
-- [ ] Master key validation decodes to 32 bytes.
-- [ ] Production environment forces `log_json=True`.
+- [x] A missing or malformed required var raises one `ValidationError` listing every bad var, and the process exits non-zero.
+- [x] Real env vars override `.env` values (testable).
+- [x] Secrets print as `**********` in `repr(settings)`.
+- [x] A test asserts `.env.example` keys equal the `Settings` fields.
+- [x] Tests can override settings with `app.dependency_overrides[get_settings]` or `get_settings.cache_clear()`.
+- [x] `ruff check`, `mypy --strict`, `pytest` all pass.
+- [x] Master key validation decodes to 32 bytes.
+- [x] Production environment forces `log_json=True`.
 
 ## Status
 
-draft
+done
