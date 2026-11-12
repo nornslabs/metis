@@ -19,7 +19,7 @@ So that I can start building features with a consistent tooling setup.
   - `architecture.md` — stack, boundaries, storage, auth, invariants
   - `server-context.md` — server primitives: processes, ports, enums, modules, agent graph, API/job/error conventions
   - `code-standards.md` — coding rules for Python, LangGraph, TypeScript, data, tests
-- `.agents/PRDs/` — one file per unit of work
+- `.agents/prds/` — one file per unit of work
 - `.agents/progress-tracker.md` — done / in progress / open questions
 - `.gitignore` — ignore secrets, Python cache, node modules, etc.
 - `README.md` — repo overview and quick start

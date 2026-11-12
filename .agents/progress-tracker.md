@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** chore-core-errors
-- **Branch:** chore/core-errors
-- **Last updated:** 2026-11-12 — Resolved PR #4 conflict: renamed `core/settings.py` → `core/config.py`, wired `register_error_handlers` into the API app factory
+- **Active PRD:** feat-health-route
+- **Branch:** feat/health-route
+- **Last updated:** 2026-11-12 — Created PRD for health check route (SHIP-207), starting implementation
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-health-route | feat/health-route | in progress | SHIP-207: health check route with DB+Redis |
 | chore-core-errors | chore/core-errors | done | SHIP-261: global error handler + error code catalog; merged onto `core/config.py` |
 | chore-core-config | chore/core-config | done | SHIP-259: Pydantic Settings global config |
 | chore-repo-setup | integration/v1-foundations | done | SHIP-204: Monorepo skeleton and tooling |

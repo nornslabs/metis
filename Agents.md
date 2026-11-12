@@ -16,12 +16,31 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 │   │   ├── project-overview.md  # what Metis is, flow, features, scope, success criteria
 │   │   ├── architecture.md      # stack, boundaries, storage, auth, invariants
 │   │   ├── server-context.md    # server primitives: processes, ports, enums, modules, agent graph, API/job/error conventions
-│   │   └── code-standards.md    # coding rules for Python, LangGraph, TypeScript, data, tests
-│   ├── PRDs/                  # one file per unit of work (see PRDs)
+│   │   ├── code-standards.md    # coding rules for Python, LangGraph, TypeScript, data, tests
+│   │   └── ai-workflow-rules.md # AI workflow rules and conventions
+│   ├── prds/                  # one file per unit of work (see PRDs)
 │   └── progress-tracker.md    # done / in progress / open questions
 ├── compose.yaml               # local stack: postgres, redis, api, worker, scheduler, web
+├── docker/                    # docker init scripts (e.g. init.sql)
+├── opencode.json              # opencode configuration
+├── .env.example               # environment variable template
+├── dist/                      # build artifacts
 ├── server/                    # Python: FastAPI api, Arq worker, scheduler, LangGraph agent
+│   ├── adapters/              # adapter layer
+│   ├── agent/                 # agent graph
+│   ├── core/                  # core domain
+│   ├── entrypoints/           # API entrypoints
+│   ├── modules/               # domain modules
+│   ├── evals/                 # evaluation datasets
+│   ├── prompts/               # prompt versions
+│   ├── migrations/            # Alembic migrations
+│   ├── tests/                 # tests
+│   └── ...                    # other server files
 └── web/                       # Next.js app
+    ├── AGENTS.md              # web-specific agent instructions
+    ├── app/                   # Next.js app router
+    ├── components/            # React components
+    └── lib/                   # utilities
 ```
 
 Run everything locally with `docker compose up` from the root. `server/` and `web/` each have their own `Dockerfile`; `compose.yaml` wires them to Postgres (pgvector) and Redis.
@@ -43,7 +62,7 @@ Always load the active PRD and `progress-tracker.md`. How PRDs are created and i
 
 A PRD (product requirements document) defines one feature: what to build, for whom, and how to know it is done. Each PRD is the spec for one unit of work that can be built and verified on its own.
 
-- Location: `.agents/PRDs/<type>-<name>.md`, e.g. `feat-health-route.md`, `fix-sse-reconnect.md`.
+- Location: `.agents/prds/<type>-<name>.md`, e.g. `feat-health-route.md`, `fix-sse-reconnect.md`.
   - `<type>`: `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`.
   - `<name>`: short kebab-case, the most relevant name for the work (2–4 words).
 - Sections: **Source** (Linear id and URL), **Problem / Goal**, **User stories**, **Requirements**, **Out of scope**, **Touches** (folders/modules), **Dependencies** (other PRDs), **Acceptance criteria**, **Status** (`draft`, `in progress`, `done`).
@@ -55,8 +74,8 @@ All work goes through two global skills. Every agent (Claude Code, Codex, Cursor
 
 | Command                      | Input                                                               | Output                                            |
 | ---------------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
-| `/to-spec <LINEAR-ID>`       | A Linear issue id, e.g. `/to-spec SHIP-206`                         | A PRD in `.agents/PRDs/`. No code.                |
-| `/implement-spec <PRD-PATH>` | A PRD path, e.g. `/implement-spec .agents/PRDs/chore-core-infra.md` | The implemented PRD on its own branch, committed. |
+| `/to-spec <LINEAR-ID>`       | A Linear issue id, e.g. `/to-spec SHIP-206`                         | A PRD in `.agents/prds/`. No code.                |
+| `/implement-spec <PRD-PATH>` | A PRD path, e.g. `/implement-spec .agents/prds/chore-core-infra.md` | The implemented PRD on its own branch, committed. |
 
 Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never implement straight from a Linear issue or a chat request.
 
@@ -66,7 +85,7 @@ Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never i
 2. **Check order.** If a blocked-by issue has no PRD with Status `done`, stop and report which issues must come first.
 3. **Read context**: the context files for the task (see "Which Context to Load") and `progress-tracker.md`.
 4. **Name the PRD.** Use the PRD path in the issue's Agent notes if there is one; otherwise pick `<type>-<name>.md` (see PRDs). One issue = one PRD. A parent issue with sub-issues gets one PRD per sub-issue, unless the user asks for one combined PRD.
-5. **Write the PRD** in `.agents/PRDs/` with every section from PRDs, plus a **Source** line at the top: `Linear: <ID> · <issue URL>`. Map the issue's Steps to **Requirements**, its Acceptance criteria to **Acceptance criteria**, and its blocked-by issues to **Dependencies**. Add only what the issue or `.agents/ctx/` defines; put anything unclear under **Open questions** in the PRD.
+5. **Write the PRD** in `.agents/prds/` with every section from PRDs, plus a **Source** line at the top: `Linear: <ID> · <issue URL>`. Map the issue's Steps to **Requirements**, its Acceptance criteria to **Acceptance criteria**, and its blocked-by issues to **Dependencies**. Add only what the issue or `.agents/ctx/` defines; put anything unclear under **Open questions** in the PRD.
 6. **Set Status `draft`**, add the PRD to Next Up in `progress-tracker.md`, and stop. Report the PRD path and its open questions. Do not create a branch or write code.
 
 ### `/implement-spec <PRD-PATH>`: PRD → code
