@@ -5,9 +5,25 @@ This is a minimal app so the API binds and stays up. The real ``/v1`` routes
 land. See ``server-context.md`` for the API conventions.
 """
 
+import sys
+
 from fastapi import FastAPI
 
+from metis.core.config import get_settings
+from metis.core.error_handlers import register_error_handlers
+
+# Validate settings at import time - this will raise ValidationError if
+# required fields are missing and exit with a clear message
+try:
+    settings = get_settings()
+except Exception as e:
+    print(f"Configuration error: {e}", file=sys.stderr)
+    sys.exit(1)
+
 app = FastAPI(title="Metis", version="0.1.0")
+
+# Register centralized error handlers (application/problem+json responses)
+register_error_handlers(app)
 
 
 @app.get("/")

@@ -2,48 +2,18 @@
 
 from __future__ import annotations
 
-import json
-import os
-from typing import Any
-
-import pytest
-
 from metis.core.errors import (
-    ErrorCode,
     ERROR_CATALOG,
-    MetisError,
-    NotFoundError,
-    ConflictError,
     AuthError,
-    PermissionDeniedError,
-    InvalidInputError,
-    UpstreamError,
     BudgetError,
+    ConflictError,
+    ErrorCode,
+    InvalidInputError,
+    NotFoundError,
+    PermissionDeniedError,
     RateLimitError,
+    UpstreamError,
 )
-
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def test_settings(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
-    """Create test environment variables."""
-    monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://postgres@localhost:5432/test")
-    monkeypatch.setenv("REDIS_URL", "redis://localhost:6379/0")
-    monkeypatch.setenv("AUTH_JWT_SECRET", "dGVzdC1qb2tlLXNpemUgMTIzNDU2Nzg5MDEyMzQ1Ng==")
-    monkeypatch.setenv("AUTH_JWT_AUDIENCE", "test")
-    monkeypatch.setenv("ENCRYPTION_MASTER_KEY", "f2wC_KP7gQbilJDW715g8oywAf_ZQILThi25KDsH070=")
-    return {
-        "DATABASE_URL": "postgresql+asyncpg://postgres@localhost:5432/test",
-        "REDIS_URL": "redis://localhost:6379/0",
-        "AUTH_JWT_SECRET": "dGVzdC1qb2tlLXNpemUgMTIzNDU2Nzg5MDEyMzQ1Ng==",
-        "AUTH_JWT_AUDIENCE": "test",
-        "ENCRYPTION_MASTER_KEY": "f2wC_KP7gQbilJDW715g8oywAf_ZQILThi25KDsH070=",
-    }
-
 
 # ---------------------------------------------------------------------------
 # ErrorCode catalog tests
@@ -244,14 +214,6 @@ def test_errors_can_be_imported_from_core() -> None:
         ErrorCode,
         MetisError,
         NotFoundError,
-        ConflictError,
-        AuthError,
-        PermissionDeniedError,
-        InvalidInputError,
-        UpstreamError,
-        BudgetError,
-        RateLimitError,
-        ERROR_CATALOG,
     )
 
     # Verify they are the correct types
