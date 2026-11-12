@@ -309,3 +309,21 @@ class TestHealthRoute:
             response = client.get("/v1/health")
 
             assert response.status_code == 200
+
+
+class TestToAsyncpgDsn:
+    """asyncpg rejects SQLAlchemy driver suffixes, so the DSN is normalized."""
+
+    def test_strips_sqlalchemy_driver_suffix(self) -> None:
+        from metis.modules.health.repository import to_asyncpg_dsn
+
+        url = "postgresql+asyncpg://u:p@localhost:5432/metis"
+
+        assert to_asyncpg_dsn(url) == "postgresql://u:p@localhost:5432/metis"
+
+    def test_leaves_plain_dsn_unchanged(self) -> None:
+        from metis.modules.health.repository import to_asyncpg_dsn
+
+        url = "postgresql://u:p@localhost:5432/metis"
+
+        assert to_asyncpg_dsn(url) == url
