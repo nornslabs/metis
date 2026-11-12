@@ -155,26 +155,35 @@ jobs:
 
       - name: Start API
         run: |
+          # Host networking: service containers are published on the runner's localhost.
+          # Secrets below are throwaway CI-only values (empty database, no real data).
           docker run -d --name metis-smoke \
-            -p 8000:8000 \
-            -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@postgres:5432/metis" \
-            -e REDIS_URL="redis://redis:6379/0" \
+            --network host \
+            -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/metis" \
+            -e REDIS_URL="redis://localhost:6379/0" \
+            -e AUTH_JWT_SECRET="ci-only-jwt-secret-not-for-production" \
+            -e AUTH_JWT_AUDIENCE="metis" \
+            -e ENCRYPTION_MASTER_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" \
             metis-server:test \
             uvicorn metis.entrypoints.api:app --host 0.0.0.0 --port 8000
-          sleep 2
 
       - name: Health check
         run: |
-          for i in $(seq 1 15); do
-            response=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/health 2>/dev/null || echo "000")
+          max_attempts=30
+          for i in $(seq 1 "$max_attempts"); do
+            if [ "$(docker inspect -f '{{.State.Running}}' metis-smoke)" != "true" ]; then
+              echo "Container exited before becoming healthy"
+              break
+            fi
+            response=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/health 2>/dev/null || true)
             if [ "$response" = "200" ]; then
               echo "Health check passed"
               exit 0
             fi
-            echo "Attempt $i: health check returned $response, retrying..."
+            echo "Attempt $i/$max_attempts: health check returned $response, retrying..."
             sleep 1
           done
-          echo "Health check failed after 15 attempts"
+          echo "Health check failed"
           echo "=== Container logs ==="
           docker logs metis-smoke 2>&1 | tail -30
           exit 1
