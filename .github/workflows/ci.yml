@@ -87,13 +87,13 @@ jobs:
         working-directory: web
         run: npm run lint
 
-      - name: Type check
-        working-directory: web
-        run: npm run typecheck
-
       - name: Build
         working-directory: web
         run: npm run build
+
+      - name: Type check
+        working-directory: web
+        run: npm run typecheck
 
   docker:
     runs-on: ubuntu-latest
