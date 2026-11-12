@@ -72,7 +72,29 @@ services:
       context: server
       dockerfile: Dockerfile
     container_name: metis-worker
-    command: ["arq", "metis.core.jobs.WorkerSettings"]
+    command: ["arq", "metis.entrypoints.worker.AgentWorkerSettings"]
+    env_file:
+      - path: .env
+        required: false
+    networks:
+      - metis-network
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker-maintenance:
+    build:
+      context: server
+      dockerfile: Dockerfile
+    container_name: metis-worker-maintenance
+    command: ["arq", "metis.entrypoints.worker.MaintenanceWorkerSettings"]
     env_file:
       - path: .env
         required: false

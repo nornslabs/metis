@@ -1,47 +1,67 @@
-"""Scheduler process entrypoint.
+"""Scheduler process: Arq cron jobs that only enqueue work.
 
-The scheduler only enqueues jobs (market-watch ticks, nightly maintenance).
-Until the real scheduler loop lands it blocks on an event so the process stays
-up instead of crashing.
+Run with ``python -m metis.entrypoints.scheduler`` (or the arq CLI on
+``SchedulerSettings``). Real work happens in the worker processes.
 """
 
 from __future__ import annotations
 
-import asyncio
+import time
+from typing import Any
 
-import structlog
+from arq import cron
+from arq.worker import run_worker
 
 from metis.core.config import get_settings
-from metis.core.logging import configure_logging
+from metis.core.jobs import enqueue, redis_settings
+from metis.core.logging import configure_logging, get_logger
 
-# Configure logging at startup
-settings = get_settings()
-configure_logging(settings)
+OUTBOX_RELAY_INTERVAL_SECONDS = 5
+CLEANUP_HOUR_UTC = 3
+SCHEDULER_QUEUE = "scheduler"
+SECONDS_PER_DAY = 86_400
 
-logger = structlog.get_logger(__name__)
+logger = get_logger(__name__)
 
 
-async def run() -> None:
-    """Run the scheduler loop forever.
+async def enqueue_outbox_relay(ctx: dict[str, Any]) -> None:
+    """Enqueue one ``outbox_relay`` per 5-second window; duplicate ticks dedupe."""
+    window = int(time.time()) // OUTBOX_RELAY_INTERVAL_SECONDS
+    await enqueue("outbox_relay", job_id=f"outbox_relay:{window}", pool=ctx["redis"])
 
-    The real implementation enqueues ``run_graph`` watch jobs and maintenance
-    jobs on a cron schedule. Until then we block on an event so the process
-    stays alive.
-    """
-    logger.info("scheduler.starting", version=settings.app_version)
 
-    try:
-        await asyncio.Event().wait()
-    except asyncio.CancelledError:
-        logger.info("scheduler.stopped")
-    except Exception as e:
-        logger.error("scheduler.failed", error=str(e))
-        raise
+async def enqueue_cleanup(ctx: dict[str, Any]) -> None:
+    """Enqueue one ``cleanup`` per day; duplicate ticks dedupe."""
+    day = int(time.time()) // SECONDS_PER_DAY
+    await enqueue("cleanup", job_id=f"cleanup:{day}", pool=ctx["redis"])
+
+
+async def on_startup(ctx: dict[str, Any]) -> None:
+    configure_logging(get_settings())
+    logger.info("scheduler.started")
+
+
+async def on_shutdown(ctx: dict[str, Any]) -> None:
+    logger.info("scheduler.stopped")
+
+
+class SchedulerSettings:
+    """Arq settings: cron jobs only, no registered functions."""
+
+    functions: list[Any] = []
+    cron_jobs = [
+        cron(enqueue_outbox_relay, second=set(range(0, 60, OUTBOX_RELAY_INTERVAL_SECONDS))),
+        cron(enqueue_cleanup, hour=CLEANUP_HOUR_UTC, minute=0, second=0),
+    ]
+    queue_name = SCHEDULER_QUEUE
+    on_startup = on_startup
+    on_shutdown = on_shutdown
+    redis_settings = redis_settings()
 
 
 def main() -> None:
-    """Run the scheduler."""
-    asyncio.run(run())
+    """Run the scheduler until SIGTERM/SIGINT."""
+    run_worker(SchedulerSettings)  # type: ignore[arg-type]
 
 
 if __name__ == "__main__":

@@ -2,12 +2,12 @@
 
 ## Runtime Model
 
-One Python codebase (`server/metis`), one Docker image, three processes. API records intent and streams; workers do all agent work; scheduler only enqueues.
+One Python codebase (`server/metis`), one Docker image, three logical processes (the worker runs as one container per queue). API records intent and streams; workers do all agent work; scheduler only enqueues.
 
 | Process     | Entrypoint                 | Job                                                |
 | ----------- | -------------------------- | -------------------------------------------------- |
 | `api`       | `entrypoints/api.py`       | FastAPI REST `/v1`, SSE, auth                      |
-| `worker`    | `entrypoints/worker.py`    | Arq jobs: `run_graph`, `market_scan`, outbox relay |
+| `worker`    | `entrypoints/worker.py`    | Arq jobs: `run_graph`, `market_scan`, outbox relay; one process per queue (`AgentWorkerSettings`, `MaintenanceWorkerSettings`) |
 | `scheduler` | `entrypoints/scheduler.py` | Market-watch ticks (15 min), nightly jobs          |
 
 ## Configuration
@@ -104,7 +104,9 @@ One LangGraph `StateGraph` in `agent/graph.py`, compiled with `AsyncPostgresSave
 | ------------- | --------------------------------------------- | ------------------------ |
 | `agent`       | `run_graph(run_id, resume?)`                  | one per run (Redis lock) |
 | `watch`       | `run_graph` with `stage=watch`                | keyed `idea_id:date`     |
-| `maintenance` | `outbox_relay`, `distill_guidance`, `cleanup` | single concurrency       |
+| `maintenance` | `outbox_relay`, `distill_guidance`, `cleanup` | single concurrency (`max_jobs=1`), own worker process |
+
+Enqueue only through `core.jobs.enqueue(job_name, *args, job_id=...)`; a job must be listed in `JOB_QUEUES`. The same `job_id` enqueues once. Job functions use `@logged_job` (binds `job_id`, `run_id`, `workspace_id`). The `watch` queue lands with market-watch. Scheduler is an Arq cron worker whose jobs only enqueue (`outbox_relay` every 5 s, `cleanup` nightly 03:00 UTC).
 
 Domain events (`IdeaSubmitted`, `ScoreComputed`, `SpecConfirmed`, `PlanReady`, `ExportFinished`, `MarketSignalDetected`) go to `core.outbox` in the same transaction.
 

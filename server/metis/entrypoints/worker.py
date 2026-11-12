@@ -1,66 +1,81 @@
-"""Arq worker entrypoint for background jobs.
+"""Arq worker entrypoints, one per queue.
 
-The worker runs LangGraph agents and other background tasks.
-Each job receives a run_id and uses it for structured logging context.
+Run with the arq CLI:
 
-Note: The primary entry point is via the arq CLI command:
-    arq metis.core.jobs.WorkerSettings
+    arq metis.entrypoints.worker.AgentWorkerSettings
+    arq metis.entrypoints.worker.MaintenanceWorkerSettings
 
-This module is for manual testing or custom worker instantiation.
+Arq binds one queue and one ``max_jobs`` per process, so each queue has its own
+settings class. ``maintenance`` runs one job at a time.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from structlog.stdlib import BoundLogger
-
 from metis.core.config import get_settings
+from metis.core.db import engine
+from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, logged_job, redis_settings
 from metis.core.logging import configure_logging, get_logger
 
-# Configure logging
-settings = get_settings()
-configure_logging(settings)
+AGENT_MAX_JOBS = 10
+MAINTENANCE_MAX_JOBS = 1
 
-logger: BoundLogger = get_logger(__name__)
-
-
-# Job functions will be registered here as they are implemented
-# For now, just a placeholder to keep the worker alive
+logger = get_logger(__name__)
 
 
-async def ping(ctx: dict[str, Any]) -> str:
-    """Health-check coroutine to prove the worker is alive."""
-    logger.debug("health_check", message="pong")
+async def on_startup(ctx: dict[str, Any]) -> None:
+    """Configure logging and open the DB engine; Arq provides ``ctx['redis']``."""
+    configure_logging(get_settings())
+    ctx["engine"] = engine()
+    logger.info("worker.started")
+
+
+async def on_shutdown(ctx: dict[str, Any]) -> None:
+    """Close the DB engine; Arq closes its own Redis pool."""
+    await ctx["engine"].dispose()
+    logger.info("worker.stopped")
+
+
+@logged_job
+async def ping(
+    ctx: dict[str, Any], *, run_id: str | None = None, workspace_id: str | None = None
+) -> str:
+    """Test job proving the worker is alive."""
     return "pong"
 
 
-# Worker settings class for arq command
-class WorkerSettings:
-    """Arq worker settings for CLI usage."""
+@logged_job
+async def outbox_relay(
+    ctx: dict[str, Any], *, run_id: str | None = None, workspace_id: str | None = None
+) -> None:
+    """No-op stub; replaced by the transactional outbox relay (SHIP-213)."""
+
+
+@logged_job
+async def cleanup(
+    ctx: dict[str, Any], *, run_id: str | None = None, workspace_id: str | None = None
+) -> None:
+    """No-op stub for nightly cleanup."""
+
+
+class AgentWorkerSettings:
+    """Worker for the ``agent`` queue."""
 
     functions = [ping]
-
-    @property
-    def redis_settings(self) -> Any:
-        """Build Redis settings from the environment."""
-        from arq.connections import RedisSettings  # noqa: PLC2704
-
-        return RedisSettings.from_dsn(settings.redis_url)
-
-    job_timeout = 300
-    max_retries = 3
+    queue_name = AGENT_QUEUE
+    max_jobs = AGENT_MAX_JOBS
+    on_startup = on_startup
+    on_shutdown = on_shutdown
+    redis_settings = redis_settings()
 
 
-if __name__ == "__main__":
-    import asyncio
+class MaintenanceWorkerSettings:
+    """Worker for the ``maintenance`` queue; one job at a time."""
 
-    import arq
-
-    logger.info("worker.starting", version=settings.app_version)
-
-    async def run() -> None:
-        worker = arq.Worker(functions=WorkerSettings.functions)
-        await worker.async_run()
-
-    asyncio.run(run())
+    functions = [outbox_relay, cleanup]
+    queue_name = MAINTENANCE_QUEUE
+    max_jobs = MAINTENANCE_MAX_JOBS
+    on_startup = on_startup
+    on_shutdown = on_shutdown
+    redis_settings = redis_settings()

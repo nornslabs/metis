@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-13 — Completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -25,6 +25,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 | chore-compose-stack | chore/compose-stack | done | SHIP-205: docker compose up for full local stack |
 | feat-health-route | feat/health-route-refactored | done | SHIP-208: `GET /v1/health` with proper controller-service separation |
 | chore-ci-pipeline | chore/ci-pipeline | done | SHIP-210: CI pipeline (server/web/docker jobs + smoke) |
+| chore-arq-worker | chore/arq-worker | done | SHIP-211: Arq worker (agent + maintenance) and scheduler |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 
@@ -42,6 +43,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-13 | One Arq worker process per queue (`worker`, `worker-maintenance`); `watch` queue deferred | Arq binds one queue and one `max_jobs` per process; maintenance must run at concurrency 1 |
 | 2026-11-12 | One LangGraph graph: supervisor + 7 specialists with scoped tools       | Autonomous agents with controlled tool choice, interrupts and checkpoints |
 | 2026-11-12 | Modular monolith, 3 processes (api, worker, scheduler)                  | 2 people, ~30 hours; modules can be split later                           |
 | 2026-11-12 | Integrations via MCP (Linear, Notion)                                   | One pattern for every tool                                                |
@@ -50,5 +52,6 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-211 built on `chore/arq-worker`: `core/jobs.py` (enqueue, queue routing, `logged_job`), per-queue worker settings, cron scheduler, compose `worker-maintenance`. Tests need Redis (`TEST_REDIS_URL`, default `localhost:6379/15`). Next: SHIP-213 outbox relay.
 - Created PR #13 at https://github.com/nornslabs/metis/pull/13
 - Fixed pre-existing ruff violations in `env.py`, `test_logging.py`, `test_config.py`

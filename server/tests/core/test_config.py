@@ -39,8 +39,12 @@ class TestSettingsDefaults:
 class TestSettingsValidation:
     """Tests for Settings validation."""
 
-    def test_missing_required_env_var_raises_validation_error(self) -> None:
+    def test_missing_required_env_var_raises_validation_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Required env vars that are missing should raise ValidationError."""
+        for name in ("DATABASE_URL", "REDIS_URL"):
+            monkeypatch.delenv(name, raising=False)
         with pytest.raises(ValidationError) as exc_info:
             Settings()
 
