@@ -160,16 +160,21 @@ jobs:
             -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@postgres:5432/metis" \
             -e REDIS_URL="redis://redis:6379/0" \
             metis-server:test &
-          sleep 5
+          sleep 2
 
       - name: Health check
         run: |
-          response=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/health)
-          if [ "$response" != "200" ]; then
-            echo "Health check failed with status $response"
-            exit 1
-          fi
-          echo "Health check passed"
+          for i in $(seq 1 15); do
+            response=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/v1/health)
+            if [ "$response" = "200" ]; then
+              echo "Health check passed"
+              exit 0
+            fi
+            echo "Attempt $i: health check returned $response, retrying..."
+            sleep 1
+          done
+          echo "Health check failed after 15 attempts"
+          exit 1
 
       - name: Stop API
         if: always()
