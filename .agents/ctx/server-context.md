@@ -20,7 +20,7 @@ All config via env, loaded into `core/config.py` (pydantic-settings). No hardcod
 | Redis            | `REDIS_URL`                                               |
 | JWT verification | `AUTH_JWT_SECRET`, `AUTH_JWT_AUDIENCE`                    |
 | Key encryption   | `ENCRYPTION_MASTER_KEY`                                   |
-| Web origin       | `CORS_ORIGIN`                                             |
+| Web origin       | `CORS_ORIGINS` (comma-separated, e.g. `http://localhost:3000,http://localhost:8000`) |
 | Tracing          | `LANGFUSE_*`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `SENTRY_DSN` |
 
 LLM and Exa keys are not env vars: they are per workspace (BYO), stored encrypted.

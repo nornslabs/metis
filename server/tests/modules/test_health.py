@@ -172,12 +172,12 @@ class TestRunHealthChecks:
         """run_health_checks should return healthy when both dependencies OK."""
         from metis.modules.health.service import run_health_checks
 
-        with patch(
-            "metis.modules.health.service.check_postgres_health", return_value=HealthStatus.OK
-        ), patch(
-            "metis.modules.health.service.check_redis_health", return_value=HealthStatus.OK
-        ), patch(
-            "metis.modules.health.service.get_version", return_value="abc123"
+        with (
+            patch(
+                "metis.modules.health.service.check_postgres_health", return_value=HealthStatus.OK
+            ),
+            patch("metis.modules.health.service.check_redis_health", return_value=HealthStatus.OK),
+            patch("metis.modules.health.service.get_version", return_value="abc123"),
         ):
             result = await run_health_checks()
 
@@ -191,12 +191,12 @@ class TestRunHealthChecks:
         """run_health_checks should return down when database fails."""
         from metis.modules.health.service import run_health_checks
 
-        with patch(
-            "metis.modules.health.service.check_postgres_health", return_value=HealthStatus.DOWN
-        ), patch(
-            "metis.modules.health.service.check_redis_health", return_value=HealthStatus.OK
-        ), patch(
-            "metis.modules.health.service.get_version", return_value="abc123"
+        with (
+            patch(
+                "metis.modules.health.service.check_postgres_health", return_value=HealthStatus.DOWN
+            ),
+            patch("metis.modules.health.service.check_redis_health", return_value=HealthStatus.OK),
+            patch("metis.modules.health.service.get_version", return_value="abc123"),
         ):
             result = await run_health_checks()
 

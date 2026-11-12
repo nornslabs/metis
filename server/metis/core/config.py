@@ -58,10 +58,17 @@ class Settings(BaseSettings):
     encryption_master_key: str = Field(
         default="", validation_alias="ENCRYPTION_MASTER_KEY"
     )
-    cors_origins: list[str] = Field(
-        default_factory=lambda: ["http://localhost:3000"],
+    cors_origins: str = Field(
+        default="http://localhost:3000",
         validation_alias="CORS_ORIGINS",
     )
+
+    def get_cors_origins(self) -> list[str]:
+        """Return CORS origins as a list, parsing from string if needed."""
+        if "," in self.cors_origins:
+            return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+        return [self.cors_origins.strip()]
+
     public_base_url: str = Field(
         default="http://localhost:3000",
         validation_alias="PUBLIC_BASE_URL",
