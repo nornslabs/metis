@@ -3,6 +3,7 @@
 This module contains shared infrastructure components:
 - config: Global settings loaded from environment
 - db: Database session management
+- models: SQLAlchemy Base with naming conventions and TenantMixin
 - jobs: Arq worker configuration
 - middleware: Request context middleware
 - ports: Protocol definitions for external integrations
