@@ -79,7 +79,7 @@ def configure_logging(settings: Settings) -> None:
     # Build processor chain
     processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
-        structlog.add_log_level,
+        structlog.stdlib.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
     ]
 
