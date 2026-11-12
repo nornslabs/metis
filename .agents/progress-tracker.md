@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** none
-- **Branch:** integration/v1-foundations
-- **Last updated:** 2026-11-12 — Finished SHIP-204 (Monorepo scaffolding)
+- **Active PRD:** chore-compose-stack
+- **Branch:** chore/compose-stack
+- **Last updated:** 2026-11-12 — Started SHIP-205 (Compose stack and Dockerfiles)
 
 ## External Tools
 
@@ -19,6 +19,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
 | chore-repo-setup | integration/v1-foundations | done | SHIP-204: Monorepo skeleton and tooling |
+| chore-compose-stack | chore/compose-stack | in progress | SHIP-205: docker compose up for full local stack |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 
