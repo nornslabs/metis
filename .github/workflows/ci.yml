@@ -157,11 +157,10 @@ jobs:
         run: |
           docker run --rm -d \
             -p 8000:8000 \
-            -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/metis" \
-            -e REDIS_URL="redis://localhost:6379/0" \
-            --network host \
+            -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@postgres:5432/metis" \
+            -e REDIS_URL="redis://redis:6379/0" \
             metis-server:test &
-          sleep 3
+          sleep 5
 
       - name: Health check
         run: |
