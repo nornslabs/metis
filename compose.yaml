@@ -136,4 +136,5 @@ volumes:
 
 networks:
   metis-network:
+    name: metis-network
     driver: bridge

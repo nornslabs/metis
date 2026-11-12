@@ -1,35 +1,45 @@
-# ============================================
-# Stage 1: install Python dependencies
-# ============================================
-FROM python:3.12-slim AS base
+# syntax=docker/dockerfile:1
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
+# ============================================
+# Stage 1: build the production virtualenv
+# ============================================
+FROM python:3.12-slim AS builder
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never
 
 WORKDIR /app
 
 COPY pyproject.toml uv.lock ./
-RUN pip install --no-cache-dir uv \
-    && uv sync --frozen --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
 
 # ============================================
-# Stage 2: production runner
+# Stage 2: minimal runtime image
 # ============================================
-FROM base AS runner
+FROM python:3.12-slim AS runner
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpq5 \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --shell /bin/bash metis
 
 WORKDIR /app
 
-COPY --from=base /app/.venv /app/.venv
-COPY metis/ ./metis/
-COPY prompts/ ./prompts/
-COPY alembic.ini ./alembic.ini
-COPY migrations/ ./migrations/
+COPY --from=builder --chown=metis:metis /app/.venv /app/.venv
+COPY --chown=metis:metis metis/ ./metis/
+COPY --chown=metis:metis prompts/ ./prompts/
+COPY --chown=metis:metis alembic.ini ./alembic.ini
+COPY --chown=metis:metis migrations/ ./migrations/
 
-ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONPATH=/app \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-RUN useradd --create-home --shell /bin/bash metis && chown -R metis:metis /app
 USER metis
 
 EXPOSE 8000
