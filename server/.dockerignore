@@ -17,3 +17,8 @@ tests/
 # Misc
 .DS_Store
 *.log
+# Build context trimming
+dist/
+.serena/
+Dockerfile
+*.md
