@@ -32,6 +32,7 @@ from arq.worker import Worker, create_worker
 from metis.core import jobs
 from metis.core.config import get_settings
 from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, enqueue, logged_job
+from metis.core.outbox import RelayResult
 from metis.entrypoints import scheduler, worker
 from tests.core.slow_worker import derive_settings
 
@@ -155,7 +156,16 @@ async def test_maintenance_jobs_never_run_concurrently(pool: ArqRedis) -> None:
 
 
 @pytest.mark.asyncio
-async def test_maintenance_worker_runs_stub_jobs(pool: ArqRedis) -> None:
+async def test_maintenance_worker_runs_its_jobs(
+    pool: ArqRedis, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    relayed: list[object] = []
+
+    async def fake_relay_once(sessionmaker: object) -> RelayResult:
+        relayed.append(sessionmaker)
+        return RelayResult()
+
+    monkeypatch.setattr(worker, "relay_once", fake_relay_once)
     relay = await enqueue("outbox_relay", job_id="r", pool=pool)
     cleanup = await enqueue("cleanup", job_id="c", pool=pool)
     assert relay is not None and cleanup is not None
@@ -164,6 +174,10 @@ async def test_maintenance_worker_runs_stub_jobs(pool: ArqRedis) -> None:
 
     assert await relay.status() == JobStatus.complete
     assert await cleanup.status() == JobStatus.complete
+    relay_info, cleanup_info = await relay.result_info(), await cleanup.result_info()
+    assert relay_info is not None and relay_info.success
+    assert cleanup_info is not None and cleanup_info.success
+    assert len(relayed) == 1
 
 
 @pytest.mark.asyncio

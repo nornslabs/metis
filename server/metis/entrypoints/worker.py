@@ -14,9 +14,10 @@ from __future__ import annotations
 from typing import Any
 
 from metis.core.config import get_settings
-from metis.core.db import engine
+from metis.core.db import engine, get_session_maker
 from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, logged_job, redis_settings
 from metis.core.logging import configure_logging, get_logger
+from metis.core.outbox import relay_once
 
 AGENT_MAX_JOBS = 10
 MAINTENANCE_MAX_JOBS = 1
@@ -49,7 +50,11 @@ async def ping(
 async def outbox_relay(
     ctx: dict[str, Any], *, run_id: str | None = None, workspace_id: str | None = None
 ) -> None:
-    """No-op stub; replaced by the transactional outbox relay (SHIP-213)."""
+    """Deliver one batch of unpublished domain events from ``core.outbox``."""
+    result = await relay_once(get_session_maker())
+    logger.info(
+        "outbox.relayed", published=result.published, failed=result.failed, dead=result.dead
+    )
 
 
 @logged_job

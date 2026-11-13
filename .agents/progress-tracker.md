@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-13 — Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -27,6 +27,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 | chore-ci-pipeline | chore/ci-pipeline | done | SHIP-210: CI pipeline (server/web/docker jobs + smoke) |
 | chore-arq-worker | chore/arq-worker | done | SHIP-211: Arq worker (agent + maintenance) and scheduler |
 | chore-redis-streams | chore/redis-streams | done | SHIP-212: Redis Streams run event bus (`core/events.py`) |
+| chore-outbox-relay | chore/outbox-relay | done | SHIP-213: transactional outbox + relay job |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 
@@ -44,6 +45,8 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-13 | Outbox relay decodes rows inside the failure path; an undecodable row counts attempts and dies | One bad row must not stall the oldest-first outbox forever |
+| 2026-11-13 | `core.outbox` has no RLS; retry unit is the whole event; UUIDv7 from a hand-written `core/ids.py` helper | Relay reads across workspaces and the app role can't bypass RLS; idempotent handlers make whole-event retry safe; no new dependency |
 | 2026-11-13 | Run event streams expire 24 h after a terminal `run_status` publish; no safety TTL yet | Callers can't forget it and the event API stays at two functions; crashed-run cleanup deferred |
 | 2026-11-13 | One Arq worker process per queue (`worker`, `worker-maintenance`); `watch` queue deferred | Arq binds one queue and one `max_jobs` per process; maintenance must run at concurrency 1 |
 | 2026-11-12 | One LangGraph graph: supervisor + 7 specialists with scoped tools       | Autonomous agents with controlled tool choice, interrupts and checkpoints |
@@ -54,6 +57,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-213 built on `chore/outbox-relay`: `core/outbox.py` (`DomainEvent`, `DomainEventType`, `add_event`, `EventRegistry`/`on_event`, `relay_once`), `core/ids.py` (`uuid7`), migration `0002_core_outbox`, `outbox_relay` job wired. Fixed `core/models.py` naming convention (callables → %-format strings). Outbox tests need a migrated Postgres (`TEST_DATABASE_URL`, default `localhost:5432/metis`). Next: `feat-auth-workspaces`.
 - SHIP-212 built on `chore/redis-streams`: `core/events.py` with `publish`/`read`, `RunEvent`, `RunEventType`, `MAXLEN ~ 5000`, 24 h TTL on terminal `run_status` (XADD + EXPIRE in one transaction); `MalformedEventError` (`run.event_malformed`) in `core/errors.py`. Next: SSE endpoint `GET /v1/runs/{id}/events`.
 - SHIP-211 built on `chore/arq-worker`: `core/jobs.py` (enqueue, queue routing, `logged_job`), per-queue worker settings, cron scheduler, compose `worker-maintenance`. Tests need Redis (`TEST_REDIS_URL`, default `localhost:6379/15`). Next: SHIP-213 outbox relay.
 - Created PR #13 at https://github.com/nornslabs/metis/pull/13
