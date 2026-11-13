@@ -20,7 +20,7 @@ Metis turns an idea into: adaptive interview → Exa research → live score (6 
 
 - `web/` — UI only; talks to the server API, nothing else.
 - `server/metis/entrypoints/` — `api`, `worker`, `scheduler` processes; wiring only.
-- `server/metis/core/` — ports (LLM, research, output, input), DB, jobs, outbox, security. No tables.
+- `server/metis/core/` — ports (LLM, research, output, input), DB, jobs, outbox, security. No tables except `core.outbox`.
 - `server/metis/agent/` — the graph: supervisor + Interviewer, Researcher, Scorer, Advisor, Architect, Planner, Integrator; tools; MCP loading; budgets.
 - `server/metis/modules/<name>/` — identity, ideas, research, scoring, planning, integrations, memory, notifications. Each owns its tables; public API is `service.py`.
 - `server/prompts/` — versioned specialist prompts. `server/evals/` — scoring evals.
@@ -38,7 +38,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Auth and Access Model
 
 - Users sign in via Auth.js; server verifies the JWT.
-- Every tenant row has `workspace_id`, enforced by Postgres RLS.
+- Every tenant row has `workspace_id`, enforced by Postgres RLS. Exception: `core.outbox` carries `workspace_id` without RLS; the outbox relay reads across workspaces and no API route exposes it.
 - Each idea has one owner; only the owner or workspace admins mutate it.
 - LLM, Exa and MCP credentials are per workspace (BYO), encrypted, never returned or logged.
 
