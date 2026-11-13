@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** chore-redis-streams (SHIP-212)
-- **Branch:** chore/redis-streams
-- **Last updated:** 2026-11-13 — Started chore-redis-streams (SHIP-212). Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Active PRD:** —
+- **Branch:** —
+- **Last updated:** 2026-11-13 — Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -26,7 +26,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 | feat-health-route | feat/health-route-refactored | done | SHIP-208: `GET /v1/health` with proper controller-service separation |
 | chore-ci-pipeline | chore/ci-pipeline | done | SHIP-210: CI pipeline (server/web/docker jobs + smoke) |
 | chore-arq-worker | chore/arq-worker | done | SHIP-211: Arq worker (agent + maintenance) and scheduler |
-| chore-redis-streams | chore/redis-streams | in progress | SHIP-212: Redis Streams run event bus |
+| chore-redis-streams | chore/redis-streams | done | SHIP-212: Redis Streams run event bus (`core/events.py`) |
 
 Status values: `draft`, `in progress`, `blocked`, `done`.
 
@@ -54,6 +54,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-212 built on `chore/redis-streams`: `core/events.py` with `publish`/`read`, `RunEvent`, `RunEventType`, `MAXLEN ~ 5000`, 24 h TTL on terminal `run_status` (XADD + EXPIRE in one transaction); `MalformedEventError` (`run.event_malformed`) in `core/errors.py`. Next: SSE endpoint `GET /v1/runs/{id}/events`.
 - SHIP-211 built on `chore/arq-worker`: `core/jobs.py` (enqueue, queue routing, `logged_job`), per-queue worker settings, cron scheduler, compose `worker-maintenance`. Tests need Redis (`TEST_REDIS_URL`, default `localhost:6379/15`). Next: SHIP-213 outbox relay.
 - Created PR #13 at https://github.com/nornslabs/metis/pull/13
 - Fixed pre-existing ruff violations in `env.py`, `test_logging.py`, `test_config.py`

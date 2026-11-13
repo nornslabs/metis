@@ -71,6 +71,7 @@ class ErrorCode(StrEnum):
     RUN_INVALID_STATE = "run.invalid_state"
     RUN_TIMEOUT = "run.timeout"
     RUN_CANCELLED = "run.cancelled"
+    RUN_EVENT_MALFORMED = "run.event_malformed"
 
     # ---------------------------------------------------------------------- research
     RESEARCH_NO_RESULTS = "research.no_results"
@@ -275,6 +276,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Run Cancelled",
         retryable=False,
     ),
+    ErrorCode.RUN_EVENT_MALFORMED: ErrorSpec(
+        status=500,
+        title="Malformed Run Event",
+        retryable=False,
+    ),
     # research
     ErrorCode.RESEARCH_NO_RESULTS: ErrorSpec(
         status=404,
@@ -470,6 +476,12 @@ class RateLimitError(MetisError):
     code: ErrorCode = ErrorCode.RATE_LIMITED
 
 
+class MalformedEventError(MetisError):
+    """A run event stream entry could not be decoded."""
+
+    code: ErrorCode = ErrorCode.RUN_EVENT_MALFORMED
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -483,4 +495,5 @@ __all__ = [
     "UpstreamError",
     "BudgetError",
     "RateLimitError",
+    "MalformedEventError",
 ]

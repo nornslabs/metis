@@ -35,7 +35,7 @@ Goal: a small event bus in `core/events.py`, built on Redis Streams. The worker 
 5. Expiry: when `publish` emits a `run_status` event whose `data.status` is a terminal `RunStatus` (`succeeded`, `failed`, `cancelled`), it also sets `EXPIRE 86400` (24 hours, a named constant) on the stream. Other events never set a TTL.
 6. Stream key format `run:{run_id}` and the `MAXLEN` cap are named constants in `core/events.py`.
 7. Redis client: an async client from `redis.asyncio` built from `get_settings().redis_url` when none is passed. A passed-in client is used as is and never closed by `core/events.py`.
-8. Decoding: an entry with an unknown `type`, invalid JSON `data` or a missing field raises a domain error from `core/errors.py` rather than being skipped silently.
+8. Decoding: an entry with an unknown `type`, invalid JSON `data` or a missing field raises `MalformedEventError` (`run.event_malformed`, defined in `core/errors.py`) rather than being skipped silently.
 9. Docs sync: add `RunEventType` to the enums table and an event-stream line (key, cap, TTL, id semantics) under "Jobs and Events" in `.agents/ctx/server-context.md`.
 
 ## Out of scope
@@ -72,13 +72,13 @@ Planned tests:
 
 ## Acceptance criteria
 
-- [ ] Events are read back in order with stable ids.
-- [ ] Reading after a given id returns only later events (needed for reconnect).
-- [ ] A blocking read returns when a new event arrives.
-- [ ] The stream gets a 24-hour TTL after the run ends.
-- [ ] Streams are capped with `MAXLEN ~ 5000`.
-- [ ] `server-context.md` lists `RunEventType` and the stream conventions.
-- [ ] `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
+- [x] Events are read back in order with stable ids.
+- [x] Reading after a given id returns only later events (needed for reconnect).
+- [x] A blocking read returns when a new event arrives.
+- [x] The stream gets a 24-hour TTL after the run ends.
+- [x] Streams are capped with `MAXLEN ~ 5000`.
+- [x] `server-context.md` lists `RunEventType` and the stream conventions.
+- [x] `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
 
 ## Open questions
 
@@ -90,4 +90,4 @@ None. Resolved 2026-11-13:
 
 ## Status
 
-in progress
+done

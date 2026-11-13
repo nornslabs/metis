@@ -20,7 +20,8 @@ import pytest_asyncio
 from redis.asyncio import Redis
 
 from metis.core import events
-from metis.core.errors import MetisError
+from metis.core.config import get_settings
+from metis.core.errors import MalformedEventError
 from metis.core.events import (
     STREAM_MAXLEN,
     STREAM_TTL_SECONDS,
@@ -36,6 +37,7 @@ STREAM_KEY = f"run:{RUN_ID}"
 BLOCK_MS = 2000
 SHORT_BLOCK_MS = 200
 PUBLISH_DELAY_SECONDS = 0.1
+VALID_TS = "2026-01-01T00:00:00+00:00"
 
 
 @pytest_asyncio.fixture
@@ -152,7 +154,7 @@ async def test_stream_is_capped_near_maxlen(redis: Redis) -> None:
     overflow = 500
     pipe = redis.pipeline()
     for _ in range(STREAM_MAXLEN + overflow):
-        pipe.xadd(STREAM_KEY, {"type": "token", "data": "{}", "ts": "2026-01-01T00:00:00+00:00"})
+        pipe.xadd(STREAM_KEY, {"type": "token", "data": "{}", "ts": VALID_TS})
     await pipe.execute()
 
     await publish(RUN_ID, RunEventType.TOKEN, {"text": "x"}, redis=redis)
@@ -165,16 +167,16 @@ async def test_stream_is_capped_near_maxlen(redis: Redis) -> None:
 @pytest.mark.parametrize(
     "fields",
     [
-        {"type": "nope", "data": "{}", "ts": "2026-01-01T00:00:00+00:00"},
-        {"type": "token", "data": "{not json", "ts": "2026-01-01T00:00:00+00:00"},
-        {"type": "token", "data": "[1, 2]", "ts": "2026-01-01T00:00:00+00:00"},
-        {"type": "token", "ts": "2026-01-01T00:00:00+00:00"},
+        {"type": "nope", "data": "{}", "ts": VALID_TS},
+        {"type": "token", "data": "{not json", "ts": VALID_TS},
+        {"type": "token", "data": "[1, 2]", "ts": VALID_TS},
+        {"type": "token", "ts": VALID_TS},
     ],
 )
 async def test_malformed_entry_raises_domain_error(redis: Redis, fields: dict[str, str]) -> None:
     await redis.xadd(STREAM_KEY, fields)  # type: ignore[arg-type]
 
-    with pytest.raises(MetisError):
+    with pytest.raises(MalformedEventError):
         await _collect(redis)
 
 
@@ -182,8 +184,6 @@ async def test_malformed_entry_raises_domain_error(redis: Redis, fields: dict[st
 async def test_publish_without_client_uses_redis_url(
     redis: Redis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from metis.core.config import get_settings
-
     monkeypatch.setenv("REDIS_URL", REDIS_URL)
     get_settings.cache_clear()
 

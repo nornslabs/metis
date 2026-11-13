@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from redis.asyncio import Redis
 
 from metis.core.config import get_settings
-from metis.core.errors import ErrorCode, MetisError
+from metis.core.errors import MalformedEventError
 
 STREAM_KEY_PREFIX = "run:"
 STREAM_MAXLEN = 5000
@@ -29,6 +29,7 @@ STREAM_TTL_SECONDS = 24 * 60 * 60
 STREAM_START_ID = "0"
 
 # RunStatus values after which a run never emits again.
+# TODO(runs module): use the RunStatus enum once it exists.
 TERMINAL_RUN_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
 
 
@@ -53,12 +54,6 @@ class RunEvent(BaseModel):
     type: RunEventType
     data: dict[str, Any]
     ts: datetime
-
-
-class MalformedEventError(MetisError):
-    """A stream entry could not be decoded into a :class:`RunEvent`."""
-
-    code: ErrorCode = ErrorCode.INTERNAL_ERROR
 
 
 def stream_key(run_id: str) -> str:
@@ -93,8 +88,8 @@ async def publish(
     """Append an event to ``run_id``'s stream and return its id.
 
     A ``run_status`` event with a terminal status also sets the stream to
-    expire after :data:`STREAM_TTL_SECONDS`. Pass ``redis`` to reuse an open
-    client; it is never closed here.
+    expire after :data:`STREAM_TTL_SECONDS`, in the same transaction. Pass
+    ``redis`` to reuse an open client; it is never closed here.
     """
     event_type = RunEventType(type)
     fields = {
@@ -103,11 +98,12 @@ async def publish(
         "ts": datetime.now(UTC).isoformat(),
     }
     key = stream_key(run_id)
-    async with _client(redis) as client:
-        event_id = await client.xadd(key, fields, maxlen=STREAM_MAXLEN, approximate=True)  # type: ignore[arg-type]
+    async with _client(redis) as client, client.pipeline(transaction=True) as pipe:
+        pipe.xadd(key, fields, maxlen=STREAM_MAXLEN, approximate=True)  # type: ignore[arg-type]
         if _is_terminal(event_type, data):
-            await client.expire(key, STREAM_TTL_SECONDS)
-    return _text(event_id)
+            pipe.expire(key, STREAM_TTL_SECONDS)
+        results = await pipe.execute()
+    return _text(results[0])
 
 
 async def read(
@@ -138,7 +134,7 @@ def _text(value: bytes | str) -> str:
     return value.decode() if isinstance(value, bytes) else value
 
 
-def _decode(run_id: str, event_id: str, raw: Mapping[Any, Any]) -> RunEvent:
+def _decode(run_id: str, event_id: str, raw: Mapping[bytes | str, bytes | str]) -> RunEvent:
     fields = {_text(k): _text(v) for k, v in raw.items()}
     try:
         return RunEvent.model_validate(
