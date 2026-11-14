@@ -8,7 +8,7 @@ from base64 import urlsafe_b64decode
 from functools import lru_cache
 from typing import Annotated, Any, Self
 
-from pydantic import BeforeValidator, Field, model_validator
+from pydantic import BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metis.helpers.text import strip_to_none
@@ -23,6 +23,9 @@ class AppSettings:
     DEFAULT_SESSION_TTL_DAYS = 30
     DEFAULT_SESSION_IDLE_DAYS = 7
     VERSION = "0.1.0"
+
+
+_GOOGLE_FIELDS = ("google_client_id", "google_client_secret", "google_redirect_uri")
 
 
 class Settings(BaseSettings):
@@ -60,9 +63,7 @@ class Settings(BaseSettings):
     # Security settings
     auth_jwt_secret: str = Field(default="", validation_alias="AUTH_JWT_SECRET")
     auth_jwt_audience: str = Field(default="", validation_alias="AUTH_JWT_AUDIENCE")
-    encryption_master_key: str = Field(
-        default="", validation_alias="ENCRYPTION_MASTER_KEY"
-    )
+    encryption_master_key: str = Field(default="", validation_alias="ENCRYPTION_MASTER_KEY")
     cors_origins: str = Field(
         default="http://localhost:3000",
         validation_alias="CORS_ORIGINS",
@@ -97,6 +98,18 @@ class Settings(BaseSettings):
     # Unset: ``Secure`` everywhere except local development (see ``secure_cookies``).
     cookie_secure: Annotated[bool | None, BeforeValidator(strip_to_none)] = Field(
         default=None, validation_alias="COOKIE_SECURE"
+    )
+
+    # Google sign-in (OAuth 2.0 + OpenID Connect). Required outside development;
+    # in development, leaving them unset means Google is not offered.
+    google_client_id: Annotated[str | None, BeforeValidator(strip_to_none)] = Field(
+        default=None, validation_alias="GOOGLE_CLIENT_ID"
+    )
+    google_client_secret: Annotated[SecretStr | None, BeforeValidator(strip_to_none)] = Field(
+        default=None, validation_alias="GOOGLE_CLIENT_SECRET"
+    )
+    google_redirect_uri: Annotated[str | None, BeforeValidator(strip_to_none)] = Field(
+        default=None, validation_alias="GOOGLE_REDIRECT_URI"
     )
 
     # Observability settings (optional)
@@ -154,6 +167,11 @@ class Settings(BaseSettings):
         if "*" in self.get_cors_origins():
             raise ValueError("cors_origins must list explicit origins, not '*'")
 
+        if not self.is_development:
+            for name in _GOOGLE_FIELDS:
+                if getattr(self, name) is None:
+                    raise ValueError(f"{name} is required outside development")
+
         if self.session_idle_days > self.session_ttl_days:
             raise ValueError("session_idle_days must not exceed session_ttl_days")
 
@@ -170,6 +188,11 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """True for local development (``APP_ENV=development``, the default)."""
         return self.app_env == AppSettings.DEFAULT_APP_ENV
+
+    @property
+    def google_configured(self) -> bool:
+        """Whether Google sign-in has a client id, secret and redirect URI."""
+        return all(getattr(self, name) is not None for name in _GOOGLE_FIELDS)
 
     @property
     def secure_cookies(self) -> bool:

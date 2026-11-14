@@ -1,9 +1,10 @@
 """FastAPI application entrypoint for the API process.
 
 ``create_app()`` builds the app; the module-level ``app`` is what uvicorn
-serves (``metis.entrypoints.api:app``). ``/v1/health`` is public; every other
-``/v1`` route depends on ``current_user`` or ``current_workspace`` (JWT auth +
-workspace scoping). Module routers are added per PRD as the modules land. See
+serves (``metis.entrypoints.api:app``). ``/v1/health`` and ``/v1/auth/*``
+(sign-in, sign-out) are public; every other ``/v1`` route depends on
+``current_user`` or ``current_workspace`` (JWT auth + workspace scoping).
+Module routers are added per PRD as the modules land. See
 ``server-context.md`` for the API conventions.
 """
 
@@ -23,6 +24,7 @@ from metis.core.logging import configure_logging
 from metis.core.middleware import RequestContextMiddleware
 from metis.core.redis import close_redis
 from metis.modules.health import router as health_router
+from metis.modules.identity import auth_router
 from metis.modules.identity import router as identity_router
 
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
@@ -74,6 +76,8 @@ def _add_middleware(app: FastAPI, settings: Settings) -> None:
 def _include_routers(app: FastAPI) -> None:
     # Public: liveness/readiness for compose, CI and deploy probes.
     app.include_router(health_router)
+    # Public sign-in / sign-out (redirects and the session cookie).
+    app.include_router(auth_router)
     # Every other /v1 route requires a valid JWT via current_user / current_workspace.
     app.include_router(identity_router)
 

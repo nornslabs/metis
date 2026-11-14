@@ -61,6 +61,28 @@ def _redact_secrets(_: Any, logger: Any, event_dict: dict[str, Any]) -> dict[str
     return event_dict
 
 
+ACCESS_LOGGER = "uvicorn.access"
+# uvicorn's access record args: (client, method, path with query, http version, status).
+_ACCESS_PATH_ARG = 2
+
+
+class StripQueryFilter(logging.Filter):
+    """Drop the query string from uvicorn access lines.
+
+    Query strings can carry secrets (the OAuth ``code`` and ``state`` on
+    ``/v1/auth/google/callback``); the path alone is enough to trace a request.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        args = record.args
+        if isinstance(args, tuple) and len(args) > _ACCESS_PATH_ARG:
+            path = args[_ACCESS_PATH_ARG]
+            if isinstance(path, str) and "?" in path:
+                stripped = path.split("?", 1)[0]
+                record.args = (*args[:_ACCESS_PATH_ARG], stripped, *args[_ACCESS_PATH_ARG + 1 :])
+        return True
+
+
 def configure_logging(settings: Settings) -> None:
     """Configure structlog for the Metis server.
 
@@ -111,7 +133,7 @@ def configure_logging(settings: Settings) -> None:
 
     # Configure standard library logging to use structlog
     # Route uvicorn, sqlalchemy, arq, httpx through structlog
-    system_loggers = ["uvicorn", "uvicorn.access", "sqlalchemy", "arq", "httpx"]
+    system_loggers = ["uvicorn", ACCESS_LOGGER, "sqlalchemy", "arq", "httpx"]
 
     for name in system_loggers:
         log = logging.getLogger(name)
@@ -123,6 +145,10 @@ def configure_logging(settings: Settings) -> None:
         handler.setFormatter(logging.Formatter("%(message)s"))
         log.addHandler(handler)
         log.propagate = False
+
+    access = logging.getLogger(ACCESS_LOGGER)
+    if not any(isinstance(f, StripQueryFilter) for f in access.filters):
+        access.addFilter(StripQueryFilter())
 
 
 def get_logger(name: str) -> BoundLogger:

@@ -10,8 +10,6 @@ and expiry is driven by editing session rows, not by mocking the clock.
 from __future__ import annotations
 
 import importlib.util
-import os
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType
@@ -22,8 +20,8 @@ import httpx
 import pytest
 import pytest_asyncio
 from api_helpers import assert_problem, make_token, me
-from fastapi import APIRouter, Response
 from redis.asyncio import Redis
+from session_probe import COOKIE_PROBE, PROBE
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from structlog.testing import capture_logs
@@ -32,61 +30,15 @@ from metis.core import security
 from metis.core.config import get_settings
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
-from metis.modules.identity import SessionUserDep, auth_service, sessions_repo
-from metis.modules.identity.schemas import SessionRecord, SessionUser
+from metis.modules.identity import auth_service, sessions_repo
+from metis.modules.identity.schemas import SessionRecord
 
-REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 WEB_ORIGIN = get_settings().get_cors_origins()[0]
 COOKIE = get_settings().session_cookie_name
 WEB_CLIENT = {"X-Metis-Client": "web"}
-PROBE = "/v1/_test/session"
-
-# ------------------------------------------------------------- test-only probe
-_probe = APIRouter(prefix="/v1/_test")
-
-
-def _who(caller: SessionUser) -> dict[str, str]:
-    return {"user_id": str(caller.user.id), "session_id": str(caller.session_id)}
-
-
-@_probe.get("/session")
-async def _session_get(caller: SessionUserDep) -> dict[str, str]:
-    return _who(caller)
-
-
-@_probe.post("/session")
-async def _session_post(caller: SessionUserDep) -> dict[str, str]:
-    return _who(caller)
-
-
-@_probe.post("/cookie")
-async def _set_cookie(response: Response) -> None:
-    security.set_session_cookie(response, "probe-token")
-
-
-app.include_router(_probe)
 
 
 # -------------------------------------------------------------------- fixtures
-@pytest_asyncio.fixture
-async def redis() -> AsyncIterator[Redis]:
-    client: Redis = Redis.from_url(REDIS_URL)
-    try:
-        await client.ping()
-    except Exception:  # noqa: BLE001
-        await client.aclose()
-        pytest.skip("Redis not reachable")
-    await client.flushdb()
-    yield client
-    await client.flushdb()
-    await client.aclose()
-
-
-@pytest_asyncio.fixture
-async def http(client: httpx.AsyncClient, redis: Redis) -> httpx.AsyncClient:
-    """The app client with the request Redis pointed at the test database."""
-    app.dependency_overrides[get_redis] = lambda: redis
-    return client
 
 
 async def _user_id(http: httpx.AsyncClient, sub: str = "auth|ada", email: str = "ada@x.io") -> UUID:
@@ -306,9 +258,7 @@ async def test_mutation_without_cookie_is_not_signed_in_before_csrf(
 
 
 # --------------------------------------------------------------------- storage
-async def test_only_the_token_hash_is_stored(
-    engine: AsyncEngine, ada: tuple[UUID, str]
-) -> None:
+async def test_only_the_token_hash_is_stored(engine: AsyncEngine, ada: tuple[UUID, str]) -> None:
     _, token = ada
 
     [row] = await _exec(engine, "SELECT * FROM identity.sessions")
@@ -372,7 +322,7 @@ async def test_existing_users_were_backfilled_with_a_google_identity(
 
 # ---------------------------------------------------------------------- cookie
 async def test_session_cookie_attributes(http: httpx.AsyncClient) -> None:
-    response = await http.post("/v1/_test/cookie")
+    response = await http.post(COOKIE_PROBE)
 
     header = response.headers["set-cookie"]
     assert header.startswith(f"{COOKIE}=probe-token")
@@ -390,7 +340,7 @@ async def test_session_cookie_is_secure_when_configured(
     secure = get_settings().model_copy(update={"cookie_secure": True})
     monkeypatch.setattr(security, "get_settings", lambda: secure)
 
-    response = await http.post("/v1/_test/cookie")
+    response = await http.post(COOKIE_PROBE)
 
     assert "; secure" in response.headers["set-cookie"].lower()
 

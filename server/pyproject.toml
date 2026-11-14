@@ -21,6 +21,7 @@ dependencies = [
   "cryptography>=50.0.2",
   "pyjwt>=2.15.1",
   "mcp>=1.30.0",
+  "httpx>=0.28.1",
 ]
 
 [dependency-groups]
@@ -29,7 +30,6 @@ dev = [
   "mypy",
   "pytest",
   "pytest-asyncio",
-  "httpx",
 ]
 
 [build-system]

@@ -7,7 +7,11 @@ needed. The raw token is never stored or logged; only its SHA-256 hash is.
 A session resolves while it is not revoked, ``now < expires_at`` (absolute,
 ``SESSION_TTL_DAYS``) and ``now - last_seen_at < SESSION_IDLE_DAYS``. Use
 advances ``last_seen_at`` at most once per :data:`SESSION_TOUCH_INTERVAL`.
-Internal to identity: the auth routes (SHIP-265) and ``auth_deps`` call it.
+``sign_in`` turns a verified provider profile into a user: by
+``(provider, subject)``, else by a legacy ``users.auth_sub`` or the same email
+(linking a new identity), else a new user with a personal workspace.
+
+Internal to identity: the auth routes and ``auth_deps`` call it.
 """
 
 from __future__ import annotations
@@ -20,21 +24,40 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.config import get_settings
-from metis.core.errors import MetisError, SessionExpiredError
+from metis.core.errors import (
+    EmailUnverifiedError,
+    InvalidInputError,
+    MetisError,
+    SessionExpiredError,
+)
 from metis.core.logging import get_logger
 from metis.core.security import hash_session_token, new_session_token
-from metis.modules.identity import repo, service, sessions_repo
+from metis.helpers.validation import validate_input
+from metis.modules.identity import identities_repo, repo, service, sessions_repo
+from metis.modules.identity.models import UserRow
+from metis.modules.identity.providers.base import (
+    AuthProviderName,
+    OAuthFailure,
+    OAuthStep,
+    ProviderProfile,
+    oauth_failed,
+)
 from metis.modules.identity.schemas import (
     ActiveSession,
     NewSession,
     SessionRecord,
     SessionRejection,
     SessionUser,
+    SignedIn,
+    SignInOutcome,
     User,
+    UserClaims,
 )
 
 SESSION_TOUCH_INTERVAL = timedelta(minutes=5)
 MAX_USER_AGENT_LENGTH = 512
+# A concurrent first sign-in can win a unique constraint once; the retry finds its rows.
+MAX_SIGN_IN_ATTEMPTS = 2
 
 logger = get_logger(__name__)
 
@@ -146,3 +169,96 @@ async def get_session_user(session: AsyncSession, active: ActiveSession) -> Sess
     user = User.model_validate(row)
     personal = await service.ensure_personal_workspace(session, user)
     return SessionUser(user=user, personal_workspace=personal, session_id=active.session_id)
+
+
+# --------------------------------------------------------------------- sign-in
+def _claims(profile: ProviderProfile) -> UserClaims:
+    """Validate the profile like any user input; a malformed one fails the sign-in."""
+    try:
+        return validate_input(
+            UserClaims,
+            sub=profile.subject,
+            email=profile.email,
+            name=profile.name,
+            image=profile.avatar_url,
+        )
+    except InvalidInputError:
+        raise oauth_failed(profile.provider, OAuthStep.SIGN_IN, OAuthFailure.BAD_RESPONSE) from None
+
+
+async def _find_user_to_link(
+    session: AsyncSession, profile: ProviderProfile, claims: UserClaims
+) -> UserRow | None:
+    # Accounts created through Auth.js keyed on the Google subject (until SHIP-267).
+    if profile.provider is AuthProviderName.GOOGLE:
+        row = await repo.get_user_by_auth_sub(session, claims.sub)
+        if row is not None:
+            return row
+    return await repo.get_user_by_email(session, claims.email)
+
+
+async def _user_for(
+    session: AsyncSession, profile: ProviderProfile, claims: UserClaims
+) -> tuple[UserRow, SignInOutcome] | None:
+    """The user to link this new identity to, creating one if needed; ``None`` on a race."""
+    linked = await _find_user_to_link(session, profile, claims)
+    if linked is not None:
+        return linked, SignInOutcome.LINKED
+    created = await repo.insert_user(session, claims)
+    return None if created is None else (created, SignInOutcome.CREATED)
+
+
+async def _signed_in(session: AsyncSession, row: UserRow, outcome: SignInOutcome) -> SignedIn:
+    user = User.model_validate(row)
+    personal = await service.ensure_personal_workspace(session, user)
+    return SignedIn(user=user, personal_workspace=personal, outcome=outcome)
+
+
+async def _try_sign_in(
+    session: AsyncSession, profile: ProviderProfile, claims: UserClaims, now: datetime
+) -> SignedIn | None:
+    identity = await identities_repo.get_identity(session, profile.provider, profile.subject)
+    if identity is not None:
+        await identities_repo.record_login(
+            session, identity.id, email=claims.email, email_verified=profile.email_verified, now=now
+        )
+        row = await repo.get_user(session, identity.user_id)
+        return None if row is None else await _signed_in(session, row, SignInOutcome.EXISTING)
+    found = await _user_for(session, profile, claims)
+    if found is None:
+        return None
+    row, outcome = found
+    inserted = await identities_repo.insert_identity(
+        session,
+        user_id=row.id,
+        provider=profile.provider,
+        subject=profile.subject,
+        email=claims.email,
+        email_verified=profile.email_verified,
+        now=now,
+    )
+    return None if inserted is None else await _signed_in(session, row, outcome)
+
+
+async def sign_in(session: AsyncSession, profile: ProviderProfile) -> SignedIn:
+    """Sign in (or sign up) the user ``profile`` vouches for; the email must be verified."""
+    if not profile.email_verified:
+        logger.info("auth.sign_in_refused", provider=profile.provider, reason="email_unverified")
+        raise EmailUnverifiedError("Your email address is not verified with the provider")
+    claims = _claims(profile)
+    for _ in range(MAX_SIGN_IN_ATTEMPTS):
+        # A lost race must not leave a half-made user behind: undo the whole attempt.
+        attempt = await session.begin_nested()
+        signed_in = await _try_sign_in(session, profile, claims, _now())
+        if signed_in is None:
+            await attempt.rollback()
+            continue
+        await attempt.commit()
+        logger.info(
+            "auth.sign_in",
+            provider=profile.provider,
+            outcome=signed_in.outcome.value,
+            user_id=str(signed_in.user.id),
+        )
+        return signed_in
+    raise oauth_failed(profile.provider, OAuthStep.SIGN_IN, OAuthFailure.SIGN_IN_CONFLICT)

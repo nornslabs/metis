@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-14 — Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-14 — Completed feat-auth-google (SHIP-265): Google sign-in, `/v1/auth/*` routes. Previously: Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-auth-google | feat/auth-google | done | SHIP-265: Google sign-in, `/v1/auth/*` routes |
 | feat-auth-sessions | feat/auth-sessions | done | SHIP-264: server sessions, auth identities, `session_user` |
 | feat-provider-keys | feat/provider-keys | done | SHIP-217: BYO LLM + Exa keys, workspace settings |
 | feat-jwt-auth | feat/jwt-auth | done | SHIP-216: JWT auth, workspace scoping, `/me`, `metis_app` role |
@@ -49,6 +50,11 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | Sign-in providers live in `modules/identity/providers/`, not `adapters/` (recorded in `architecture.md`) | They return identity types and errors; adapters must not import a module |
+| 2026-11-14 | `uvicorn.access` lines drop the query string (`StripQueryFilter`) | The OAuth callback carries `code` and `state` in its query |
+| 2026-11-14 | SHIP-265: `GOOGLE_*` settings required outside development; in dev, unset ⇒ Google not offered | Misconfigured deploys fail at boot; local/CI runs need no Google credentials |
+| 2026-11-14 | SHIP-265: logout routes need `X-Metis-Client: web`; `logout` is idempotent (204 without a session), `logout-all` needs a session | Same CSRF rule as every cookie mutation; signing out never errors |
+| 2026-11-14 | SHIP-265 tested at the HTTP seam with Google faked by `httpx.MockTransport` + test RSA JWKS; logout checked on the session probe route | Real login → callback flow without calling Google; `/v1/me` stays JWT until SHIP-267 |
 | 2026-11-14 | Session revocation writes a Redis tombstone (`auth:session:revoked:*`, 120 s) checked before the cache | A request that read the session before the logout committed must not re-cache it as active |
 | 2026-11-14 | `CORS_ORIGINS` may not contain `*` (settings validation) | CORS now allows credentials for the session cookie |
 | 2026-11-14 | SHIP-264 session dependency lives in `modules/identity/auth_deps.py` as `session_user`; routes stay on JWT until SHIP-267 renames it to `current_user` | `core` never imports a module; no live route changes mid-migration |
@@ -90,6 +96,17 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-265 built on `feat/auth-google` (branched from the 12A integration branch `feat/server-owned-auth`, not `main`):
+  - `modules/identity/providers/` holds the `AuthProvider` protocol, `ProviderProfile`, the `OAuthStep` / `OAuthFailure` enums, and `GoogleProvider` (`httpx` + PyJWT, discovery and JWKS cached 1 h, refetch on an unknown `kid` at most once a minute).
+  - `oauth_flow.py`: `start_login` / `finish_login`, with Redis `auth:oauth:{state}` (600 s, `GETDEL`).
+  - `auth_service.sign_in`: finds by `(provider, subject)`, then `auth_sub`, then email, else creates the user; each attempt runs in a savepoint.
+  - `auth_api.py`: `/v1/auth/providers`, `google/login`, `google/callback`, `logout`, `logout-all`.
+  - `helpers/redirects.safe_relative_path`; PKCE and state helpers in `core/security.py`.
+  - New errors: `auth.oauth_state_invalid`, `auth.oauth_failed`, `auth.email_unverified`.
+  - `GOOGLE_*` settings are required outside development.
+  - `StripQueryFilter` on `uvicorn.access`; `httpx` is now a runtime dependency.
+  - Tests: 48 HTTP-seam tests in `tests/modules/identity/test_auth_google_api.py`, with Google faked by `fake_google.py` (`MockTransport` + test RSA JWKS). The probe routes moved to `session_probe.py`, and the `redis` / `http` fixtures moved to the identity `conftest.py`.
+  - Next: SHIP-221 (web sign-in through the server), then SHIP-267 (switch routes to sessions, drop JWT and `users.auth_sub`).
 - SHIP-264 built on `feat/auth-sessions`:
   - Migration `0006_auth_sessions` adds `identity.auth_identities` and `identity.sessions` (no RLS) and backfills a `google` identity from `users.auth_sub`.
   - `core/security.py` holds the token, its hash and the cookie helpers; `core/redis.py` holds the shared client plus the lifespan close.

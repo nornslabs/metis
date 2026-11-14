@@ -1,8 +1,9 @@
 """Cookie-session auth dependency: ``session_user`` (with the CSRF check).
 
 Lives in identity, not ``core``, because it calls ``auth_service`` and ``core``
-never imports a module. No route uses it yet: SHIP-267 renames it to
-``current_user``, rebuilds ``current_workspace`` on it and drops JWT auth.
+never imports a module. Only ``/v1/auth/logout-all`` uses it so far: SHIP-267
+renames it to ``current_user``, rebuilds ``current_workspace`` on it and drops
+JWT auth. ``check_csrf`` is also used alone by ``/v1/auth/logout``.
 
 Order of checks: missing cookie → ``auth.not_signed_in``; mutation without
 ``X-Metis-Client: web`` → ``auth.csrf_failed``; then the session must resolve
@@ -28,7 +29,8 @@ WEB_CLIENT = "web"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 
-def _check_csrf(request: Request) -> None:
+def check_csrf(request: Request) -> None:
+    """Refuse a cookie-authenticated mutation without ``X-Metis-Client: web``."""
     if request.method in SAFE_METHODS:
         return
     if request.headers.get(CLIENT_HEADER) != WEB_CLIENT:
@@ -43,7 +45,7 @@ async def session_user(request: Request, session: SessionDep, redis: RedisDep) -
     token = request.cookies.get(get_settings().session_cookie_name)
     if not token:
         raise auth_service.rejection(SessionRejection.MISSING, NotSignedInError("Not signed in"))
-    _check_csrf(request)
+    check_csrf(request)
     active = await auth_service.resolve_session(session, redis, token)
     caller = await auth_service.get_session_user(session, active)
     bind_context(user_id=str(caller.user.id), session_id=str(caller.session_id))

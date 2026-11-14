@@ -318,3 +318,20 @@ class SessionUser(_Frozen):
     user: User
     personal_workspace: Workspace
     session_id: UUID
+
+
+# --------------------------------------------------------------------- sign-in
+class SignInOutcome(StrEnum):
+    """How a sign-in found its user (logged as ``outcome``)."""
+
+    CREATED = "created"
+    EXISTING = "existing"
+    LINKED = "linked"
+
+
+class SignedIn(_Frozen):
+    """The user a provider profile signed in as, and how they were found."""
+
+    user: User
+    personal_workspace: Workspace
+    outcome: SignInOutcome

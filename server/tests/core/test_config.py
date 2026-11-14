@@ -54,10 +54,7 @@ class TestSettingsValidation:
         combined_errors = " ".join(error_messages).lower()
 
         # Validation aliases use uppercase
-        has_error = (
-            "database_url" in combined_errors
-            or "redis_url" in combined_errors
-        )
+        has_error = "database_url" in combined_errors or "redis_url" in combined_errors
         assert has_error
 
     def test_encryption_master_key_must_be_32_bytes(self) -> None:
@@ -300,9 +297,9 @@ class TestEnvExampleMatchesFields:
             if env_key not in env_keys:
                 missing_from_env_example.append(env_key)
 
-        assert (
-            not missing_from_env_example
-        ), f"Fields missing from .env.example: {missing_from_env_example}"
+        assert not missing_from_env_example, (
+            f"Fields missing from .env.example: {missing_from_env_example}"
+        )
 
     def test_all_non_optional_fields_in_env_example(self) -> None:
         """All required (non-optional) fields should be in .env.example."""
@@ -360,9 +357,7 @@ class TestSettingsFromEnvFile:
     def test_env_vars_override_env_file(self, tmp_path: Path) -> None:
         """Environment variables should override .env file values."""
         env_file = tmp_path / ".env"
-        env_file.write_text(
-            "DATABASE_URL=postgresql://from-dotenv:5432/db\n"
-        )
+        env_file.write_text("DATABASE_URL=postgresql://from-dotenv:5432/db\n")
 
         with patch.dict(
             os.environ,
@@ -467,3 +462,52 @@ class TestSessionSettings:
     def test_wildcard_cors_origin_is_rejected(self) -> None:
         with pytest.raises(ValidationError, match="explicit origins"):
             self._settings(cors_origins="http://localhost:3000, *")
+
+
+class TestGoogleSettings:
+    @staticmethod
+    def _settings(**overrides: object) -> Settings:
+        base: dict[str, object] = {
+            "database_url": "postgresql://test:5432/db",
+            "redis_url": "redis://localhost",
+            "auth_jwt_secret": "a" * 50,
+            "auth_jwt_audience": "audience",
+            "encryption_master_key": get_valid_secret(),
+            "log_json": True,
+        }
+        return Settings(**{**base, **overrides})  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        "missing", ["google_client_id", "google_client_secret", "google_redirect_uri"]
+    )
+    def test_google_settings_are_required_outside_development(self, missing: str) -> None:
+        with pytest.raises(ValidationError, match=missing):
+            self._settings(app_env="staging", **{missing: ""})
+
+    def test_google_settings_are_optional_in_development(self) -> None:
+        settings = self._settings(
+            app_env="development",
+            google_client_id="",
+            google_client_secret="",
+            google_redirect_uri="",
+        )
+
+        assert settings.google_configured is False
+
+    def test_google_is_configured_when_all_three_are_set(self) -> None:
+        settings = self._settings(
+            app_env="production",
+            google_client_id="id.apps.googleusercontent.com",
+            google_client_secret="shh-google",
+            google_redirect_uri="https://api.metis.app/v1/auth/google/callback",
+        )
+
+        assert settings.google_configured is True
+
+    def test_google_client_secret_is_redacted(self) -> None:
+        settings = self._settings(google_client_secret="shh-google")
+
+        assert "shh-google" not in repr(settings)
+        assert "shh-google" not in str(settings.model_dump())
+        assert settings.google_client_secret is not None
+        assert settings.google_client_secret.get_secret_value() == "shh-google"
