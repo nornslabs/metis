@@ -412,3 +412,58 @@ class TestValidationAlias:
             settings = get_settings()
 
             assert settings.database_url == "postgresql://test:5432/db"
+
+
+class TestSessionSettings:
+    """Session cookie settings: defaults, bounds and the derived ``cookie_secure``."""
+
+    @staticmethod
+    def _settings(**overrides: object) -> Settings:
+        base: dict[str, object] = {
+            "database_url": "postgresql://test:5432/db",
+            "redis_url": "redis://localhost",
+            "auth_jwt_secret": "a" * 50,
+            "auth_jwt_audience": "audience",
+            "encryption_master_key": get_valid_secret(),
+        }
+        return Settings(**{**base, **overrides})  # type: ignore[arg-type]
+
+    def test_session_defaults(self) -> None:
+        settings = self._settings()
+
+        assert settings.session_cookie_name == "metis_session"
+        assert settings.session_ttl_days == 30
+        assert settings.session_idle_days == 7
+        assert settings.cookie_domain is None
+        assert settings.web_base_url == "http://localhost:3000"
+
+    def test_idle_window_longer_than_lifetime_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="session_idle_days"):
+            self._settings(session_ttl_days=5, session_idle_days=6)
+
+    def test_non_positive_session_days_are_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            self._settings(session_ttl_days=0)
+
+    @pytest.mark.parametrize(
+        ("app_env", "override", "expected"),
+        [
+            ("development", None, False),
+            ("staging", None, True),
+            ("development", True, True),
+            ("staging", False, False),
+        ],
+    )
+    def test_cookie_secure_defaults_to_not_development(
+        self, app_env: str, override: bool | None, expected: bool
+    ) -> None:
+        settings = self._settings(app_env=app_env, cookie_secure=override)
+
+        assert settings.secure_cookies is expected
+
+    def test_blank_cookie_domain_means_unset(self) -> None:
+        assert self._settings(cookie_domain="  ").cookie_domain is None
+
+    def test_wildcard_cors_origin_is_rejected(self) -> None:
+        with pytest.raises(ValidationError, match="explicit origins"):
+            self._settings(cors_origins="http://localhost:3000, *")

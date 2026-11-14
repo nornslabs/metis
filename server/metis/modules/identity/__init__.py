@@ -1,9 +1,10 @@
-"""Identity module: users, workspaces, membership, provider keys and settings.
+"""Identity module: users, sessions, workspaces, membership, provider keys and settings.
 
 Use only what is exported here.
 """
 
 from metis.modules.identity.api import router
+from metis.modules.identity.auth_deps import SessionUserDep, session_user
 from metis.modules.identity.deps import (
     CurrentUser,
     CurrentUserDep,
@@ -16,6 +17,7 @@ from metis.modules.identity.schemas import (
     Membership,
     ProviderCredentials,
     ProviderKind,
+    SessionUser,
     User,
     Workspace,
 )
@@ -29,6 +31,9 @@ from metis.modules.identity.service import (
 )
 
 __all__ = [
+    "SessionUser",
+    "SessionUserDep",
+    "session_user",
     "CurrentUser",
     "CurrentUserDep",
     "CurrentWorkspaceDep",

@@ -13,7 +13,7 @@ Metis turns an idea into: adaptive interview → Exa research → live score (6 
 | Jobs        | Arq + Redis                                      | `run_graph`, market watch, outbox relay                         |
 | DB          | Postgres + pgvector, SQLAlchemy async, Alembic   | Source of truth, embeddings                                     |
 | Web         | Next.js App Router + TS, Tailwind + shadcn/ui    | UI                                                              |
-| Auth        | Auth.js → JWT verified by server                 | Sign-in, workspace scoping                                      |
+| Auth        | Server sessions (cookie); Auth.js JWT until SHIP-267 | Sign-in, workspace scoping                                  |
 | Client      | openapi-typescript + TanStack Query, EventSource | Typed API calls, live run events                                |
 
 ## System Boundaries
@@ -35,12 +35,13 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Storage Model
 
 - **Postgres**: all business data (ideas, interviews, research, competitor KB, immutable score runs, specs, plans, exports, encrypted keys/tokens), one schema per module, plus LangGraph checkpoints and pgvector embeddings.
-- **Redis**: ephemeral only (queues, run event streams, locks, rate limits).
+- **Redis**: ephemeral only (queues, run event streams, locks, rate limits, the 60 s session cache).
 - **External**: Exa research (hosted MCP server `https://mcp.exa.ai/mcp`, workspace key in `x-api-key`), Linear issues and Notion pages, all via MCP; Metis stores only Linear/Notion ids.
 
 ## Auth and Access Model
 
-- Users sign in via Auth.js; the web app sends an HS256 JWT (`aud` = `AUTH_JWT_AUDIENCE`, `exp`, 30 s leeway) as `Authorization: Bearer`, and the server verifies it on every `/v1` request except `/v1/health`. The verified `sub` maps to an identity user with a personal workspace.
+- Target (SHIP-263): the server owns sign-in and issues an opaque session token in an `HttpOnly`, `SameSite=Lax` cookie. Only its SHA-256 hash is stored (`identity.sessions`); sessions expire after `SESSION_TTL_DAYS` (30) absolute or `SESSION_IDLE_DAYS` (7) idle, and revocation applies on the next request. Users link to sign-in methods through `identity.auth_identities` (`provider`, `subject`), so new providers don't touch users, sessions or route guards. Cookie-authenticated mutations require `X-Metis-Client: web` (CSRF). The session dependency (`session_user`) exists since SHIP-264; routes switch to it in SHIP-267.
+- Today: users sign in via Auth.js; the web app sends an HS256 JWT (`aud` = `AUTH_JWT_AUDIENCE`, `exp`, 30 s leeway) as `Authorization: Bearer`, and the server verifies it on every `/v1` request except `/v1/health`. The verified `sub` maps to an identity user with a personal workspace.
 - Each request runs in one workspace: `X-Workspace-Id`, or the personal workspace when absent. Non-members (and unknown ids) get 403. The request session sets `app.workspace_id` and `app.user_id` before any route code runs.
 - The api and workers connect as the non-superuser `metis_app` role, so RLS applies to real traffic; only migrations use the owner role.
 - Every tenant row has `workspace_id`, enforced by Postgres RLS via `enable_tenant_rls(regclass)` (policy `tenant_isolation`: `workspace_id = app.workspace_id`, set per transaction with `set_config(..., true)`). An unset or empty `app.workspace_id` matches no rows (fail closed, no error). Superusers bypass RLS, so the app must connect as a non-superuser role. `identity.members` has `tenant_isolation` plus a SELECT-only `member_self` policy (`user_id = app.user_id`, same fail-closed rule) so a user can list their memberships across workspaces; `identity.users` and `identity.workspaces` have no RLS. Exception: `core.outbox` carries `workspace_id` without RLS; the outbox relay reads across workspaces and no API route exposes it.
