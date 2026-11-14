@@ -47,9 +47,18 @@ permissions needed for the application to function. RLS policies prevent
 this role from reading or modifying other workspaces' data, even if a bug
 in the application logic attempts to bypass the workspace filter.
 
-Locally the services connect as the `postgres` superuser, and **superusers
-bypass RLS** even when it is forced, so do not rely on the local stack to prove
-isolation. The RLS tests query as a non-superuser role instead (see Tests).
+Migration `0004_app_role` creates `metis_app` (`NOSUPERUSER NOBYPASSRLS`) with
+DML on the `core` and `identity` schemas, plus default privileges for tables
+added there later. When `APP_DB_PASSWORD` is set while migrating, the role can
+log in with that password. In compose, `migrate` runs as the owner role and
+every other service connects as `metis_app`, so RLS applies to real requests.
+A migration that adds a new schema must grant `metis_app` on it.
+
+Running the API outside compose with `DATABASE_URL` as `postgres` still works,
+but **superusers bypass RLS** even when it is forced. The RLS and API tests
+switch to a non-superuser role with `SET LOCAL ROLE` (see Tests). A local
+database migrated before `0004` with no `APP_DB_PASSWORD` has a `NOLOGIN`
+role; run `ALTER ROLE metis_app LOGIN PASSWORD '...'` once to use it.
 
 Tenant tables get isolation from one call in their migration:
 `SELECT enable_tenant_rls('<schema>.<table>'::regclass)`. It enables and forces

@@ -11,7 +11,7 @@ terminal ``run_status`` event.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -62,7 +62,7 @@ def stream_key(run_id: str) -> str:
 
 
 @asynccontextmanager
-async def _client(redis: Redis | None) -> AsyncIterator[Redis]:
+async def _client(redis: Redis | None) -> AsyncGenerator[Redis]:
     """Yield ``redis`` as is, or open a client from ``REDIS_URL`` and close it after."""
     if redis is not None:
         yield redis

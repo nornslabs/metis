@@ -12,6 +12,7 @@ from uuid import UUID
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.core.db import USER_SETTING, WORKSPACE_SETTING
 from metis.core.errors import (
     AlreadyMemberError,
     EmailTakenError,
@@ -47,7 +48,7 @@ def _validate[ModelT: BaseModel](model: type[ModelT], **data: object) -> ModelT:
 
 
 async def _add_owner(session: AsyncSession, workspace_id: UUID, user_id: UUID) -> None:
-    async with repo.rls_context(session, repo.WORKSPACE_SETTING, workspace_id):
+    async with repo.rls_context(session, WORKSPACE_SETTING, workspace_id):
         await repo.insert_member(session, workspace_id, user_id, MemberRole.OWNER)
 
 
@@ -72,7 +73,7 @@ async def ensure_personal_workspace(session: AsyncSession, user: User) -> Worksp
 
 
 async def list_workspaces(session: AsyncSession, user: User) -> list[Membership]:
-    async with repo.rls_context(session, repo.USER_SETTING, user.id):
+    async with repo.rls_context(session, USER_SETTING, user.id):
         rows = await repo.list_memberships(session, user.id)
     return [Membership(workspace=Workspace.model_validate(ws), role=role) for ws, role in rows]
 
@@ -90,7 +91,7 @@ async def add_member(
     session: AsyncSession, actor: User, workspace_id: UUID, email: str, role: MemberRole
 ) -> Membership:
     new = _validate(NewMember, email=email, role=role)
-    async with repo.rls_context(session, repo.WORKSPACE_SETTING, workspace_id):
+    async with repo.rls_context(session, WORKSPACE_SETTING, workspace_id):
         # A non-member gets the same error, so it cannot probe which workspaces exist.
         if await repo.get_member_role(session, workspace_id, actor.id) != MemberRole.OWNER:
             raise PermissionDeniedError("Only workspace owners can add members")

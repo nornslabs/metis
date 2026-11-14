@@ -5,7 +5,7 @@ so clients can reliably map codes to user-facing messages.
 
 Response format: `application/problem+json`
 {
-  "type": "https://metis.ai/errors/common.validation_failed",
+  "type": "<HTTP-ORIGIN>/errors/common.validation_failed",
   "title": "Validation Failed",
   "status": 422,
   "code": "common.validation_failed",
@@ -454,6 +454,12 @@ class AuthError(MetisError):
     code: ErrorCode = ErrorCode.UNAUTHORIZED
 
 
+class TokenExpiredError(AuthError):
+    """The bearer token has expired; the client should refresh it."""
+
+    code: ErrorCode = ErrorCode.TOKEN_EXPIRED
+
+
 class PermissionDeniedError(MetisError):
     """Generic 403 authorization error."""
 
@@ -524,6 +530,7 @@ __all__ = [
     "NotFoundError",
     "ConflictError",
     "AuthError",
+    "TokenExpiredError",
     "PermissionDeniedError",
     "InvalidInputError",
     "UpstreamError",

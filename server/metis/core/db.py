@@ -8,7 +8,12 @@ configured via DATABASE_URL.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+from typing import Annotated
+from uuid import UUID
 
+from fastapi import Depends
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -84,3 +89,49 @@ async def get_connection() -> AsyncGenerator[AsyncConnection, None]:
     """
     async with engine().connect() as conn:
         yield conn
+
+# --------------------------------------------------------------- request scope
+USER_SETTING = "app.user_id"
+WORKSPACE_SETTING = "app.workspace_id"
+
+
+@asynccontextmanager
+async def transaction(session: AsyncSession) -> AsyncGenerator[AsyncSession]:
+    """Commit ``session`` when the block succeeds; roll it back on any exception."""
+    try:
+        yield session
+    except BaseException:
+        await session.rollback()
+        raise
+    await session.commit()
+
+
+async def get_request_session() -> AsyncGenerator[AsyncSession]:
+    """FastAPI dependency: one session per request, committed before the response.
+
+    Always depend on it through ``SessionDep`` (``scope="function"``), so the
+    commit runs before the response is sent and a failed commit is a 500, not a
+    200 for work that was never saved. Every dependency in the request shares it.
+    """
+    async with get_session_maker()() as session, transaction(session):
+        yield session
+
+
+SessionDep = Annotated[AsyncSession, Depends(get_request_session, scope="function")]
+
+
+async def set_setting(session: AsyncSession, setting: str, value: str) -> None:
+    """Set a Postgres setting for the current transaction only."""
+    await session.execute(
+        text("SELECT set_config(:setting, :value, true)"), {"setting": setting, "value": value}
+    )
+
+
+async def set_workspace(session: AsyncSession, workspace_id: UUID) -> None:
+    """Scope RLS-protected tenant tables to ``workspace_id`` for this transaction."""
+    await set_setting(session, WORKSPACE_SETTING, str(workspace_id))
+
+
+async def set_user(session: AsyncSession, user_id: UUID) -> None:
+    """Expose the caller to user-scoped RLS policies for this transaction."""
+    await set_setting(session, USER_SETTING, str(user_id))

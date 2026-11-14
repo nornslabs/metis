@@ -2,8 +2,10 @@ name: metis
 
 # Settings every Python service needs. Required secrets fail `docker compose up`
 # before any container starts, with a message naming the missing variable.
+# The app connects as the non-superuser `metis_app` role (RLS applies); only
+# `migrate` uses the owner role. Migration 0004 gives `metis_app` its password.
 x-app-settings: &app-settings
-  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
+  DATABASE_URL: postgresql+asyncpg://metis_app:${APP_DB_PASSWORD:-metis_app}@postgres:5432/${POSTGRES_DB:-metis}
   REDIS_URL: redis://redis:6379/0
   AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE:-metis}
   AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?is not set. Run `cp .env.example .env` and fill in AUTH_JWT_SECRET}
@@ -48,6 +50,7 @@ services:
       - metis-network
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-metis_app}
     depends_on:
       postgres:
         condition: service_healthy

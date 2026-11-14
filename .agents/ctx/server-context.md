@@ -21,6 +21,7 @@ All config via env, loaded into `core/config.py` (pydantic-settings). No hardcod
 | JWT verification | `AUTH_JWT_SECRET`, `AUTH_JWT_AUDIENCE`                    |
 | Key encryption   | `ENCRYPTION_MASTER_KEY`                                   |
 | Web origin       | `CORS_ORIGINS` (comma-separated, e.g. `http://localhost:3000,http://localhost:8000`) |
+| App DB role      | `APP_DB_PASSWORD` (read by migration `0004_app_role` only; gives `metis_app` LOGIN) |
 | Tracing          | `LANGFUSE_*`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `SENTRY_DSN` |
 
 LLM and Exa keys are not env vars: they are per workspace (BYO), stored encrypted.
@@ -75,6 +76,18 @@ Immutable, versioned: score runs, spec versions, research snapshots.
 
 Identity service contract (`modules/identity/service.py`): `upsert_user_from_claims(session, sub, email, name, image)` (upsert on `users.auth_sub`, email lower-cased; email owned by another account `EmailTakenError`), `ensure_personal_workspace(session, user)` (one `is_personal` workspace per user, race-safe), `list_workspaces(session, user)`, `create_workspace(session, user, name)`, `add_member(session, actor, workspace_id, email, role)` (owner only, else `PermissionDeniedError`; unknown email `MemberUserNotFoundError`; existing member `AlreadyMemberError`). Every function takes the caller's `AsyncSession`, never commits (the caller owns the transaction) and sets its own RLS context (`app.user_id` / `app.workspace_id`, transaction-local), restoring the caller's value afterwards. Invalid input raises `InvalidInputError` (422).
 
+Identity routes (`modules/identity/api.py`): `GET /v1/me` → `{user, workspaces: [{workspace, role}], current_workspace: {workspace, role}}`; `GET /v1/workspaces` → `{items: [{workspace, role}], next_cursor: null}`; `POST /v1/workspaces` `{name}` → `201 {workspace, role: "owner"}`.
+
+## Auth and Request Scope
+
+- `core/auth.py` (the only PyJWT import): `bearer_claims` reads `Authorization: Bearer <jwt>` and verifies HS256 only, `aud = AUTH_JWT_AUDIENCE`, required `exp`/`aud`/`sub`, 30 s leeway (`CLOCK_SKEW_SECONDS`). Claims used: `sub`, `email` (required), `name`, `picture`. Missing/invalid token → `AuthError` (`auth.unauthorized`, 401); expired → `TokenExpiredError` (`auth.token_expired`, 401). Every 401 carries `WWW-Authenticate: Bearer`. The token and header are never logged; rejections log `auth.rejected` with a `reason` (`missing`, `invalid`, `expired`, `claims`).
+- The web app mints the HS256 API token with `AUTH_JWT_SECRET`; the server never reads Auth.js JWE session tokens.
+- `core/db.py`: `SessionDep` = one `AsyncSession` per request (`get_request_session`, `scope="function"`), shared by every dependency and the route; committed before the response is sent, rolled back on any exception. `set_workspace(session, id)` / `set_user(session, id)` set `app.workspace_id` / `app.user_id` for the transaction.
+- `modules/identity/deps.py` (exported from `metis.modules.identity`): `current_user` (`CurrentUserDep`) verifies the token, then `upsert_user_from_claims` + `ensure_personal_workspace`; invalid claims → 401. `current_workspace` (`CurrentWorkspaceDep`) reads `X-Workspace-Id` (absent → personal workspace; not a UUID → 422; not a member or unknown → `PermissionDeniedError` 403, same error for both), then sets `app.user_id` and `app.workspace_id` on the request session and binds `workspace_id`/`user_id` to logs. Returns the caller's `Membership`.
+- Every `/v1` route except `/v1/health` depends on `current_user` or `current_workspace`; tenant routes use `current_workspace` so RLS is scoped.
+- CORS: only `CORS_ORIGINS`, no credentials, headers `Authorization`, `Content-Type`, `X-Workspace-Id`, `Idempotency-Key`, `X-Request-ID`.
+- DB roles: api and workers connect as `metis_app` (`NOSUPERUSER NOBYPASSRLS`, DML on `core` and `identity` + default privileges); migrations run as the owner. A migration adding a schema grants `metis_app` on it.
+
 ## Agent Graph
 
 One LangGraph `StateGraph` in `agent/graph.py`, compiled with `AsyncPostgresSaver` (`thread_id` = run id).
@@ -125,6 +138,8 @@ Services raise domain errors from `core/errors.py`; API maps them to HTTP.
 
 | Error               | HTTP |
 | ------------------- | ---- |
+| `AuthError`         | 401  |
+| `TokenExpiredError` | 401  |
 | `NotFound`          | 404  |
 | `Forbidden`         | 403  |
 | `IllegalTransition` | 409  |

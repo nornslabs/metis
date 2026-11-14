@@ -73,7 +73,7 @@ def _build_problem_response(
     error_spec = ERROR_CATALOG[code]
 
     body: dict[str, Any] = {
-        "type": f"https://metis.ai/errors/{code}",
+        "type": f"{request.url.scheme}://{request.url.hostname}/errors/{code}",
         "title": error_spec.title,
         "status": error_spec.status,
         "code": code,
@@ -91,6 +91,8 @@ def _build_problem_response(
 
     if meta and "retry_after" in meta:
         headers["Retry-After"] = str(meta["retry_after"])
+    if error_spec.status == _HTTP_UNAUTHORIZED:
+        headers["WWW-Authenticate"] = "Bearer"
 
     return JSONResponse(body, status_code=error_spec.status, headers=headers)
 
@@ -136,10 +138,12 @@ async def _handle_validation_error(request: Request, exc: RequestValidationError
     formatted_errors: list[dict[str, Any]] = []
     for err in errors:
         loc_parts = [str(loc) for loc in err.get("loc", [])]
-        formatted_errors.append({
-            "field": ".".join(loc_parts),
-            "message": err.get("msg"),
-        })
+        formatted_errors.append(
+            {
+                "field": ".".join(loc_parts),
+                "message": err.get("msg"),
+            }
+        )
 
     logger.info(
         "validation_error",

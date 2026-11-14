@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-14 — Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-14 — Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-jwt-auth | feat/jwt-auth | done | SHIP-216: JWT auth, workspace scoping, `/me`, `metis_app` role |
 | feat-secret-encryption | feat/secret-encryption | done | SHIP-215: envelope encryption for BYO secrets |
 | feat-identity-workspaces | feat/identity-workspaces | done | SHIP-214: identity users, workspaces, members + RLS |
 | fix-foundation-gaps | fix/foundation-gaps | done | SHIP-262: RLS helper, RLS tests, request_id in errors, compose without `.env` |
@@ -36,9 +37,8 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Next Up (MVP build order)
 
-1. `feat-auth-workspaces` — SHIP-216: Auth.js JWT verification, workspace scoping, `/me`
-2. `feat-provider-keys` — encrypted BYO LLM + Exa keys
-3. `feat-ideas-crud` — ideas, stages, runs
+1. `feat-provider-keys` — encrypted BYO LLM + Exa keys
+2. `feat-ideas-crud` — ideas, stages, runs
 
 ## Open Questions
 
@@ -48,6 +48,9 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | JWT verification uses PyJWT, HS256 JWS only; web (SHIP-219) mints the API token | Small, maintained lib; server stays independent of Auth.js's JWE session format |
+| 2026-11-14 | SHIP-216 adds the non-superuser `metis_app` role used by api/worker | RLS must hold for real traffic, not only in tests |
+| 2026-11-14 | SHIP-216 is tested at one HTTP seam with locally signed JWTs | Tests the behaviour clients see; no coupling to `core/auth.py` internals |
 | 2026-11-14 | `mask(secret)` = first 3 + `…` + last 4 for secrets ≥ 12 chars, else nothing revealed | Provider stays recognisable (`sk-…a1b2`) without exposing short secrets |
 | 2026-11-14 | `SecretDecryptError` (`crypto.decrypt_failed`) maps to HTTP 422, asks to re-enter the key | User can recover by saving the key again |
 | 2026-11-14 | Identity services restore the caller's RLS settings after use | Transaction-local `set_config` would otherwise switch the caller's tenant scope |
@@ -70,6 +73,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-216 built on `feat/jwt-auth`: `core/auth.py` (PyJWT, HS256 only, `aud`, required `exp`, 30 s leeway; `TokenExpiredError` → 401 `auth.token_expired`; 401s carry `WWW-Authenticate: Bearer`), `core/db.py` (`SessionDep` request session committed before the response, `set_workspace`/`set_user`), `modules/identity/deps.py` (`current_user`, `current_workspace` via `X-Workspace-Id`), routes `GET /v1/me`, `GET/POST /v1/workspaces`, CORS for `CORS_ORIGINS`, migration `0004_app_role` (`metis_app`, LOGIN when `APP_DB_PASSWORD` is set; compose services connect as it). 33 HTTP-seam tests in `tests/modules/identity/test_identity_api.py`. Local DBs: run `alembic upgrade head` (with `APP_DB_PASSWORD` to log in as `metis_app`). Next: `feat-provider-keys` (SHIP-217), with routes on `CurrentWorkspaceDep`.
 - SHIP-215 built on `feat/secret-encryption`: `core/crypto.py` (`SealedSecret`, `encrypt`, `decrypt`, `mask`), AES-256-GCM via `cryptography`; per-secret data key wrapped by the master key; workspace UUID bytes as AAD (wrap layer also binds `key_version`); keyring holds only v1 = `ENCRYPTION_MASTER_KEY`. `SecretDecryptError` (`crypto.decrypt_failed`, 422). 27 pure-function tests in `tests/core/test_crypto.py`. Next: `feat-auth-workspaces` (SHIP-216); SHIP-217 provider keys stores `SealedSecret` fields as columns.
 - SHIP-214 built on `feat/identity-workspaces`: migration `0003_identity` (`users.auth_sub`, `workspaces.is_personal` + partial unique index, `members` with `tenant_isolation` + `member_self`), `modules/identity` (models, repo, schemas, service), errors `MemberUserNotFoundError`/`WorkspaceNotFoundError`/`AlreadyMemberError`/`EmailTakenError`. 27 service-seam tests run as the `metis_identity_test` role. Services take the caller's session, never commit, and restore RLS settings. Next: `feat-auth-workspaces` (SHIP-216): JWT → `upsert_user_from_claims` + `ensure_personal_workspace`, and the non-superuser `metis_app` role.
 - SHIP-262 built on `fix/foundation-gaps`: `enable_tenant_rls` uses `format()`, and its policy is `nullif(current_setting('app.workspace_id', true), '')::uuid`. `test_rls.py` has 4 real tests running as the `metis_rls_test` role. The middleware sets `request.state.request_id`. Also fixed `MetisError` responses all being 500s (string log level). Compose requires `AUTH_JWT_SECRET`/`ENCRYPTION_MASTER_KEY` via `${VAR:?}`. Local DBs migrated earlier need `alembic downgrade base && upgrade head`. Next: `feat-auth-workspaces` (switch services to the non-superuser `metis_app` role).

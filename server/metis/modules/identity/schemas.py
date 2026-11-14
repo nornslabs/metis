@@ -104,3 +104,21 @@ class Workspace(_Frozen):
 class Membership(_Frozen):
     workspace: Workspace
     role: MemberRole
+
+
+# --------------------------------------------------------------- HTTP schemas
+class CreateWorkspaceRequest(_Frozen):
+    """Body of ``POST /v1/workspaces``; the service validates and trims ``name``."""
+
+    name: str
+
+
+class MeResponse(_Frozen):
+    user: User
+    workspaces: list[Membership]
+    current_workspace: Membership
+
+
+class MembershipPage(_Frozen):
+    items: list[Membership]
+    next_cursor: str | None = None

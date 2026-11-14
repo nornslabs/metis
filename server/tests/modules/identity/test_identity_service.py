@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
 
 import pytest
@@ -78,7 +78,7 @@ async def engine() -> AsyncIterator[AsyncEngine]:
 
 
 @asynccontextmanager
-async def app_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+async def app_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
     """One committed transaction as the non-superuser role, like the app will use."""
     async with AsyncSession(engine, expire_on_commit=False) as session, session.begin():
         await session.execute(text(f"SET LOCAL ROLE {TEST_ROLE}"))
