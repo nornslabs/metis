@@ -19,6 +19,7 @@ dependencies = [
   "langgraph-checkpoint-postgres",
   "exa-py",
   "langchain-mcp-adapters",
+  "cryptography>=50.0.2",
 ]
 
 [dependency-groups]

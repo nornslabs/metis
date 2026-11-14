@@ -25,6 +25,8 @@ All config via env, loaded into `core/config.py` (pydantic-settings). No hardcod
 
 LLM and Exa keys are not env vars: they are per workspace (BYO), stored encrypted.
 
+Secrets (`core/crypto.py`): envelope encryption with AES-256-GCM. `encrypt(plaintext, workspace_id) -> SealedSecret{ciphertext, nonce, wrapped_key, key_version}` seals each secret with its own random data key, wrapped by the master key for `key_version` (today only `1` = `ENCRYPTION_MASTER_KEY`). `workspace_id` is the AAD of both layers, so a secret cannot be opened in another workspace. `decrypt(sealed, workspace_id)` raises `SecretDecryptError` (`crypto.decrypt_failed`, 422: re-enter the key) on a wrong workspace, tampering or an unknown version. `mask(secret)` shows first 3 + `…` + last 4 for secrets of 12+ chars, else `…••••`. Never log or return plaintext.
+
 ## Ports
 
 Core interfaces in `core/ports.py`. Adapters implement them; nothing else imports a vendor SDK.
@@ -129,6 +131,7 @@ Services raise domain errors from `core/errors.py`; API maps them to HTTP.
 | `VersionConflict`   | 409  |
 | `BudgetExceeded`    | 402  |
 | `ProviderError`     | 502  |
+| `SecretDecryptError` | 422 |
 | `ValidationError`   | 422  |
 
 ## Observability
