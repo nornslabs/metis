@@ -14,7 +14,7 @@ bodies never reach the error or the logs.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable, Mapping
+from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any
@@ -65,7 +65,7 @@ def provider_http_factory() -> ClientFactory:
 
 
 @asynccontextmanager
-async def capped(provider: str) -> AsyncIterator[None]:
+async def capped(provider: str) -> AsyncGenerator[None]:
     """Run the block within ``PROVIDER_TIMEOUT_SECONDS`` in total, or raise ``timeout``."""
     try:
         async with asyncio.timeout(PROVIDER_TIMEOUT_SECONDS):

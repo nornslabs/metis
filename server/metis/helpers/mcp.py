@@ -9,7 +9,7 @@ including tool calls, becomes a safe ``UpstreamError``.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
 
 import httpx
@@ -23,7 +23,7 @@ from metis.helpers.http import UNAUTHORIZED_STATUSES, FailureReason, provider_er
 @asynccontextmanager
 async def open_mcp_session(
     http: httpx.AsyncClient, url: str, provider: str
-) -> AsyncIterator[ClientSession]:
+) -> AsyncGenerator[ClientSession]:
     """An initialised MCP session to ``url``; failures raise ``UpstreamError``."""
     try:
         async with (

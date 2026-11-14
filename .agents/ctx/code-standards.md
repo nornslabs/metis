@@ -58,6 +58,7 @@ modules/<name>/
 - Async only: `httpx`, `asyncpg`; no blocking calls.
 - Pydantic at boundaries; services raise domain errors, API maps them to HTTP.
 - `structlog` with `run_id`/`idea_id`/`workspace_id`; UTC times; UUIDv7 ids.
+- Context managers: annotate an `@asynccontextmanager` function as `-> AsyncGenerator[T]` (and `@contextmanager` as `-> Generator[T]`), imported from `collections.abc`. Never `-> AsyncIterator[T]` / `-> Iterator[T]`: that form is deprecated and editors flag it.
 
 ## API (FastAPI)
 

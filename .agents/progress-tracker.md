@@ -48,6 +48,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | `@asynccontextmanager` functions return `AsyncGenerator[T]`, never `AsyncIterator[T]` (rule in `code-standards.md`) | The `AsyncIterator` form is deprecated and flagged by editors |
 | 2026-11-14 | Adapters grouped by connection kind: MCP-reached providers in `adapters/mcp/` (`exa.py`) | Linear and Notion MCP adapters will join Exa there |
 | 2026-11-14 | New `metis/helpers/` for generic stateless code (`http`, `mcp`, `ids`, `validation`, `text`); rule in `architecture.md` | Adapters stay vendor-specific, `core` stays infrastructure; shared plumbing has one home |
 | 2026-11-14 | Exa via its hosted MCP server (`mcp.exa.ai/mcp`, `x-api-key`), not `exa-py`; key check = one 1-result `web_search_exa` call | One pattern (MCP) for every external tool; keyless search means only a tool call proves a key |

@@ -9,7 +9,7 @@ A real MCP server (``FastMCP`` from the ``mcp`` SDK) with one
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any
@@ -68,7 +68,7 @@ class FakeExaMcp:
         return _RecordingTransport(self, httpx.ASGITransport(app=self._asgi))
 
     @asynccontextmanager
-    async def running(self) -> AsyncIterator[FakeExaMcp]:
+    async def running(self) -> AsyncGenerator[FakeExaMcp]:
         """Run the MCP session manager (the app's lifespan) for the test.
 
         It runs in its own task: its anyio cancel scope must be entered and
