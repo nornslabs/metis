@@ -38,7 +38,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Auth and Access Model
 
 - Users sign in via Auth.js; server verifies the JWT.
-- Every tenant row has `workspace_id`, enforced by Postgres RLS via `enable_tenant_rls(regclass)` (policy `tenant_isolation`: `workspace_id = app.workspace_id`, set per transaction with `set_config(..., true)`). An unset or empty `app.workspace_id` matches no rows (fail closed, no error). Superusers bypass RLS, so the app must connect as a non-superuser role. Exception: `core.outbox` carries `workspace_id` without RLS; the outbox relay reads across workspaces and no API route exposes it.
+- Every tenant row has `workspace_id`, enforced by Postgres RLS via `enable_tenant_rls(regclass)` (policy `tenant_isolation`: `workspace_id = app.workspace_id`, set per transaction with `set_config(..., true)`). An unset or empty `app.workspace_id` matches no rows (fail closed, no error). Superusers bypass RLS, so the app must connect as a non-superuser role. `identity.members` has `tenant_isolation` plus a SELECT-only `member_self` policy (`user_id = app.user_id`, same fail-closed rule) so a user can list their memberships across workspaces; `identity.users` and `identity.workspaces` have no RLS. Exception: `core.outbox` carries `workspace_id` without RLS; the outbox relay reads across workspaces and no API route exposes it.
 - Each idea has one owner; only the owner or workspace admins mutate it.
 - LLM, Exa and MCP credentials are per workspace (BYO), encrypted, never returned or logged.
 

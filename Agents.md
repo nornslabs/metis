@@ -75,7 +75,7 @@ All work goes through two global skills. Every agent (Claude Code, Codex, Cursor
 | Command                      | Input                                                               | Output                                            |
 | ---------------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
 | `/to-spec <LINEAR-ID>`       | A Linear issue id, e.g. `/to-spec SHIP-206`                         | A PRD in `.agents/prds/`. No code.                |
-| `/implement-spec <PRD-PATH>` | A PRD path, e.g. `/implement-spec .agents/prds/chore-core-infra.md` | The implemented PRD on its own branch, committed. |
+| `/implement-spec <PRD-PATH>` | A PRD path, e.g. `/implement-spec .agents/prds/chore-core-infra.md` | The implemented PRD on its own branch, committed after approval. |
 
 Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never implement straight from a Linear issue or a chat request.
 
@@ -97,8 +97,10 @@ Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never i
 4. **Read context**: `progress-tracker.md` and the context files for the task (see "Which Context to Load").
 5. **Update the tracker, then build.** Set the PRD Status to `in progress`, update `progress-tracker.md` (Status block + PRD Board row with branch), then implement within the PRD's scope only.
 6. **Verify**: acceptance criteria plus the checks in "Before Moving to the Next PRD".
-7. **Finish**: set Status to `done`, update `progress-tracker.md`, sync docs (see Keeping Docs in Sync), and commit all changes (code, tests, PRD, tracker, docs) on the branch with conventional commits, e.g. `chore(core-infra): add global settings`. Reference the Linear id from the PRD's Source line in the commit body.
-8. **Do not merge or push to `main`.** Leave the branch for review unless told otherwise. If asked to open a PR, follow "Pull Requests".
+7. **Finish**: set Status to `done`, update `progress-tracker.md` and sync docs (see Keeping Docs in Sync).
+8. **Ask before committing.** Never commit or push without human approval. When coding is done, ask: "Should I commit and push to PR?" and wait for the answer.
+9. **Commit only after approval**: commit all changes (code, tests, PRD, tracker, docs) on the branch with conventional commits, e.g. `chore(core-infra): add global settings`. Reference the Linear id from the PRD's Source line in the commit body. If asked to open a PR, follow "Pull Requests".
+10. **Do not merge or push to `main`.**
 
 ## Pull Requests
 
