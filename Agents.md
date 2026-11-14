@@ -98,7 +98,23 @@ Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never i
 5. **Update the tracker, then build.** Set the PRD Status to `in progress`, update `progress-tracker.md` (Status block + PRD Board row with branch), then implement within the PRD's scope only.
 6. **Verify**: acceptance criteria plus the checks in "Before Moving to the Next PRD".
 7. **Finish**: set Status to `done`, update `progress-tracker.md`, sync docs (see Keeping Docs in Sync), and commit all changes (code, tests, PRD, tracker, docs) on the branch with conventional commits, e.g. `chore(core-infra): add global settings`. Reference the Linear id from the PRD's Source line in the commit body.
-8. **Do not merge or push to `main`.** Leave the branch for review unless told otherwise.
+8. **Do not merge or push to `main`.** Leave the branch for review unless told otherwise. If asked to open a PR, follow "Pull Requests".
+
+## Pull Requests
+
+Every pull request uses the template at `.github/PULL_REQUEST_TEMPLATE.md`. Never write a free-form PR body.
+
+1. **Read the template** before writing the body; it is the source of truth for sections and checklist items.
+2. **Fill every section**, keep its headings and order, and delete the `<!-- -->` guidance comments:
+   - **Summary**: one paragraph on what the PR does and why.
+   - **Linear**: the real issue id and URL from the PRD's Source line, e.g. `Closes linear issue: SHIP-206 — <url>`. No placeholder `SHIP-XXXX`.
+   - **Spec**: the PRD path this PR implements.
+   - **Scope**: copy **Touches** and **Out of scope** from the PRD.
+   - **Before merging**: tick (`[x]`) only the checks you actually ran and saw pass; leave the rest unticked and say why in **Notes**.
+   - **Notes**: trade-offs, known limitations, follow-ups. Write `None` if empty.
+3. **One PR = one PRD = one branch.** The PR title is the conventional commit summary with the Linear id, e.g. `feat(auth): add workspace RLS (SHIP-206)`.
+4. **Create it with a body file**, not inline text, so the template's markdown survives:
+   `gh pr create --base main --title "<title>" --body-file <filled-template-path>`
 
 One PRD = one branch. Never mix two PRDs on the same branch.
 
