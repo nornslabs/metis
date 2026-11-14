@@ -17,10 +17,10 @@ dependencies = [
   "langgraph",
   "langchain-openai",
   "langgraph-checkpoint-postgres",
-  "exa-py",
   "langchain-mcp-adapters",
   "cryptography>=50.0.2",
   "pyjwt>=2.15.1",
+  "mcp>=1.30.0",
 ]
 
 [dependency-groups]

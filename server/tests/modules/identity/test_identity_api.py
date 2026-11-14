@@ -14,36 +14,35 @@ from __future__ import annotations
 
 import base64
 import json
-import os
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import httpx
 import jwt
 import pytest
-import pytest_asyncio
+from api_helpers import (
+    APP_ROLE,
+    AUDIENCE,
+    SECRET,
+    add_member_directly,
+    assert_problem,
+    bearer,
+    make_token,
+    me,
+)
 from fastapi import APIRouter, Depends
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
-from sqlalchemy.pool import NullPool
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from metis.core.config import get_settings
-from metis.core.db import SessionDep, get_request_session, transaction
+from metis.core.db import SessionDep
 from metis.core.errors import PermissionDeniedError
 from metis.entrypoints.api import app
 from metis.modules import identity
 from metis.modules.identity import CurrentUser, Membership, current_user, current_workspace
 
-DATABASE_URL = os.environ.get(
-    "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/metis"
-)
-APP_ROLE = "metis_app"
-SECRET = get_settings().auth_jwt_secret
-AUDIENCE = get_settings().auth_jwt_audience
 WEB_ORIGIN = get_settings().get_cors_origins()[0]
-_TRUNCATE = "TRUNCATE identity.members, identity.workspaces, identity.users CASCADE"
 
 # ------------------------------------------------------------- test-only probe
 # Routes that expose what the request session sees, to prove RLS scoping and
@@ -73,87 +72,6 @@ async def _fail_after_write(
 
 
 app.include_router(_probe)
-
-
-# --------------------------------------------------------------------- helpers
-def make_token(
-    sub: str | None = "auth|ada",
-    email: str | None = "ada@example.com",
-    name: str | None = "Ada",
-    *,
-    audience: str = AUDIENCE,
-    secret: str = SECRET,
-    algorithm: str = "HS256",
-    expires_in: timedelta = timedelta(minutes=5),
-    picture: str | None = None,
-) -> str:
-    now = datetime.now(UTC)
-    claims: dict[str, Any] = {"aud": audience, "iat": now, "exp": now + expires_in}
-    for key, value in {"sub": sub, "email": email, "name": name, "picture": picture}.items():
-        if value is not None:
-            claims[key] = value
-    return jwt.encode(claims, secret, algorithm=algorithm)
-
-
-def bearer(token: str, workspace_id: str | UUID | None = None) -> dict[str, str]:
-    headers = {"Authorization": f"Bearer {token}"}
-    if workspace_id is not None:
-        headers["X-Workspace-Id"] = str(workspace_id)
-    return headers
-
-
-# -------------------------------------------------------------------- fixtures
-@pytest_asyncio.fixture
-async def engine() -> AsyncIterator[AsyncEngine]:
-    engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
-    try:
-        async with engine.connect() as conn:
-            ready = await conn.scalar(
-                text(
-                    "SELECT to_regclass('identity.members') IS NOT NULL "
-                    "AND EXISTS (SELECT FROM pg_roles WHERE rolname = :role)"
-                ),
-                {"role": APP_ROLE},
-            )
-    except Exception:  # noqa: BLE001
-        await engine.dispose()
-        pytest.skip("Postgres not reachable")
-    if not ready:
-        await engine.dispose()
-        pytest.skip("identity tables or metis_app role missing; run `alembic upgrade head`")
-    async with engine.begin() as conn:
-        await conn.execute(text(_TRUNCATE))
-    yield engine
-    async with engine.begin() as conn:
-        await conn.execute(text(_TRUNCATE))
-    await engine.dispose()
-
-
-@pytest_asyncio.fixture
-async def client(engine: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]:
-    async def app_role_session() -> AsyncIterator[AsyncSession]:
-        async with AsyncSession(engine, expire_on_commit=False) as session:
-            async with transaction(session):
-                await session.execute(text(f"SET LOCAL ROLE {APP_ROLE}"))
-                yield session
-
-    app.dependency_overrides[get_request_session] = app_role_session
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-    app.dependency_overrides.clear()
-
-
-async def me(client: httpx.AsyncClient, token: str, workspace: str | UUID | None = None) -> Any:
-    response = await client.get("/v1/me", headers=bearer(token, workspace))
-    assert response.status_code == 200, response.text
-    return response.json()
-
-
-def assert_problem(response: httpx.Response, status: int, code: str) -> None:
-    assert response.status_code == status, response.text
-    assert response.headers["content-type"].startswith("application/problem+json")
-    assert response.json()["code"] == code
 
 
 # ---------------------------------------------------------------- 401: tokens
@@ -335,18 +253,6 @@ async def test_malformed_workspace_header_is_422(client: httpx.AsyncClient) -> N
     response = await client.get("/v1/me", headers=bearer(make_token(), "not-a-uuid"))
 
     assert_problem(response, 422, "common.validation_failed")
-
-
-async def add_member_directly(engine: AsyncEngine, workspace_id: str, user_id: str) -> None:
-    """Seed a membership as the owner role (no HTTP route adds members yet)."""
-    async with engine.begin() as conn:
-        await conn.execute(
-            text(
-                "INSERT INTO identity.members (workspace_id, user_id, role) "
-                "VALUES (:ws, :user, 'member')"
-            ),
-            {"ws": workspace_id, "user": user_id},
-        )
 
 
 async def rls_view(client: httpx.AsyncClient, token: str, workspace: str) -> Any:

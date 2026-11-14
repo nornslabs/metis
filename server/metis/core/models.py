@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from sqlalchemy import DateTime, MetaData, String
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from metis.core.ids import uuid7
+from metis.helpers.ids import uuid7
 
 
 def generate_uuid() -> str:

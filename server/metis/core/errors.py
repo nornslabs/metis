@@ -56,6 +56,7 @@ class ErrorCode(StrEnum):
 
     # -------------------------------------------------------------------- provider
     PROVIDER_NOT_CONFIGURED = "provider.not_configured"
+    PROVIDER_KEY_NOT_FOUND = "provider.key_not_found"
     UPSTREAM_ERROR = "provider.upstream_error"
     BUDGET_EXCEEDED = "provider.budget_exceeded"
 
@@ -220,6 +221,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.PROVIDER_NOT_CONFIGURED: ErrorSpec(
         status=402,
         title="Provider Not Configured",
+        retryable=False,
+    ),
+    ErrorCode.PROVIDER_KEY_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Provider Key Not Found",
         retryable=False,
     ),
     ErrorCode.UPSTREAM_ERROR: ErrorSpec(
@@ -522,6 +528,18 @@ class SecretDecryptError(MetisError):
     code: ErrorCode = ErrorCode.SECRET_DECRYPT_FAILED
 
 
+class ProviderNotConfiguredError(MetisError):
+    """The workspace has no key for the provider; the user must add one."""
+
+    code: ErrorCode = ErrorCode.PROVIDER_NOT_CONFIGURED
+
+
+class ProviderKeyNotFoundError(NotFoundError):
+    """The workspace has no key of that kind to delete."""
+
+    code: ErrorCode = ErrorCode.PROVIDER_KEY_NOT_FOUND
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -538,6 +556,8 @@ __all__ = [
     "RateLimitError",
     "MalformedEventError",
     "SecretDecryptError",
+    "ProviderNotConfiguredError",
+    "ProviderKeyNotFoundError",
     "MemberUserNotFoundError",
     "AlreadyMemberError",
     "WorkspaceNotFoundError",

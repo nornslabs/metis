@@ -1,13 +1,18 @@
-"""HTTP routes of the identity module: ``/v1/me`` and ``/v1/workspaces``.
+"""HTTP routes of the identity module: ``/v1/me``, ``/v1/workspaces`` and ``/v1/settings``.
 
 Thin controllers: auth comes from the dependencies, work from ``service.py``.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from metis.core.db import SessionDep
+from metis.core.error_handlers import metis_error_response
+from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules.identity import service
 from metis.modules.identity.deps import CurrentUserDep, CurrentWorkspaceDep
 from metis.modules.identity.schemas import (
@@ -16,6 +21,12 @@ from metis.modules.identity.schemas import (
     Membership,
     MembershipPage,
     MeResponse,
+    ProviderKeyView,
+    ProviderKind,
+    PutProviderKeyRequest,
+    SettingsPatch,
+    SettingsResponse,
+    WorkspaceSettingsView,
 )
 
 router = APIRouter(prefix="/v1", tags=["identity"])
@@ -43,6 +54,67 @@ async def create_my_workspace(
     """Create a workspace owned by the caller."""
     workspace = await service.create_workspace(session, caller.user, body.name)
     return Membership(workspace=workspace, role=MemberRole.OWNER)
+
+
+# ------------------------------------------------------------------ settings
+ProviderHttpDep = Annotated[ClientFactory, Depends(provider_http_factory)]
+
+
+@router.get("/settings", response_model=SettingsResponse)
+async def get_settings(session: SessionDep, workspace: CurrentWorkspaceDep) -> SettingsResponse:
+    """Masked provider keys and run settings of the current workspace."""
+    return await service.get_settings_overview(session, workspace.workspace.id)
+
+
+@router.patch("/settings", response_model=WorkspaceSettingsView)
+async def update_settings(
+    session: SessionDep, workspace: CurrentWorkspaceDep, body: SettingsPatch
+) -> WorkspaceSettingsView:
+    """Change run settings; ``version`` must match the one read (409 otherwise)."""
+    return await service.update_settings(session, workspace, body)
+
+
+@router.put("/settings/keys/{kind}", response_model=ProviderKeyView)
+async def put_provider_key(
+    session: SessionDep,
+    workspace: CurrentWorkspaceDep,
+    kind: ProviderKind,
+    body: PutProviderKeyRequest,
+) -> ProviderKeyView:
+    """Save or replace the workspace's key of ``kind``; the response is masked."""
+    return await service.set_key(session, workspace, kind, body.value, body.base_url, body.model)
+
+
+@router.delete("/settings/keys/{kind}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_provider_key(
+    session: SessionDep, workspace: CurrentWorkspaceDep, kind: ProviderKind
+) -> Response:
+    """Remove the workspace's key of ``kind``."""
+    await service.delete_key(session, workspace, kind)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/settings/keys/{kind}/test",
+    response_model=ProviderKeyView,
+    responses={status.HTTP_502_BAD_GATEWAY: {"description": "The provider call failed"}},
+)
+async def test_provider_key(
+    request: Request,
+    session: SessionDep,
+    workspace: CurrentWorkspaceDep,
+    kind: ProviderKind,
+    make_client: ProviderHttpDep,
+) -> ProviderKeyView | JSONResponse:
+    """Check the saved key with one cheap provider call and record the result.
+
+    A failure is returned as a 502 problem, not raised, so the request session
+    still commits the recorded result.
+    """
+    result = await service.test_key(session, workspace.workspace.id, kind, make_client)
+    if result.error is not None:
+        return metis_error_response(request, result.error)
+    return result.key
 
 
 __all__ = ["router"]
