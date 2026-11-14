@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from uuid import UUID
 
@@ -11,23 +11,15 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.core.db import set_setting
 from metis.core.errors import MetisError
 from metis.core.ids import uuid7
 from metis.modules.identity.models import MemberRow, UserRow, WorkspaceRow
 from metis.modules.identity.schemas import MemberRole, UserClaims
 
-USER_SETTING = "app.user_id"
-WORKSPACE_SETTING = "app.workspace_id"
-
-
-async def _set_config(session: AsyncSession, setting: str, value: str) -> None:
-    await session.execute(
-        text("SELECT set_config(:setting, :value, true)"), {"setting": setting, "value": value}
-    )
-
 
 @asynccontextmanager
-async def rls_context(session: AsyncSession, setting: str, value: UUID) -> AsyncIterator[None]:
+async def rls_context(session: AsyncSession, setting: str, value: UUID) -> AsyncGenerator[None]:
     """Set an RLS setting for the block, then restore the caller's value.
 
     The setting is transaction-local. It is restored after success and after a
@@ -37,13 +29,13 @@ async def rls_context(session: AsyncSession, setting: str, value: UUID) -> Async
     previous = await session.scalar(
         text("SELECT current_setting(:setting, true)"), {"setting": setting}
     )
-    await _set_config(session, setting, str(value))
+    await set_setting(session, setting, str(value))
     try:
         yield
     except MetisError:
-        await _set_config(session, setting, previous or "")
+        await set_setting(session, setting, previous or "")
         raise
-    await _set_config(session, setting, previous or "")
+    await set_setting(session, setting, previous or "")
 
 
 async def upsert_user(session: AsyncSession, claims: UserClaims) -> UserRow | None:

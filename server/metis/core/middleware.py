@@ -62,7 +62,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
         finally:
             # Clear even when the handler raises, so the id never leaks to the next request
-            clear_context("request_id")
+            clear_context("request_id", "user_id", "workspace_id")
 
         # Calculate duration
         duration_ms = (time.perf_counter() - start_time) * 1000

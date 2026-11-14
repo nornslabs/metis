@@ -20,6 +20,7 @@ dependencies = [
   "exa-py",
   "langchain-mcp-adapters",
   "cryptography>=50.0.2",
+  "pyjwt>=2.15.1",
 ]
 
 [dependency-groups]

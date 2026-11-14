@@ -7,11 +7,7 @@ This module follows the controller-service pattern:
 - api.py: HTTP controller (routes)
 """
 
-# Import router last since it depends on other modules
-from metis.modules.health.api import (
-    health_check,
-    router,  # noqa: E402
-)
+from metis.modules.health.api import health_check, router
 from metis.modules.health.schemas import HealthResponse, HealthStatus
 from metis.modules.health.service import (
     check_postgres_health,
