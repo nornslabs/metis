@@ -28,9 +28,9 @@ from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import Mapped, mapped_column
 
-from metis.core.ids import uuid7
 from metis.core.logging import get_logger
 from metis.core.models import Base
+from metis.helpers.ids import uuid7
 
 RELAY_BATCH_SIZE = 100
 MAX_ATTEMPTS = 10

@@ -134,6 +134,11 @@ class Settings(BaseSettings):
 
         return self
 
+    @property
+    def is_development(self) -> bool:
+        """True for local development (``APP_ENV=development``, the default)."""
+        return self.app_env == AppSettings.DEFAULT_APP_ENV
+
     def __repr__(self) -> str:
         """Custom repr that redacts secrets."""
         data: dict[str, Any] = {}

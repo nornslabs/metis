@@ -1,10 +1,10 @@
-"""Tests for the UUIDv7 generator in ``metis.core.ids``."""
+"""Tests for the UUIDv7 generator in ``metis.helpers.ids``."""
 
 from __future__ import annotations
 
 import time
 
-from metis.core.ids import uuid7
+from metis.helpers.ids import uuid7
 
 UUID7_VERSION = 7
 RFC_9562_VARIANT = "specified in RFC 4122"

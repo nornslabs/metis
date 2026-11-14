@@ -26,7 +26,8 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 ├── .env.example               # environment variable template
 ├── dist/                      # build artifacts
 ├── server/                    # Python: FastAPI api, Arq worker, scheduler, LangGraph agent
-│   ├── adapters/              # adapter layer
+│   ├── adapters/              # adapter layer (one file per external vendor)
+│   ├── helpers/               # generic, stateless helpers (see architecture.md)
 │   ├── agent/                 # agent graph
 │   ├── core/                  # core domain
 │   ├── entrypoints/           # API entrypoints

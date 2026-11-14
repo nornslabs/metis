@@ -97,8 +97,12 @@ def _build_problem_response(
     return JSONResponse(body, status_code=error_spec.status, headers=headers)
 
 
-async def _handle_metis_error(request: Request, exc: MetisError) -> JSONResponse:
-    """Handle MetisError exceptions."""
+def metis_error_response(request: Request, exc: MetisError) -> JSONResponse:
+    """Log ``exc`` and render it as a problem response, exactly like a raised error.
+
+    For routes that must return an error without raising, so the request
+    session still commits (e.g. a failed provider key test is recorded).
+    """
     status = exc.status
     if _CLIENT_ERROR_MIN <= status <= _CLIENT_ERROR_MAX:
         level = logging.INFO
@@ -120,6 +124,11 @@ async def _handle_metis_error(request: Request, exc: MetisError) -> JSONResponse
         errors=exc.errors,
         meta=exc.meta,
     )
+
+
+async def _handle_metis_error(request: Request, exc: MetisError) -> JSONResponse:
+    """Handle MetisError exceptions."""
+    return metis_error_response(request, exc)
 
 
 async def _handle_validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
@@ -237,4 +246,4 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, _handle_unhandled_exception)
 
 
-__all__ = ["register_error_handlers"]
+__all__ = ["metis_error_response", "register_error_handlers"]
