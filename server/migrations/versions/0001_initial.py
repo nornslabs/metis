@@ -18,6 +18,28 @@ branch_labels = None
 depends_on = None
 
 
+# Enables RLS on a tenant table with workspace isolation. Later migrations call
+# ``SELECT enable_tenant_rls('<schema>.<table>'::regclass)``. An unset (NULL) or
+# cleared ('') ``app.workspace_id`` matches no rows, so access fails closed.
+ENABLE_TENANT_RLS_SQL = """
+CREATE OR REPLACE FUNCTION enable_tenant_rls(table_name regclass)
+RETURNS void AS $$
+BEGIN
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', table_name);
+    -- FORCE applies the policy to the table owner too (superusers still bypass RLS)
+    EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', table_name);
+    EXECUTE format(
+        'CREATE POLICY tenant_isolation ON %s FOR ALL '
+        || 'USING (workspace_id = nullif(current_setting(%L, true), %L)::uuid)',
+        table_name, 'app.workspace_id', ''
+    );
+END;
+$$ LANGUAGE plpgsql;
+"""
+
+DROP_TENANT_RLS_SQL = "DROP FUNCTION IF EXISTS enable_tenant_rls(regclass)"
+
+
 def upgrade() -> None:
     """Create extensions, schemas, and RLS helper function."""
     # Create extensions
@@ -40,29 +62,11 @@ def upgrade() -> None:
         op.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
 
     # Create RLS helper function for migrations to use
-    # This function enables RLS on a tenant table with workspace isolation
-    op.execute(
-        """
-        CREATE OR REPLACE FUNCTION enable_tenant_rls(table_name regclass)
-        RETURNS void AS $$
-        BEGIN
-            -- Enable RLS on the table
-            EXECUTE 'ALTER TABLE ' || table_name || ' ENABLE ROW LEVEL SECURITY';
-            -- Force RLS so superuser bypasses don't leak data
-            EXECUTE 'ALTER TABLE ' || table_name || ' FORCE ROW LEVEL SECURITY';
-            -- Create policy that filters by workspace_id from session
-            EXECUTE 'CREATE POLICY tenant_isolation ON '
-                    || table_name
-                    || ' FOR ALL USING (workspace_id = '
-                    || "current_setting('app.workspace_id')::uuid)";
-        END;
-        $$ LANGUAGE plpgsql;
-        """
-    )
+    op.execute(ENABLE_TENANT_RLS_SQL)
 
 
 def downgrade() -> None:
-    """Drop all schemas (extensions cannot be dropped while in use).
+    """Drop all schemas and the RLS helper (extensions cannot be dropped while in use).
 
     Note: Extensions are not dropped to avoid errors if any tables
     reference them. This is safe for development/reset purposes.
@@ -81,6 +85,7 @@ def downgrade() -> None:
     ]
     for schema in schemas:
         op.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+    op.execute(DROP_TENANT_RLS_SQL)
 
 
 # -----------------------------------------------------------------------------
@@ -111,21 +116,7 @@ async def upgrade_async(connection: Connection) -> None:
         for schema in schemas:
             await connection.exec_text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
 
-        await connection.exec_text(
-            """
-            CREATE OR REPLACE FUNCTION enable_tenant_rls(table_name regclass)
-            RETURNS void AS $$
-            BEGIN
-                EXECUTE 'ALTER TABLE ' || table_name || ' ENABLE ROW LEVEL SECURITY';
-                EXECUTE 'ALTER TABLE ' || table_name || ' FORCE ROW LEVEL SECURITY';
-                EXECUTE 'CREATE POLICY tenant_isolation ON '
-                        || table_name
-                        || ' FOR ALL USING (workspace_id = '
-                        || "current_setting('app.workspace_id')::uuid)";
-            END;
-            $$ LANGUAGE plpgsql;
-            """
-        )
+        await connection.exec_text(ENABLE_TENANT_RLS_SQL)
 
 
 async def downgrade_async(connection: Connection) -> None:
@@ -145,3 +136,4 @@ async def downgrade_async(connection: Connection) -> None:
     async with connection.begin():
         for schema in schemas:
             await connection.exec_text(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
+        await connection.exec_text(DROP_TENANT_RLS_SQL)

@@ -6,6 +6,7 @@ All errors return a consistent `application/problem+json` response format.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from typing import Any
 
@@ -42,7 +43,7 @@ def _get_request_id(request: Request) -> str | None:
 
 
 def _log_error(
-    log_level: str,
+    log_level: int,
     request: Request,
     code: ErrorCode,
     detail: str | None,
@@ -97,12 +98,12 @@ def _build_problem_response(
 async def _handle_metis_error(request: Request, exc: MetisError) -> JSONResponse:
     """Handle MetisError exceptions."""
     status = exc.status
-    if _CLIENT_ERROR_MIN <= status < _CLIENT_ERROR_MAX:
-        level = "info"
+    if _CLIENT_ERROR_MIN <= status <= _CLIENT_ERROR_MAX:
+        level = logging.INFO
     elif status >= _SERVER_ERROR_MIN:
-        level = "error"
+        level = logging.ERROR
     else:
-        level = "warning"
+        level = logging.WARNING
 
     _log_error(
         log_level=level,

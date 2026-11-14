@@ -32,9 +32,12 @@ docker compose up --build
 - Redis: `localhost:6379`
 
 A one-shot `migrate` service runs `alembic upgrade head` before the API
- starts, so the schema is always current. Services read `.env` when present
- (`cp .env.example .env`); without it, compose defaults (postgres/postgres)
- apply.
+starts, so the schema is always current.
+
+Create `.env` first (`cp .env.example .env`) and fill in `AUTH_JWT_SECRET` and
+`ENCRYPTION_MASTER_KEY`. Without them, `docker compose up` stops before any
+container starts and names the missing variable. Everything else has a compose
+default (Postgres `postgres`/`postgres`, `AUTH_JWT_AUDIENCE=metis`).
 
 #### Database Role
 
@@ -44,8 +47,19 @@ permissions needed for the application to function. RLS policies prevent
 this role from reading or modifying other workspaces' data, even if a bug
 in the application logic attempts to bypass the workspace filter.
 
-For local development, the default `postgres` user works but RLS policies
-are still enforced when `app.workspace_id` is set in the session.
+Locally the services connect as the `postgres` superuser, and **superusers
+bypass RLS** even when it is forced, so do not rely on the local stack to prove
+isolation. The RLS tests query as a non-superuser role instead (see Tests).
+
+Tenant tables get isolation from one call in their migration:
+`SELECT enable_tenant_rls('<schema>.<table>'::regclass)`. It enables and forces
+RLS and adds a `tenant_isolation` policy on
+`workspace_id = app.workspace_id`. Set the workspace per transaction with
+`SELECT set_config('app.workspace_id', '<uuid>', true)`. When it is not set,
+the table returns no rows.
+
+If your local database was migrated before SHIP-262, reset it so the fixed
+helper is installed: `uv run alembic downgrade base && uv run alembic upgrade head`.
 
 To create the production role manually:
 
@@ -76,6 +90,21 @@ uv sync
 # Set up .env from .env.example
 uv run uvicorn metis.entrypoints.api:app --reload
 ```
+
+### Tests
+
+```bash
+cd server
+uv run pytest
+```
+
+Database and Redis tests need a migrated Postgres and a Redis. They read
+`TEST_DATABASE_URL` (default
+`postgresql+asyncpg://postgres:postgres@localhost:5432/metis`) and
+`TEST_REDIS_URL` (default `redis://localhost:6379/15`), and skip only when
+those are unreachable. Run `uv run alembic upgrade head` against the test
+database first. The RLS tests create a `NOLOGIN` non-superuser role,
+`metis_rls_test`, and query as it.
 
 ### Web
 

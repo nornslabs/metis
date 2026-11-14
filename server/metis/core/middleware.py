@@ -51,14 +51,18 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         if not request_id:
             request_id = str(uuid.uuid4())
 
-        # Bind request_id to context
+        # Expose request_id to error handlers (problem+json bodies) and bind it to logs
+        request.state.request_id = request_id
         bind_context(request_id=request_id)
 
         # Record start time
         start_time = time.perf_counter()
 
-        # Process the request first
-        response = await call_next(request)
+        try:
+            response = await call_next(request)
+        finally:
+            # Clear even when the handler raises, so the id never leaks to the next request
+            clear_context("request_id")
 
         # Calculate duration
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -93,8 +97,5 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         # Add X-Request-ID to response headers
         headers = response.headers
         headers["X-Request-ID"] = request_id
-
-        # Clear context
-        clear_context("request_id")
 
         return response
