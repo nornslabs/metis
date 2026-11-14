@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import Receive, Scope, Send
 
-from metis.adapters.exa import API_KEY_HEADER, SEARCH_TOOL
+from metis.adapters.mcp.exa import API_KEY_HEADER, SEARCH_TOOL
 
 SLOW_TOOL_SECONDS = 1.0
 

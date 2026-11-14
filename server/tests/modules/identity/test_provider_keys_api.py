@@ -23,7 +23,7 @@ from fake_exa_mcp import ExaMode, FakeExaMcp
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
-from metis.adapters.exa import EXA_MCP_URL
+from metis.adapters.mcp.exa import EXA_MCP_URL
 from metis.core.config import get_settings
 from metis.core.errors import ProviderNotConfiguredError
 from metis.entrypoints.api import app

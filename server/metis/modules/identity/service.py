@@ -14,8 +14,8 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.adapters.exa import ExaMcpClient
 from metis.adapters.llm import OpenAICompatibleClient
+from metis.adapters.mcp.exa import ExaMcpClient
 from metis.core import crypto
 from metis.core.config import get_settings
 from metis.core.db import USER_SETTING, WORKSPACE_SETTING

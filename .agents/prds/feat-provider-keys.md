@@ -54,7 +54,7 @@ Goal: a workspace can save, test and remove its LLM and Exa keys, and read and u
    - `get_settings(session, workspace_id) -> WorkspaceSettingsView` (defaults with `version: 0` when no row); `update_settings(session, workspace_id, patch, version)`: `version` mismatch → `ConflictError` (409); bumps `version`.
 4. **Provider adapters** (`httpx.AsyncClient`, 10 s total timeout as a named constant, no vendor SDK). The call chain is always route → `identity.service.test_key` → adapter; the route never calls a provider or an adapter itself.
    - **LLM adapter** (`server/metis/adapters/llm.py`): an OpenAI-compatible client built from `base_url` + key with `list_models() -> list[str]` (`GET {base_url}/models`, `Authorization: Bearer <key>`); 2xx = key works. No tokens spent. This is the first piece of the LLM adapter; SHIP-220 (LLM gateway) extends it with chat calls.
-   - **Exa MCP client** (`server/metis/adapters/exa.py`, on the shared `server/metis/helpers/mcp.py`): `check()` connects to Exa's hosted MCP server (`https://mcp.exa.ai/mcp`, key in `x-api-key`) and calls `web_search_exa` once with `numResults: 1`. Exa also serves keyless searches, so listing tools proves nothing; only a tool call checks the key. A bad key is a tool `isError` containing `(401)` → `unauthorized`. No `exa-py` (removed). The agents load the same server's tools in SHIP-226.
+   - **Exa MCP client** (`server/metis/adapters/mcp/exa.py`, on the shared `server/metis/helpers/mcp.py`): `check()` connects to Exa's hosted MCP server (`https://mcp.exa.ai/mcp`, key in `x-api-key`) and calls `web_search_exa` once with `numResults: 1`. Exa also serves keyless searches, so listing tools proves nothing; only a tool call checks the key. A bad key is a tool `isError` containing `(401)` → `unauthorized`. No `exa-py` (removed). The agents load the same server's tools in SHIP-226.
    - Both raise `UpstreamError` with a safe `detail`: `unauthorized` (401/403), `unreachable` (connect error / DNS), `timeout`, `bad_response` (other non-2xx or unparseable body). The key and the upstream body are never in `detail` or logs.
    - The service turns `UpstreamError` into a failed `KeyTestResult`. It does not check that the saved `model` appears in the list, because some proxies return partial lists.
    - The `httpx` transport is injectable (a FastAPI dependency passed into the service) so tests swap in `httpx.MockTransport`.
@@ -88,7 +88,7 @@ Goal: a workspace can save, test and remove its LLM and Exa keys, and read and u
 
 ## Touches
 
-`server/migrations/versions/0005_provider_keys.py` (new), `server/metis/modules/identity/models.py`, `repo.py`, `schemas.py`, `service.py`, `api.py`, `__init__.py`, `server/metis/adapters/llm.py` (new), `server/metis/adapters/exa.py` (new), `server/metis/helpers/{http,mcp,ids,validation,text}.py` (new `helpers` package; `ids.py` moved from `core`), `server/pyproject.toml` + `uv.lock` (`exa-py` removed, `mcp` added via `uv`), `server/metis/core/errors.py`, `server/tests/modules/identity/test_provider_keys_api.py` (new), `.agents/ctx/server-context.md`, `.agents/ctx/architecture.md`.
+`server/migrations/versions/0005_provider_keys.py` (new), `server/metis/modules/identity/models.py`, `repo.py`, `schemas.py`, `service.py`, `api.py`, `__init__.py`, `server/metis/adapters/llm.py` (new), `server/metis/adapters/mcp/exa.py` (new), `server/metis/helpers/{http,mcp,ids,validation,text}.py` (new `helpers` package; `ids.py` moved from `core`), `server/pyproject.toml` + `uv.lock` (`exa-py` removed, `mcp` added via `uv`), `server/metis/core/errors.py`, `server/tests/modules/identity/test_provider_keys_api.py` (new), `.agents/ctx/server-context.md`, `.agents/ctx/architecture.md`.
 
 ## Dependencies
 
@@ -166,7 +166,7 @@ Follow-up for later: in production `base_url` can be any https host, including p
 
 Changed after review, at the user's request: Exa is reached through its hosted MCP server, not a hand-written HTTP adapter.
 
-- `adapters/exa.py` is now `ExaMcpClient`, built on the new shared `helpers/mcp.py` (`open_mcp_session`, which Linear/Notion MCP can reuse later).
+- `adapters/exa.py` (now `adapters/mcp/exa.py`) is `ExaMcpClient`, built on the new shared `helpers/mcp.py` (`open_mcp_session`, which Linear/Notion MCP can reuse later).
 - `helpers/http.py` (was `adapters/http.py`) hands out a `ClientFactory` (`provider_http_factory`), because the MCP SDK sends the client's headers, so the key must be set when the client is created. `capped()` gives every provider call a 10 s total cap.
 - The check calls `web_search_exa` once with 1 result. This was confirmed against the real server: `query` and `objective` are required, and a bad key returns a tool error `(401)` instead of falling back to keyless mode.
 - `exa-py` was removed (`uv remove exa-py`) and `mcp` added (`uv add mcp`).
@@ -177,7 +177,7 @@ Changed after review, at the user's request: Exa is reached through its hosted M
 
 At the user's request, generic stateless code moved to a new `server/metis/helpers/` package, and the rule for it is in `architecture.md` (System Boundaries):
 
-- `helpers/http.py` and `helpers/mcp.py` (from `adapters/`). `adapters/` now holds only vendor wrappers (`llm.py`, `exa.py`).
+- `helpers/http.py` and `helpers/mcp.py` (from `adapters/`). `adapters/` now holds only vendor wrappers (`llm.py`, and `mcp/exa.py` in the `adapters/mcp/` subfolder for MCP-reached providers).
 - `helpers/ids.py` (`uuid7`, from `core/ids.py`; its tests moved to `tests/helpers/`).
 - `helpers/validation.py` → `validate_input` (from identity `service._validate`).
 - `helpers/text.py` → `strip`, `strip_to_none` (from identity `schemas`).
