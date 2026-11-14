@@ -103,8 +103,9 @@ Database and Redis tests need a migrated Postgres and a Redis. They read
 `postgresql+asyncpg://postgres:postgres@localhost:5432/metis`) and
 `TEST_REDIS_URL` (default `redis://localhost:6379/15`), and skip only when
 those are unreachable. Run `uv run alembic upgrade head` against the test
-database first. The RLS tests create a `NOLOGIN` non-superuser role,
-`metis_rls_test`, and query as it.
+database first. The RLS and identity tests create `NOLOGIN` non-superuser
+roles (`metis_rls_test`, `metis_identity_test`) and query as them, because
+superusers bypass RLS.
 
 ### Web
 

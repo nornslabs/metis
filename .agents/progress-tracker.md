@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** —
-- **Branch:** —
-- **Last updated:** 2026-11-14 — Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Active PRD:** `feat-identity-workspaces` (SHIP-214)
+- **Branch:** `feat/identity-workspaces`
+- **Last updated:** 2026-11-14 — Started feat-identity-workspaces (SHIP-214). Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-identity-workspaces | feat/identity-workspaces | in progress | SHIP-214: identity users, workspaces, members + RLS |
 | fix-foundation-gaps | fix/foundation-gaps | done | SHIP-262: RLS helper, RLS tests, request_id in errors, compose without `.env` |
 | feat-global-logger | feat/global-logger | done | SHIP-260: structlog with request context middleware; merged |
 | chore-core-errors | chore/core-errors | done | SHIP-261: global error handler + error code catalog; merged onto `core/config.py` |
@@ -34,7 +35,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Next Up (MVP build order)
 
-1. `feat-auth-workspaces` — Auth.js JWT, users, workspaces, RLS
+1. `feat-auth-workspaces` — SHIP-216: Auth.js JWT verification, workspace scoping, `/me`
 2. `feat-provider-keys` — encrypted BYO LLM + Exa keys
 3. `feat-ideas-crud` — ideas, stages, runs
 
@@ -46,6 +47,9 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | `identity.users.auth_sub` (unique) is the upsert key for sign-in | Auth.js `sub` is stable and may not be a UUID; email can change |
+| 2026-11-14 | `identity.workspaces.is_personal` + partial unique index on `(created_by) WHERE is_personal` | Postgres enforces one personal workspace per user, race-safe |
+| 2026-11-14 | `identity.members` adds SELECT policy `member_self` on `app.user_id` beside `tenant_isolation` | `list_workspaces` spans workspaces; still fails closed with no context |
 | 2026-11-14 | Fix `enable_tenant_rls` in `0001_initial.py` in place (protected-migration override, user-approved) | No tenant table uses the helper yet; local DBs at head must be reset |
 | 2026-11-14 | Tenant policy uses `current_setting('app.workspace_id', true)`: unset ⇒ zero rows | Fail closed without erroring background jobs |
 | 2026-11-14 | RLS tests query as a fixture-made NOLOGIN non-superuser role | Superusers bypass forced RLS; no new CI credentials |

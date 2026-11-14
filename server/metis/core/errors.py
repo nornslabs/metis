@@ -476,6 +476,16 @@ class RateLimitError(MetisError):
     code: ErrorCode = ErrorCode.RATE_LIMITED
 
 
+class MemberUserNotFoundError(MetisError):
+    """The email given for a new workspace member matches no user."""
+
+    code: ErrorCode = ErrorCode.MEMBER_NOT_FOUND
+
+
+class AlreadyMemberError(ConflictError):
+    """The user is already a member of the workspace."""
+
+
 class MalformedEventError(MetisError):
     """A run event stream entry could not be decoded."""
 
@@ -496,4 +506,6 @@ __all__ = [
     "BudgetError",
     "RateLimitError",
     "MalformedEventError",
+    "MemberUserNotFoundError",
+    "AlreadyMemberError",
 ]

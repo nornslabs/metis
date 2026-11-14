@@ -45,6 +45,7 @@ Core interfaces in `core/ports.py`. Adapters implement them; nothing else import
 | `RunStatus`      | `queued`, `running`, `awaiting_user`, `succeeded`, `failed`, `cancelled`                                               |
 | `RunEventType`   | `node_started`, `node_finished`, `token`, `tool_call`, `interrupt`, `run_status`                                       |
 | `DomainEventType`| `IdeaSubmitted`, `ScoreComputed`, `SpecConfirmed`, `PlanReady`, `ExportFinished`, `MarketSignalDetected`               |
+| `MemberRole`     | `owner`, `member`                                                                                                      |
 | `ScoreParam`     | `problem_severity` 25, `uniqueness` 25, `market_demand` 15, `value` 15, `feasibility` 10, `timing` 10                  |
 | `ScoreBand`      | `build` (75+), `promising` (55–74), `advise` (<55)                                                                     |
 | `ScoreTrigger`   | `manual`, `scheduled`, `signal`                                                                                        |
@@ -69,6 +70,8 @@ Immutable, versioned: score runs, spec versions, research snapshots.
 | `integrations`  | MCP connections, export jobs, external refs      |
 | `memory`        | memories (pgvector), guidance versions           |
 | `notifications` | in-app notifications                             |
+
+Identity service contract (`modules/identity/service.py`): `upsert_user_from_claims(session, sub, email, name, image)` (upsert on `users.auth_sub`, email lower-cased), `ensure_personal_workspace(session, user)` (one `is_personal` workspace per user, race-safe), `list_workspaces(session, user)`, `create_workspace(session, user, name)`, `add_member(session, actor, workspace_id, email, role)` (owner only, else `PermissionDeniedError`; unknown email `MemberUserNotFoundError`; existing member `AlreadyMemberError`). Every function takes the caller's `AsyncSession`, never commits (the caller owns the transaction) and sets its own RLS context (`app.user_id` / `app.workspace_id`, transaction-local).
 
 ## Agent Graph
 
