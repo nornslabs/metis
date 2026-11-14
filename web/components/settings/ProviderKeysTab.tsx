@@ -81,45 +81,48 @@ export function ProviderKeysTab() {
     const isTesting = testingKind === kind;
 
     return (
-      <div key={kind} className="flex items-center justify-between p-4 border rounded-lg bg-card">
+      <div key={kind} className="flex items-center justify-between p-4 rounded-lg border border-border bg-card">
         <div className="flex items-center gap-4">
-          <Key className="h-5 w-5 text-muted-foreground" />
+          <Key className="h-5 w-5 text-foreground-muted" />
           <div>
-            <p className="font-medium">{KIND_LABELS[kind]}</p>
-            <p className="text-sm text-muted-foreground">{KIND_DESCRIPTIONS[kind]}</p>
+            <p className="text-body-strong">{KIND_LABELS[kind]}</p>
+            <p className="text-caption-1 text-foreground-muted">{KIND_DESCRIPTIONS[kind]}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <code className="flex items-center gap-1 px-2 py-1 text-sm font-mono bg-muted rounded">
-              {showKey[kind] ? maskedKey : maskedKey}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 p-0"
-                onClick={() => setShowKey((prev) => ({ ...prev, [kind]: !prev[kind] }))}
-              >
-                {showKey[kind] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-              </Button>
-            </code>
-            {testResult && (
-              <span
-                className={cn(
-                  "flex items-center gap-1 text-xs",
-                  testResult.ok ? "text-green-600" : "text-red-600"
-                )}
-              >
-                {testResult.ok ? (
-                  <>
-                    <CheckCircle className="h-3.5 w-3.5" /> Test passed
-                  </>
-                ) : (
-                  <>
-                    <AlertCircle className="h-3.5 w-3.5" /> {testResult.error || "Failed"}
-                  </>
-                )}
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              <code className="flex items-center gap-2 px-3 py-1.5 text-caption-1 font-mono bg-muted rounded-md">
+                {maskedKey}
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="h-7 w-7 p-0"
+                  onClick={() => setShowKey((prev) => ({ ...prev, [kind]: !prev[kind] }))}
+                  aria-label={showKey[kind] ? "Hide key" : "Show key"}
+                >
+                  {showKey[kind] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </code>
+              {testResult && (
+                <span
+                  className={cn(
+                    "flex items-center gap-1.5 text-caption-1",
+                    testResult.ok ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
+                  )}
+                >
+                  {testResult.ok ? (
+                    <>
+                      <CheckCircle className="h-4 w-4" /> Test passed
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="h-4 w-4" /> {testResult.error || "Failed"}
+                    </>
+                  )}
+                </span>
+              )}
+            </div>
           </div>
           {isOwner && (
             <>
@@ -128,11 +131,12 @@ export function ProviderKeysTab() {
                 size="sm"
                 onClick={() => handleTest(kind)}
                 disabled={testKey.isPending}
+                aria-label={`Test ${KIND_LABELS[kind]} key`}
               >
                 {isTesting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  "Test"
+                  <span>Test</span>
                 )}
               </Button>
               <Button
@@ -141,6 +145,7 @@ export function ProviderKeysTab() {
                 className="text-destructive hover:text-destructive"
                 onClick={() => handleDelete(kind)}
                 disabled={deleteKey.isPending}
+                aria-label={`Delete ${KIND_LABELS[kind]} key`}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
@@ -153,9 +158,9 @@ export function ProviderKeysTab() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 animate-pulse">
         {[1, 2].map((i) => (
-          <div key={i} className="h-20 animate-pulse bg-muted rounded-lg" />
+          <div key={i} className="h-20 rounded-lg bg-muted" />
         ))}
       </div>
     );
@@ -163,21 +168,23 @@ export function ProviderKeysTab() {
 
   if (error) {
     return (
-      <div className="p-4 text-red-600">Failed to load settings: {error.message}</div>
+      <div className="p-4 rounded-md bg-destructive-bg text-destructive text-callout">
+        Failed to load settings: {error.message}
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
       <Tabs defaultValue="llm" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-2" aria-label="Provider key types">
           <TabsTrigger value="llm">LLM Key</TabsTrigger>
           <TabsTrigger value="exa">Exa Key</TabsTrigger>
         </TabsList>
-        <TabsContent value="llm" className="pt-4">
+        <TabsContent value="llm" className="pt-4 animate-fade-in">
           {renderKeyRow("llm")}
         </TabsContent>
-        <TabsContent value="exa" className="pt-4">
+        <TabsContent value="exa" className="pt-4 animate-fade-in">
           {renderKeyRow("exa")}
         </TabsContent>
       </Tabs>
@@ -216,10 +223,10 @@ function AddKeyDialog({
 
   return (
     <>
-      <div className="flex items-center justify-between p-4 border rounded-lg bg-card">
+      <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-card">
         <div>
-          <p className="font-medium">{label}</p>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="text-body-strong">{label}</p>
+          <p className="text-caption-1 text-foreground-muted">{description}</p>
         </div>
         <Button onClick={() => setOpen(true)}>Add Key</Button>
       </div>
@@ -245,15 +252,16 @@ function AddKeyDialog({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
+                    size="icon-sm"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 h-9 w-9"
                     onClick={() => setShowKey(!showKey)}
+                    aria-label={showKey ? "Hide key" : "Show key"}
                   >
                     {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </Button>
                 </div>
               </div>
-              {error && <p className="text-sm text-red-600">{error}</p>}
+              {error && <p className="text-caption-1 text-red-600 dark:text-red-400">{error}</p>}
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

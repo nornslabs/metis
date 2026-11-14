@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut, User, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,8 +20,7 @@ export function UserMenu() {
   if (status === "loading") {
     return (
       <div className="flex items-center gap-2 px-2 py-2">
-        <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
-        <div className="h-4 w-24 animate-pulse rounded bg-muted" />
+        <div className="h-9 w-9 animate-pulse rounded-full bg-muted" />
       </div>
     );
   }
@@ -40,8 +39,8 @@ export function UserMenu() {
         <Button
           variant="ghost"
           className={cn(
-            "relative h-9 w-9 rounded-full",
-            !user?.image && "bg-sidebar-primary text-sidebar-primary-foreground"
+            "relative h-9 w-9 rounded-full transition-normal",
+            !user?.image && "bg-accent-bg text-accent"
           )}
           aria-label="User menu"
         >
@@ -52,12 +51,12 @@ export function UserMenu() {
               className="h-9 w-9 rounded-full"
             />
           ) : (
-            <span className="text-sm font-medium">{initials}</span>
+            <span className="text-callout font-medium">{initials}</span>
           )}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel className="font-normal">
+        <DropdownMenuLabel className="font-medium">
           {user?.name || "User"}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
