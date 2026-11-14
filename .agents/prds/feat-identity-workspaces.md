@@ -66,7 +66,7 @@ Goal: the `identity` module's tables and a pure-DB `service.py` for users, works
 
 ## Touches
 
-`server/metis/modules/identity/` (new: `__init__.py`, `models.py`, `repo.py`, `schemas.py`, `service.py`), `server/metis/core/errors.py` (identity error subclasses only, no new codes unless an open question needs one), `server/migrations/versions/0003_identity.py` (new), `server/tests/modules/identity/` (new), `.agents/ctx/server-context.md`, `.agents/ctx/architecture.md`.
+`server/metis/modules/identity/` (new: `__init__.py`, `models.py`, `repo.py`, `schemas.py`, `service.py`), `server/metis/core/errors.py` (identity error subclasses only, no new codes unless an open question needs one), `server/migrations/versions/0003_identity.py` (new), `server/tests/modules/identity/` (new), `.agents/ctx/server-context.md`, `.agents/ctx/architecture.md`, `README.md` (test role note).
 
 ## Dependencies
 
@@ -97,13 +97,13 @@ Planned tests:
 
 ## Acceptance criteria
 
-- [ ] All five services work and are covered by tests at the service seam.
-- [ ] First sign-in creates one user and one workspace; second sign-in creates nothing new.
-- [ ] RLS blocks cross-workspace reads of `identity.members`: a member of A cannot list B.
-- [ ] Only owners can add members (`PermissionDeniedError`, 403 `auth.forbidden`, otherwise).
-- [ ] `alembic upgrade head` and `downgrade -1` work for `0003_identity`.
-- [ ] `server-context.md` and `architecture.md` describe the identity contract and the `members` policy.
-- [ ] `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
+- [x] All five services work and are covered by tests at the service seam.
+- [x] First sign-in creates one user and one workspace; second sign-in creates nothing new.
+- [x] RLS blocks cross-workspace reads of `identity.members`: a member of A cannot list B.
+- [x] Only owners can add members (`PermissionDeniedError`, 403 `auth.forbidden`, otherwise).
+- [x] `alembic upgrade head` and `downgrade -1` work for `0003_identity`.
+- [x] `server-context.md` and `architecture.md` describe the identity contract and the `members` policy.
+- [x] `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
 
 ## Open questions
 
@@ -114,6 +114,17 @@ None. Resolved 2026-11-14 (see Decisions):
 3. `identity.members` gets a second SELECT policy `member_self` (`user_id = app.user_id`) next to `tenant_isolation`; services set `app.user_id` to list a user's memberships. Still fails closed with no context.
 4. Test seam confirmed: `service.py` only, real migrated Postgres, non-superuser test role; no repo-level tests.
 
+## Review follow-ups (2026-11-14)
+
+Applied after the two-axis code review:
+
+- Services restore the caller's `app.workspace_id` / `app.user_id` after use, so SHIP-216's request scope is never silently switched.
+- An email that belongs to another account raises `EmailTakenError` (409) via a savepoint, not a raw `IntegrityError`.
+- `add_member` validates email and role (`NewMember`); `image` must be an http(s) URL; one shared `Email` type.
+- `MemberUserNotFoundError` and new `WorkspaceNotFoundError` subclass `NotFoundError`; `PERSONAL_WORKSPACE_NAME` moved from repo to service.
+
+Not changed: tests stay at the agreed service seam on real Postgres (no mocked-repo tests); blank optional `name`/`image` claims are treated as absent, not rejected.
+
 ## Status
 
-in progress
+done

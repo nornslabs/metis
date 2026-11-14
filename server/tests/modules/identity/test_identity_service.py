@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engin
 
 from metis.core.errors import (
     AlreadyMemberError,
+    ConflictError,
     InvalidInputError,
     MemberUserNotFoundError,
     PermissionDeniedError,
@@ -201,8 +202,8 @@ async def test_owner_adds_an_existing_user_as_member(engine: AsyncEngine) -> Non
 
     assert added.workspace.id == team.id
     assert added.role is MemberRole.MEMBER
-    bob_sees = {(m.workspace.id, m.role) for m in await workspaces_of(engine, bob)}
-    assert (team.id, MemberRole.MEMBER) in bob_sees
+    bob_sees = [(m.workspace.name, m.role) for m in await workspaces_of(engine, bob)]
+    assert bob_sees == [("Personal", MemberRole.OWNER), ("Engines", MemberRole.MEMBER)]
 
 
 async def test_member_who_is_not_owner_cannot_add_members(engine: AsyncEngine) -> None:
@@ -249,6 +250,7 @@ async def test_adding_an_existing_member_conflicts_and_keeps_their_role(
 
 
 async def test_member_of_a_cannot_list_workspace_b(engine: AsyncEngine) -> None:
+    """Service-level view; the RLS-only proof is the raw ``members`` read below."""
     ada = await sign_in(engine, "auth|ada", "ada@example.com")
     bob = await sign_in(engine, "auth|bob", "bob@example.com")
     ada_team = await create_workspace(engine, ada, "Engines")
@@ -305,3 +307,64 @@ async def test_nothing_persists_when_the_caller_rolls_back(engine: AsyncEngine) 
             "ghost@example.com",
             MemberRole.MEMBER,
         )
+
+
+@pytest.mark.parametrize("role", ["admin", ""])
+async def test_adding_with_an_unknown_role_is_rejected(engine: AsyncEngine, role: str) -> None:
+    ada = await sign_in(engine, "auth|ada", "ada@example.com")
+    await sign_in(engine, "auth|bob", "bob@example.com")
+    team = await create_workspace(engine, ada, "Engines")
+
+    with pytest.raises(InvalidInputError):
+        await add_member(engine, ada, team, "bob@example.com", role)  # type: ignore[arg-type]
+
+
+async def test_adding_with_an_invalid_email_is_rejected(engine: AsyncEngine) -> None:
+    ada = await sign_in(engine, "auth|ada", "ada@example.com")
+    team = await create_workspace(engine, ada, "Engines")
+
+    with pytest.raises(InvalidInputError):
+        await add_member(engine, ada, team, "bob", MemberRole.MEMBER)
+
+
+async def test_image_must_be_an_http_url(engine: AsyncEngine) -> None:
+    async with app_session(engine) as session:
+        with pytest.raises(InvalidInputError):
+            await identity.upsert_user_from_claims(
+                session, "auth|ada", "ada@example.com", None, "javascript:alert(1)"
+            )
+
+
+async def test_email_owned_by_another_account_conflicts(engine: AsyncEngine) -> None:
+    await sign_in(engine, "auth|ada", "ada@example.com")
+
+    with pytest.raises(ConflictError):
+        await sign_in(engine, "auth|other", "ada@example.com")
+
+
+async def test_services_leave_the_callers_workspace_context_unchanged(
+    engine: AsyncEngine,
+) -> None:
+    ada = await sign_in(engine, "auth|ada", "ada@example.com")
+    await sign_in(engine, "auth|bob", "bob@example.com")
+    caller_ws = (await workspaces_of(engine, ada))[0].workspace
+    current = text("SELECT current_setting('app.workspace_id', true)")
+
+    async with app_session(engine) as session:
+        await session.execute(
+            text("SELECT set_config('app.workspace_id', :v, true)"), {"v": str(caller_ws.id)}
+        )
+        team = await identity.create_workspace(session, ada, "Engines")
+        await identity.add_member(session, ada, team.id, "bob@example.com", MemberRole.MEMBER)
+        await identity.list_workspaces(session, ada)
+
+        assert await session.scalar(current) == str(caller_ws.id)
+        assert await session.scalar(text("SELECT current_setting('app.user_id', true)")) in (
+            None,
+            "",
+        )
+
+
+async def test_overlong_name_is_rejected(engine: AsyncEngine) -> None:
+    with pytest.raises(InvalidInputError):
+        await sign_in(engine, "auth|ada", "ada@example.com", "x" * 201)

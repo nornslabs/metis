@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** `feat-identity-workspaces` (SHIP-214)
-- **Branch:** `feat/identity-workspaces`
-- **Last updated:** 2026-11-14 — Started feat-identity-workspaces (SHIP-214). Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Active PRD:** —
+- **Branch:** —
+- **Last updated:** 2026-11-14 — Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,7 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
-| feat-identity-workspaces | feat/identity-workspaces | in progress | SHIP-214: identity users, workspaces, members + RLS |
+| feat-identity-workspaces | feat/identity-workspaces | done | SHIP-214: identity users, workspaces, members + RLS |
 | fix-foundation-gaps | fix/foundation-gaps | done | SHIP-262: RLS helper, RLS tests, request_id in errors, compose without `.env` |
 | feat-global-logger | feat/global-logger | done | SHIP-260: structlog with request context middleware; merged |
 | chore-core-errors | chore/core-errors | done | SHIP-261: global error handler + error code catalog; merged onto `core/config.py` |
@@ -47,6 +47,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | Identity services restore the caller's RLS settings after use | Transaction-local `set_config` would otherwise switch the caller's tenant scope |
 | 2026-11-14 | `identity.users.auth_sub` (unique) is the upsert key for sign-in | Auth.js `sub` is stable and may not be a UUID; email can change |
 | 2026-11-14 | `identity.workspaces.is_personal` + partial unique index on `(created_by) WHERE is_personal` | Postgres enforces one personal workspace per user, race-safe |
 | 2026-11-14 | `identity.members` adds SELECT policy `member_self` on `app.user_id` beside `tenant_isolation` | `list_workspaces` spans workspaces; still fails closed with no context |
@@ -66,6 +67,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-214 built on `feat/identity-workspaces`: migration `0003_identity` (`users.auth_sub`, `workspaces.is_personal` + partial unique index, `members` with `tenant_isolation` + `member_self`), `modules/identity` (models, repo, schemas, service), errors `MemberUserNotFoundError`/`WorkspaceNotFoundError`/`AlreadyMemberError`/`EmailTakenError`. 27 service-seam tests run as the `metis_identity_test` role. Services take the caller's session, never commit, and restore RLS settings. Next: `feat-auth-workspaces` (SHIP-216): JWT → `upsert_user_from_claims` + `ensure_personal_workspace`, and the non-superuser `metis_app` role.
 - SHIP-262 built on `fix/foundation-gaps`: `enable_tenant_rls` uses `format()`, and its policy is `nullif(current_setting('app.workspace_id', true), '')::uuid`. `test_rls.py` has 4 real tests running as the `metis_rls_test` role. The middleware sets `request.state.request_id`. Also fixed `MetisError` responses all being 500s (string log level). Compose requires `AUTH_JWT_SECRET`/`ENCRYPTION_MASTER_KEY` via `${VAR:?}`. Local DBs migrated earlier need `alembic downgrade base && upgrade head`. Next: `feat-auth-workspaces` (switch services to the non-superuser `metis_app` role).
 - SHIP-213 built on `chore/outbox-relay`: `core/outbox.py` (`DomainEvent`, `DomainEventType`, `add_event`, `EventRegistry`/`on_event`, `relay_once`), `core/ids.py` (`uuid7`), migration `0002_core_outbox`, `outbox_relay` job wired. Fixed `core/models.py` naming convention (callables → %-format strings). Outbox tests need a migrated Postgres (`TEST_DATABASE_URL`, default `localhost:5432/metis`). Next: `feat-auth-workspaces`.
 - SHIP-212 built on `chore/redis-streams`: `core/events.py` with `publish`/`read`, `RunEvent`, `RunEventType`, `MAXLEN ~ 5000`, 24 h TTL on terminal `run_status` (XADD + EXPIRE in one transaction); `MalformedEventError` (`run.event_malformed`) in `core/errors.py`. Next: SSE endpoint `GET /v1/runs/{id}/events`.

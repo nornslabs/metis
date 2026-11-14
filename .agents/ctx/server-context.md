@@ -71,7 +71,7 @@ Immutable, versioned: score runs, spec versions, research snapshots.
 | `memory`        | memories (pgvector), guidance versions           |
 | `notifications` | in-app notifications                             |
 
-Identity service contract (`modules/identity/service.py`): `upsert_user_from_claims(session, sub, email, name, image)` (upsert on `users.auth_sub`, email lower-cased), `ensure_personal_workspace(session, user)` (one `is_personal` workspace per user, race-safe), `list_workspaces(session, user)`, `create_workspace(session, user, name)`, `add_member(session, actor, workspace_id, email, role)` (owner only, else `PermissionDeniedError`; unknown email `MemberUserNotFoundError`; existing member `AlreadyMemberError`). Every function takes the caller's `AsyncSession`, never commits (the caller owns the transaction) and sets its own RLS context (`app.user_id` / `app.workspace_id`, transaction-local).
+Identity service contract (`modules/identity/service.py`): `upsert_user_from_claims(session, sub, email, name, image)` (upsert on `users.auth_sub`, email lower-cased; email owned by another account `EmailTakenError`), `ensure_personal_workspace(session, user)` (one `is_personal` workspace per user, race-safe), `list_workspaces(session, user)`, `create_workspace(session, user, name)`, `add_member(session, actor, workspace_id, email, role)` (owner only, else `PermissionDeniedError`; unknown email `MemberUserNotFoundError`; existing member `AlreadyMemberError`). Every function takes the caller's `AsyncSession`, never commits (the caller owns the transaction) and sets its own RLS context (`app.user_id` / `app.workspace_id`, transaction-local), restoring the caller's value afterwards. Invalid input raises `InvalidInputError` (422).
 
 ## Agent Graph
 

@@ -476,14 +476,24 @@ class RateLimitError(MetisError):
     code: ErrorCode = ErrorCode.RATE_LIMITED
 
 
-class MemberUserNotFoundError(MetisError):
+class MemberUserNotFoundError(NotFoundError):
     """The email given for a new workspace member matches no user."""
 
     code: ErrorCode = ErrorCode.MEMBER_NOT_FOUND
 
 
+class WorkspaceNotFoundError(NotFoundError):
+    """The workspace does not exist."""
+
+    code: ErrorCode = ErrorCode.WORKSPACE_NOT_FOUND
+
+
 class AlreadyMemberError(ConflictError):
     """The user is already a member of the workspace."""
+
+
+class EmailTakenError(ConflictError):
+    """The email already belongs to another account."""
 
 
 class MalformedEventError(MetisError):
@@ -508,4 +518,6 @@ __all__ = [
     "MalformedEventError",
     "MemberUserNotFoundError",
     "AlreadyMemberError",
+    "WorkspaceNotFoundError",
+    "EmailTakenError",
 ]
