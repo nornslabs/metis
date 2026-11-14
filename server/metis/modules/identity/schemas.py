@@ -265,3 +265,56 @@ class ProviderCredentials(_Frozen):
     api_key: str = Field(repr=False)
     base_url: str | None
     model: str | None
+
+
+# -------------------------------------------------------------------- sessions
+class SessionRecord(_Frozen):
+    """A stored session's state: what resolving a token checks (also the cache entry)."""
+
+    id: UUID
+    user_id: UUID
+    expires_at: datetime
+    last_seen_at: datetime
+    revoked_at: datetime | None = None
+
+
+class CacheLookup(_Frozen):
+    """Result of a session cache lookup: revoked, a record, or a miss (neither)."""
+
+    revoked: bool = False
+    record: SessionRecord | None = None
+
+
+class SessionRejection(StrEnum):
+    """Why a session cookie was refused (logged as ``reason``)."""
+
+    MISSING = "missing"
+    UNKNOWN = "unknown"
+    EXPIRED = "expired"
+    IDLE = "idle"
+    REVOKED = "revoked"
+    CSRF = "csrf"
+
+
+class NewSession(_Frozen):
+    """A session just created; ``token`` goes in the cookie and is never stored."""
+
+    token: str
+    session_id: UUID
+    expires_at: datetime
+
+
+class ActiveSession(_Frozen):
+    """A session that resolved: not revoked, not expired, not idle."""
+
+    session_id: UUID
+    user_id: UUID
+    expires_at: datetime
+
+
+class SessionUser(_Frozen):
+    """The signed-in user, their personal workspace and the session in use."""
+
+    user: User
+    personal_workspace: Workspace
+    session_id: UUID

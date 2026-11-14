@@ -101,6 +101,10 @@ async def get_personal_workspace(session: AsyncSession, user_id: UUID) -> Worksp
     return (await session.scalars(stmt)).one()
 
 
+async def get_user(session: AsyncSession, user_id: UUID) -> UserRow | None:
+    return await session.get(UserRow, user_id)
+
+
 async def get_user_by_email(session: AsyncSession, email: str) -> UserRow | None:
     return (await session.scalars(select(UserRow).where(UserRow.email == email))).one_or_none()
 

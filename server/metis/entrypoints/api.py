@@ -10,6 +10,8 @@ workspace scoping). Module routers are added per PRD as the modules land. See
 from __future__ import annotations
 
 import sys
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI
@@ -19,6 +21,7 @@ from metis.core.config import Settings, get_settings
 from metis.core.error_handlers import register_error_handlers
 from metis.core.logging import configure_logging
 from metis.core.middleware import RequestContextMiddleware
+from metis.core.redis import close_redis
 from metis.modules.health import router as health_router
 from metis.modules.identity import router as identity_router
 
@@ -29,6 +32,7 @@ CORS_HEADERS = [
     "X-Workspace-Id",
     "Idempotency-Key",
     "X-Request-ID",
+    "X-Metis-Client",
 ]
 
 
@@ -45,15 +49,22 @@ def _load_settings() -> Settings:
     return settings
 
 
+@asynccontextmanager
+async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
+    yield
+    await close_redis()
+
+
 def _add_middleware(app: FastAPI, settings: Settings) -> None:
     # Request context (request_id in logs and problem bodies) for every request.
     app.add_middleware(RequestContextMiddleware)
-    # CORS for the web origins only. Bearer tokens, no cookies: no credentials.
-    # Added last so it is the outermost middleware and answers preflights directly.
+    # CORS for the explicit web origins only (never "*"): credentials allowed so
+    # the browser sends the session cookie. Added last so it is the outermost
+    # middleware and answers preflights directly.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.get_cors_origins(),
-        allow_credentials=False,
+        allow_credentials=True,
         allow_methods=CORS_METHODS,
         allow_headers=CORS_HEADERS,
         expose_headers=["X-Request-ID"],
@@ -70,7 +81,7 @@ def _include_routers(app: FastAPI) -> None:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the API app: error handlers, middleware and routers."""
     settings = settings or _load_settings()
-    app = FastAPI(title="Metis", version=settings.app_version)
+    app = FastAPI(title="Metis", version=settings.app_version, lifespan=_lifespan)
     register_error_handlers(app)
     _add_middleware(app, settings)
     _include_routers(app)

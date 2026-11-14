@@ -47,6 +47,9 @@ class ErrorCode(StrEnum):
     FORBIDDEN = "auth.forbidden"
     TOKEN_EXPIRED = "auth.token_expired"
     INVALID_CREDENTIALS = "auth.invalid_credentials"
+    NOT_SIGNED_IN = "auth.not_signed_in"
+    SESSION_EXPIRED = "auth.session_expired"
+    CSRF_FAILED = "auth.csrf_failed"
 
     # -------------------------------------------------------------------- workspace
     WORKSPACE_NOT_FOUND = "workspace.not_found"
@@ -194,6 +197,21 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.INVALID_CREDENTIALS: ErrorSpec(
         status=401,
         title="Invalid Credentials",
+        retryable=False,
+    ),
+    ErrorCode.NOT_SIGNED_IN: ErrorSpec(
+        status=401,
+        title="Not Signed In",
+        retryable=False,
+    ),
+    ErrorCode.SESSION_EXPIRED: ErrorSpec(
+        status=401,
+        title="Session Expired",
+        retryable=False,
+    ),
+    ErrorCode.CSRF_FAILED: ErrorSpec(
+        status=403,
+        title="CSRF Check Failed",
         retryable=False,
     ),
     # workspace
@@ -466,6 +484,24 @@ class TokenExpiredError(AuthError):
     code: ErrorCode = ErrorCode.TOKEN_EXPIRED
 
 
+class NotSignedInError(MetisError):
+    """The request carries no session cookie; the user must sign in."""
+
+    code: ErrorCode = ErrorCode.NOT_SIGNED_IN
+
+
+class SessionExpiredError(MetisError):
+    """The session cookie is unknown, expired, idle or revoked; sign in again."""
+
+    code: ErrorCode = ErrorCode.SESSION_EXPIRED
+
+
+class CsrfError(MetisError):
+    """A cookie-authenticated mutation lacks the ``X-Metis-Client: web`` header."""
+
+    code: ErrorCode = ErrorCode.CSRF_FAILED
+
+
 class PermissionDeniedError(MetisError):
     """Generic 403 authorization error."""
 
@@ -549,6 +585,9 @@ __all__ = [
     "ConflictError",
     "AuthError",
     "TokenExpiredError",
+    "NotSignedInError",
+    "SessionExpiredError",
+    "CsrfError",
     "PermissionDeniedError",
     "InvalidInputError",
     "UpstreamError",

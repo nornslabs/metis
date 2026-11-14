@@ -18,7 +18,9 @@ All config via env, loaded into `core/config.py` (pydantic-settings). No hardcod
 | ---------------- | --------------------------------------------------------- |
 | Postgres         | `DATABASE_URL`                                            |
 | Redis            | `REDIS_URL`                                               |
-| JWT verification | `AUTH_JWT_SECRET`, `AUTH_JWT_AUDIENCE`                    |
+| JWT verification | `AUTH_JWT_SECRET`, `AUTH_JWT_AUDIENCE` (removed in SHIP-267) |
+| Sessions         | `SESSION_COOKIE_NAME` (default `metis_session`), `SESSION_TTL_DAYS` (30), `SESSION_IDLE_DAYS` (7; `1 ≤ idle ≤ ttl`), `COOKIE_DOMAIN` (optional), `COOKIE_SECURE` (optional; unset ⇒ `Secure` unless `APP_ENV=development`, read as `settings.secure_cookies`) |
+| Web app URL      | `WEB_BASE_URL` (default `http://localhost:3000`; sign-in redirects) |
 | Key encryption   | `ENCRYPTION_MASTER_KEY`                                   |
 | Web origin       | `CORS_ORIGINS` (comma-separated, e.g. `http://localhost:3000,http://localhost:8000`) |
 | App DB role      | `APP_DB_PASSWORD` (read by migration `0004_app_role` only; gives `metis_app` LOGIN) |
@@ -90,12 +92,20 @@ Identity routes (`modules/identity/api.py`): `GET /v1/me` → `{user, workspaces
 
 ## Auth and Request Scope
 
-- `core/auth.py` (the only PyJWT import): `bearer_claims` reads `Authorization: Bearer <jwt>` and verifies HS256 only, `aud = AUTH_JWT_AUDIENCE`, required `exp`/`aud`/`sub`, 30 s leeway (`CLOCK_SKEW_SECONDS`). Claims used: `sub`, `email` (required), `name`, `picture`. Missing/invalid token → `AuthError` (`auth.unauthorized`, 401); expired → `TokenExpiredError` (`auth.token_expired`, 401). Every 401 carries `WWW-Authenticate: Bearer`. The token and header are never logged; rejections log `auth.rejected` with a `reason` (`missing`, `invalid`, `expired`, `claims`).
+- `core/auth.py` (the only PyJWT import): `bearer_claims` reads `Authorization: Bearer <jwt>` and verifies HS256 only, `aud = AUTH_JWT_AUDIENCE`, required `exp`/`aud`/`sub`, 30 s leeway (`CLOCK_SKEW_SECONDS`). Claims used: `sub`, `email` (required), `name`, `picture`. Missing/invalid token → `AuthError` (`auth.unauthorized`, 401); expired → `TokenExpiredError` (`auth.token_expired`, 401). Its 401s (`auth.unauthorized`, `auth.token_expired`) carry `WWW-Authenticate: Bearer`. The token and header are never logged; rejections log `auth.rejected` with a `reason` (`missing`, `invalid`, `expired`, `claims`).
 - The web app mints the HS256 API token with `AUTH_JWT_SECRET`; the server never reads Auth.js JWE session tokens.
 - `core/db.py`: `SessionDep` = one `AsyncSession` per request (`get_request_session`, `scope="function"`), shared by every dependency and the route; committed before the response is sent, rolled back on any exception. `set_workspace(session, id)` / `set_user(session, id)` set `app.workspace_id` / `app.user_id` for the transaction.
 - `modules/identity/deps.py` (exported from `metis.modules.identity`): `current_user` (`CurrentUserDep`) verifies the token, then `upsert_user_from_claims` + `ensure_personal_workspace`; invalid claims → 401. `current_workspace` (`CurrentWorkspaceDep`) reads `X-Workspace-Id` (absent → personal workspace; not a UUID → 422; not a member or unknown → `PermissionDeniedError` 403, same error for both), then sets `app.user_id` and `app.workspace_id` on the request session and binds `workspace_id`/`user_id` to logs. Returns the caller's `Membership`.
 - Every `/v1` route except `/v1/health` depends on `current_user` or `current_workspace`; tenant routes use `current_workspace` so RLS is scoped.
-- CORS: only `CORS_ORIGINS`, no credentials, headers `Authorization`, `Content-Type`, `X-Workspace-Id`, `Idempotency-Key`, `X-Request-ID`.
+- **Server sessions (SHIP-264; the target auth, routes switch in SHIP-267):**
+  - `core/security.py`: `new_session_token()` (32 random bytes, URL-safe), `hash_session_token(token)` (SHA-256 digest; only the hash is stored), `set_session_cookie(response, token)` / `clear_session_cookie(response)` (`SESSION_COOKIE_NAME`, `HttpOnly`, `SameSite=Lax`, `Path=/`, `Secure` = `settings.secure_cookies`, `Domain` = `COOKIE_DOMAIN` when set, `Max-Age` = `SESSION_TTL_DAYS`).
+  - `core/redis.py`: one process-wide Redis client (`get_redis` / `RedisDep`, 0.5 s socket timeouts), closed in the API lifespan.
+  - Tables `identity.auth_identities` (`user_id`, `provider` ∈ `google`, `email`, `subject`, `email`, `email_verified`, `last_login_at`; unique `(provider, subject)`) and `identity.sessions` (`token_hash` unique, `last_seen_at`, `expires_at`, `revoked_at`, `user_agent`, `ip inet`). No RLS; only the identity module reads them. `0006_auth_sessions` backfilled one `google` identity per existing user from `users.auth_sub`.
+  - `modules/identity/auth_service.py` (caller's session, never commits): `create_session(session, user_id, user_agent, ip) -> NewSession{token, session_id, expires_at}`; `resolve_session(session, redis, token) -> ActiveSession` (unknown, revoked, `now ≥ expires_at` or idle `≥ SESSION_IDLE_DAYS` → `SessionExpiredError`; writes `last_seen_at` at most every 5 min); `logout(session, redis, token)` (no-op if unknown); `logout_all(session, redis, user_id) -> count`; `get_session_user(session, active) -> SessionUser`. Internal to identity (not exported); the auth routes and `auth_deps` call it.
+  - Cache: Redis `auth:session:{hex hash}` → `SessionRecord` JSON, TTL `min(60 s, until expires_at)`, active sessions only. Revoking writes a tombstone `auth:session:revoked:{hex hash}` (120 s, longer than any entry) and deletes the entry; readers check the tombstone first, so a request that read the session before the revocation committed cannot re-cache it, and revocation applies on the next request. A rolled-back logout leaves the session refused until the tombstone expires. If Redis is down at logout, a cached entry stays valid for up to 60 s (`auth.session_cache_evict_failed`). Other Redis errors are logged (`auth.session_cache_unavailable`) and fall back to Postgres.
+  - `modules/identity/auth_deps.py`: `session_user` / `SessionUserDep` → `SessionUser{user, personal_workspace, session_id}` (frozen, in `schemas.py`). Checks in order: no cookie → `NotSignedInError` (`auth.not_signed_in`, 401); `POST`/`PUT`/`PATCH`/`DELETE` without `X-Metis-Client: web` → `CsrfError` (`auth.csrf_failed`, 403); then the session must resolve (`auth.session_expired`, 401). Binds `user_id` and `session_id` to logs. Session 401s carry no `WWW-Authenticate` header.
+  - Never log the raw token, `Cookie` or `Set-Cookie`. Rejections log `auth.session_rejected` with `reason` ∈ `missing`, `unknown`, `expired`, `idle`, `revoked`, `csrf` (plus `session_id` when known).
+- CORS: only `CORS_ORIGINS` (`*` fails settings validation), credentials allowed (session cookie), headers `Authorization`, `Content-Type`, `X-Workspace-Id`, `Idempotency-Key`, `X-Request-ID`, `X-Metis-Client`.
 - DB roles: api and workers connect as `metis_app` (`NOSUPERUSER NOBYPASSRLS`, DML on `core` and `identity` + default privileges); migrations run as the owner. A migration adding a schema grants `metis_app` on it.
 
 ## Agent Graph
@@ -150,6 +160,9 @@ Services raise domain errors from `core/errors.py`; API maps them to HTTP.
 | ------------------- | ---- |
 | `AuthError`         | 401  |
 | `TokenExpiredError` | 401  |
+| `NotSignedInError` (`auth.not_signed_in`) | 401 |
+| `SessionExpiredError` (`auth.session_expired`) | 401 |
+| `CsrfError` (`auth.csrf_failed`) | 403 |
 | `NotFound`          | 404  |
 | `Forbidden`         | 403  |
 | `IllegalTransition` | 409  |

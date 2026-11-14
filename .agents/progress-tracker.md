@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-14 — Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-14 — Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-auth-sessions | feat/auth-sessions | done | SHIP-264: server sessions, auth identities, `session_user` |
 | feat-provider-keys | feat/provider-keys | done | SHIP-217: BYO LLM + Exa keys, workspace settings |
 | feat-jwt-auth | feat/jwt-auth | done | SHIP-216: JWT auth, workspace scoping, `/me`, `metis_app` role |
 | feat-secret-encryption | feat/secret-encryption | done | SHIP-215: envelope encryption for BYO secrets |
@@ -48,6 +49,12 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | Session revocation writes a Redis tombstone (`auth:session:revoked:*`, 120 s) checked before the cache | A request that read the session before the logout committed must not re-cache it as active |
+| 2026-11-14 | `CORS_ORIGINS` may not contain `*` (settings validation) | CORS now allows credentials for the session cookie |
+| 2026-11-14 | SHIP-264 session dependency lives in `modules/identity/auth_deps.py` as `session_user`; routes stay on JWT until SHIP-267 renames it to `current_user` | `core` never imports a module; no live route changes mid-migration |
+| 2026-11-14 | Session cache `auth:session:{hex hash}` TTL 60 s; revoke deletes the key; `last_seen_at` written at most every 5 min | Revocation is immediate without a DB write on every request |
+| 2026-11-14 | `WEB_BASE_URL` replaces unused `PUBLIC_BASE_URL`; CORS `allow_credentials=True` + `X-Metis-Client` in SHIP-264 | Cookie auth from the web needs credentialed CORS; one base-URL setting |
+| 2026-11-14 | SHIP-264 tested at the HTTP seam with test-only probe routes, real Postgres (`metis_app`) and Redis | Same seam as SHIP-216; exercises cookies and CSRF as clients see them |
 | 2026-11-14 | `@asynccontextmanager` functions return `AsyncGenerator[T]`, never `AsyncIterator[T]` (rule in `code-standards.md`) | The `AsyncIterator` form is deprecated and flagged by editors |
 | 2026-11-14 | Adapters grouped by connection kind: MCP-reached providers in `adapters/mcp/` (`exa.py`) | Linear and Notion MCP adapters will join Exa there |
 | 2026-11-14 | New `metis/helpers/` for generic stateless code (`http`, `mcp`, `ids`, `validation`, `text`); rule in `architecture.md` | Adapters stay vendor-specific, `core` stays infrastructure; shared plumbing has one home |
@@ -83,6 +90,15 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-264 built on `feat/auth-sessions`:
+  - Migration `0006_auth_sessions` adds `identity.auth_identities` and `identity.sessions` (no RLS) and backfills a `google` identity from `users.auth_sub`.
+  - `core/security.py` holds the token, its hash and the cookie helpers; `core/redis.py` holds the shared client plus the lifespan close.
+  - Identity has `sessions_repo.py` (Postgres plus a 60 s Redis cache and revocation tombstones), `auth_service.py` (`create_session`, `resolve_session`, `logout`, `logout_all`, `get_session_user`) and `auth_deps.py` (`session_user` with the CSRF check).
+  - New errors: `auth.not_signed_in`, `auth.session_expired`, `auth.csrf_failed`. New settings: `SESSION_*`, `COOKIE_DOMAIN`, `COOKIE_SECURE` (→ `settings.secure_cookies`), and `WEB_BASE_URL` (replaces `PUBLIC_BASE_URL`).
+  - CORS allows credentials and `X-Metis-Client`.
+  - 23 HTTP-seam tests in `tests/modules/identity/test_auth_sessions_api.py` need Postgres plus Redis (`TEST_REDIS_URL`).
+  - For local DBs, run `alembic upgrade head`.
+  - Next: SHIP-265 Google sign-in, using `auth_service.create_session` and `security.set_session_cookie`.
 - SHIP-217 built on `feat/provider-keys`: migration `0005_provider_keys` (`identity.provider_keys`, `identity.workspace_settings`, both RLS), adapters `metis/adapters/{http,llm,mcp,exa}.py` (client factory, 10 s total cap, safe `UpstreamError` meta `{provider, reason}`; Exa through its hosted MCP server in `adapters/mcp/exa.py`, `exa-py` removed), identity service `get_settings_overview`/`set_key`/`delete_key`/`test_key`/`get_key_for_use`/`update_settings` (owner-only writes), routes `GET/PATCH /v1/settings`, `PUT/DELETE /v1/settings/keys/{kind}`, `POST …/test`. New errors `ProviderNotConfiguredError`, `ProviderKeyNotFoundError`; `core.error_handlers.metis_error_response`; `Settings.is_development`. 52 HTTP-seam tests in `tests/modules/identity/test_provider_keys_api.py`; shared fixtures moved to `tests/modules/identity/conftest.py` + `api_helpers.py`. Local DBs: `alembic upgrade head`. Generic code moved to `metis/helpers/` (`http.py`, `mcp.py` from adapters; `ids.py` from core; `validation.validate_input`, `text.strip`/`strip_to_none` from identity). Next: `feat-ideas-crud`; SHIP-220 LLM gateway builds on `adapters/llm.py` + `identity.get_key_for_use`; SHIP-226 (rewritten) loads Exa MCP tools for the agents.
 - SHIP-216 built on `feat/jwt-auth`: `core/auth.py` (PyJWT, HS256 only, `aud`, required `exp`, 30 s leeway; `TokenExpiredError` → 401 `auth.token_expired`; 401s carry `WWW-Authenticate: Bearer`), `core/db.py` (`SessionDep` request session committed before the response, `set_workspace`/`set_user`), `modules/identity/deps.py` (`current_user`, `current_workspace` via `X-Workspace-Id`), routes `GET /v1/me`, `GET/POST /v1/workspaces`, CORS for `CORS_ORIGINS`, migration `0004_app_role` (`metis_app`, LOGIN when `APP_DB_PASSWORD` is set; compose services connect as it). 33 HTTP-seam tests in `tests/modules/identity/test_identity_api.py`. Local DBs: run `alembic upgrade head` (with `APP_DB_PASSWORD` to log in as `metis_app`). Next: `feat-provider-keys` (SHIP-217), with routes on `CurrentWorkspaceDep`.
 - SHIP-215 built on `feat/secret-encryption`: `core/crypto.py` (`SealedSecret`, `encrypt`, `decrypt`, `mask`), AES-256-GCM via `cryptography`; per-secret data key wrapped by the master key; workspace UUID bytes as AAD (wrap layer also binds `key_version`); keyring holds only v1 = `ENCRYPTION_MASTER_KEY`. `SecretDecryptError` (`crypto.decrypt_failed`, 422). 27 pure-function tests in `tests/core/test_crypto.py`. Next: `feat-auth-workspaces` (SHIP-216); SHIP-217 provider keys stores `SealedSecret` fields as columns.

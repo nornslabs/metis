@@ -6,10 +6,12 @@ variables (optionally via a ``.env`` file) and validated by pydantic-settings.
 
 from base64 import urlsafe_b64decode
 from functools import lru_cache
-from typing import Any, Self
+from typing import Annotated, Any, Self
 
-from pydantic import Field, model_validator
+from pydantic import BeforeValidator, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+from metis.helpers.text import strip_to_none
 
 
 class AppSettings:
@@ -17,6 +19,9 @@ class AppSettings:
 
     DEFAULT_APP_ENV = "development"
     DEFAULT_LOG_LEVEL = "INFO"
+    DEFAULT_SESSION_COOKIE_NAME = "metis_session"
+    DEFAULT_SESSION_TTL_DAYS = 30
+    DEFAULT_SESSION_IDLE_DAYS = 7
     VERSION = "0.1.0"
 
 
@@ -69,9 +74,29 @@ class Settings(BaseSettings):
             return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
         return [self.cors_origins.strip()]
 
-    public_base_url: str = Field(
+    web_base_url: str = Field(
         default="http://localhost:3000",
-        validation_alias="PUBLIC_BASE_URL",
+        validation_alias="WEB_BASE_URL",
+    )
+
+    # Session cookie settings
+    session_cookie_name: str = Field(
+        default=AppSettings.DEFAULT_SESSION_COOKIE_NAME,
+        min_length=1,
+        validation_alias="SESSION_COOKIE_NAME",
+    )
+    session_ttl_days: int = Field(
+        default=AppSettings.DEFAULT_SESSION_TTL_DAYS, ge=1, validation_alias="SESSION_TTL_DAYS"
+    )
+    session_idle_days: int = Field(
+        default=AppSettings.DEFAULT_SESSION_IDLE_DAYS, ge=1, validation_alias="SESSION_IDLE_DAYS"
+    )
+    cookie_domain: Annotated[str | None, BeforeValidator(strip_to_none)] = Field(
+        default=None, validation_alias="COOKIE_DOMAIN"
+    )
+    # Unset: ``Secure`` everywhere except local development (see ``secure_cookies``).
+    cookie_secure: Annotated[bool | None, BeforeValidator(strip_to_none)] = Field(
+        default=None, validation_alias="COOKIE_SECURE"
     )
 
     # Observability settings (optional)
@@ -125,6 +150,13 @@ class Settings(BaseSettings):
                 "encryption_master_key must be a valid base64-encoded 32-byte value"
             ) from e
 
+        # Credentialed CORS (session cookie) must never allow any origin.
+        if "*" in self.get_cors_origins():
+            raise ValueError("cors_origins must list explicit origins, not '*'")
+
+        if self.session_idle_days > self.session_ttl_days:
+            raise ValueError("session_idle_days must not exceed session_ttl_days")
+
         # In production, force log_json to True
         if self.app_env == "production" and not self.log_json:
             raise ValueError(
@@ -138,6 +170,13 @@ class Settings(BaseSettings):
     def is_development(self) -> bool:
         """True for local development (``APP_ENV=development``, the default)."""
         return self.app_env == AppSettings.DEFAULT_APP_ENV
+
+    @property
+    def secure_cookies(self) -> bool:
+        """Whether the session cookie is ``Secure``: ``COOKIE_SECURE``, else not development."""
+        if self.cookie_secure is not None:
+            return self.cookie_secure
+        return not self.is_development
 
     def __repr__(self) -> str:
         """Custom repr that redacts secrets."""
