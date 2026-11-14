@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-14 — Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-14 — Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| feat-secret-encryption | feat/secret-encryption | done | SHIP-215: envelope encryption for BYO secrets |
 | feat-identity-workspaces | feat/identity-workspaces | done | SHIP-214: identity users, workspaces, members + RLS |
 | fix-foundation-gaps | fix/foundation-gaps | done | SHIP-262: RLS helper, RLS tests, request_id in errors, compose without `.env` |
 | feat-global-logger | feat/global-logger | done | SHIP-260: structlog with request context middleware; merged |
@@ -47,6 +48,8 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-14 | `mask(secret)` = first 3 + `…` + last 4 for secrets ≥ 12 chars, else nothing revealed | Provider stays recognisable (`sk-…a1b2`) without exposing short secrets |
+| 2026-11-14 | `SecretDecryptError` (`crypto.decrypt_failed`) maps to HTTP 422, asks to re-enter the key | User can recover by saving the key again |
 | 2026-11-14 | Identity services restore the caller's RLS settings after use | Transaction-local `set_config` would otherwise switch the caller's tenant scope |
 | 2026-11-14 | `identity.users.auth_sub` (unique) is the upsert key for sign-in | Auth.js `sub` is stable and may not be a UUID; email can change |
 | 2026-11-14 | `identity.workspaces.is_personal` + partial unique index on `(created_by) WHERE is_personal` | Postgres enforces one personal workspace per user, race-safe |
@@ -67,6 +70,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-215 built on `feat/secret-encryption`: `core/crypto.py` (`SealedSecret`, `encrypt`, `decrypt`, `mask`), AES-256-GCM via `cryptography`; per-secret data key wrapped by the master key; workspace UUID bytes as AAD (wrap layer also binds `key_version`); keyring holds only v1 = `ENCRYPTION_MASTER_KEY`. `SecretDecryptError` (`crypto.decrypt_failed`, 422). 27 pure-function tests in `tests/core/test_crypto.py`. Next: `feat-auth-workspaces` (SHIP-216); SHIP-217 provider keys stores `SealedSecret` fields as columns.
 - SHIP-214 built on `feat/identity-workspaces`: migration `0003_identity` (`users.auth_sub`, `workspaces.is_personal` + partial unique index, `members` with `tenant_isolation` + `member_self`), `modules/identity` (models, repo, schemas, service), errors `MemberUserNotFoundError`/`WorkspaceNotFoundError`/`AlreadyMemberError`/`EmailTakenError`. 27 service-seam tests run as the `metis_identity_test` role. Services take the caller's session, never commit, and restore RLS settings. Next: `feat-auth-workspaces` (SHIP-216): JWT → `upsert_user_from_claims` + `ensure_personal_workspace`, and the non-superuser `metis_app` role.
 - SHIP-262 built on `fix/foundation-gaps`: `enable_tenant_rls` uses `format()`, and its policy is `nullif(current_setting('app.workspace_id', true), '')::uuid`. `test_rls.py` has 4 real tests running as the `metis_rls_test` role. The middleware sets `request.state.request_id`. Also fixed `MetisError` responses all being 500s (string log level). Compose requires `AUTH_JWT_SECRET`/`ENCRYPTION_MASTER_KEY` via `${VAR:?}`. Local DBs migrated earlier need `alembic downgrade base && upgrade head`. Next: `feat-auth-workspaces` (switch services to the non-superuser `metis_app` role).
 - SHIP-213 built on `chore/outbox-relay`: `core/outbox.py` (`DomainEvent`, `DomainEventType`, `add_event`, `EventRegistry`/`on_event`, `relay_once`), `core/ids.py` (`uuid7`), migration `0002_core_outbox`, `outbox_relay` job wired. Fixed `core/models.py` naming convention (callables → %-format strings). Outbox tests need a migrated Postgres (`TEST_DATABASE_URL`, default `localhost:5432/metis`). Next: `feat-auth-workspaces`.

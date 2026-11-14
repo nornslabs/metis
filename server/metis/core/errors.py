@@ -59,6 +59,9 @@ class ErrorCode(StrEnum):
     UPSTREAM_ERROR = "provider.upstream_error"
     BUDGET_EXCEEDED = "provider.budget_exceeded"
 
+    # ---------------------------------------------------------------------- crypto
+    SECRET_DECRYPT_FAILED = "crypto.decrypt_failed"
+
     # ----------------------------------------------------------------------- idea
     IDEA_NOT_FOUND = "idea.not_found"
     IDEA_INVALID_TRANSITION = "idea.invalid_transition"
@@ -274,6 +277,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.RUN_CANCELLED: ErrorSpec(
         status=410,
         title="Run Cancelled",
+        retryable=False,
+    ),
+    ErrorCode.SECRET_DECRYPT_FAILED: ErrorSpec(
+        status=422,
+        title="Stored Secret Unreadable",
         retryable=False,
     ),
     ErrorCode.RUN_EVENT_MALFORMED: ErrorSpec(
@@ -502,6 +510,12 @@ class MalformedEventError(MetisError):
     code: ErrorCode = ErrorCode.RUN_EVENT_MALFORMED
 
 
+class SecretDecryptError(MetisError):
+    """A stored secret could not be decrypted; the user should re-enter it."""
+
+    code: ErrorCode = ErrorCode.SECRET_DECRYPT_FAILED
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -516,6 +530,7 @@ __all__ = [
     "BudgetError",
     "RateLimitError",
     "MalformedEventError",
+    "SecretDecryptError",
     "MemberUserNotFoundError",
     "AlreadyMemberError",
     "WorkspaceNotFoundError",
