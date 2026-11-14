@@ -50,6 +50,9 @@ class ErrorCode(StrEnum):
     NOT_SIGNED_IN = "auth.not_signed_in"
     SESSION_EXPIRED = "auth.session_expired"
     CSRF_FAILED = "auth.csrf_failed"
+    OAUTH_STATE_INVALID = "auth.oauth_state_invalid"
+    OAUTH_FAILED = "auth.oauth_failed"
+    EMAIL_UNVERIFIED = "auth.email_unverified"
 
     # -------------------------------------------------------------------- workspace
     WORKSPACE_NOT_FOUND = "workspace.not_found"
@@ -212,6 +215,21 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.CSRF_FAILED: ErrorSpec(
         status=403,
         title="CSRF Check Failed",
+        retryable=False,
+    ),
+    ErrorCode.OAUTH_STATE_INVALID: ErrorSpec(
+        status=400,
+        title="Sign-in Link Invalid",
+        retryable=False,
+    ),
+    ErrorCode.OAUTH_FAILED: ErrorSpec(
+        status=502,
+        title="Sign-in Failed",
+        retryable=True,
+    ),
+    ErrorCode.EMAIL_UNVERIFIED: ErrorSpec(
+        status=403,
+        title="Email Not Verified",
         retryable=False,
     ),
     # workspace
@@ -500,6 +518,24 @@ class CsrfError(MetisError):
     """A cookie-authenticated mutation lacks the ``X-Metis-Client: web`` header."""
 
     code: ErrorCode = ErrorCode.CSRF_FAILED
+
+
+class OAuthStateInvalidError(MetisError):
+    """The sign-in callback's ``state`` is missing, unknown, expired or already used."""
+
+    code: ErrorCode = ErrorCode.OAUTH_STATE_INVALID
+
+
+class OAuthFailedError(MetisError):
+    """The identity provider failed or sent an answer that did not verify."""
+
+    code: ErrorCode = ErrorCode.OAUTH_FAILED
+
+
+class EmailUnverifiedError(MetisError):
+    """The identity provider has not verified the account's email."""
+
+    code: ErrorCode = ErrorCode.EMAIL_UNVERIFIED
 
 
 class PermissionDeniedError(MetisError):

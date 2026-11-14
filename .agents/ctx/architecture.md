@@ -35,12 +35,13 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Storage Model
 
 - **Postgres**: all business data (ideas, interviews, research, competitor KB, immutable score runs, specs, plans, exports, encrypted keys/tokens), one schema per module, plus LangGraph checkpoints and pgvector embeddings.
-- **Redis**: ephemeral only (queues, run event streams, locks, rate limits, the 60 s session cache).
+- **Redis**: ephemeral only (queues, run event streams, locks, rate limits, the 60 s session cache, 10 min OAuth login state).
 - **External**: Exa research (hosted MCP server `https://mcp.exa.ai/mcp`, workspace key in `x-api-key`), Linear issues and Notion pages, all via MCP; Metis stores only Linear/Notion ids.
 
 ## Auth and Access Model
 
 - Target (SHIP-263): the server owns sign-in and issues an opaque session token in an `HttpOnly`, `SameSite=Lax` cookie. Only its SHA-256 hash is stored (`identity.sessions`); sessions expire after `SESSION_TTL_DAYS` (30) absolute or `SESSION_IDLE_DAYS` (7) idle, and revocation applies on the next request. Users link to sign-in methods through `identity.auth_identities` (`provider`, `subject`), so new providers don't touch users, sessions or route guards. Cookie-authenticated mutations require `X-Metis-Client: web` (CSRF). The session dependency (`session_user`) exists since SHIP-264; routes switch to it in SHIP-267.
+- Google sign-in (SHIP-265): the server runs OAuth 2.0 Authorization Code + PKCE with OpenID Connect itself (`httpx` + PyJWT, no auth SDK) under `/v1/auth/google/*`. A verified Google email is required; the first sign-in creates the user and personal workspace, later ones match `(provider, subject)` or link by verified email. One-time login state lives in Redis (`auth:oauth:{state}`, 10 min). Post-sign-in redirects accept only relative paths. The web app moves to it in SHIP-221. Sign-in providers live in `modules/identity/providers/` rather than `adapters/`: they produce identity types (`ProviderProfile`) and identity errors, and `adapters/` must not import a module.
 - Today: users sign in via Auth.js; the web app sends an HS256 JWT (`aud` = `AUTH_JWT_AUDIENCE`, `exp`, 30 s leeway) as `Authorization: Bearer`, and the server verifies it on every `/v1` request except `/v1/health`. The verified `sub` maps to an identity user with a personal workspace.
 - Each request runs in one workspace: `X-Workspace-Id`, or the personal workspace when absent. Non-members (and unknown ids) get 403. The request session sets `app.workspace_id` and `app.user_id` before any route code runs.
 - The api and workers connect as the non-superuser `metis_app` role, so RLS applies to real traffic; only migrations use the owner role.

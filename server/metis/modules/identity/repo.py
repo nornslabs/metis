@@ -14,6 +14,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.dml import ReturningInsert
 
 from metis.core.crypto import SealedSecret
 from metis.core.db import set_setting
@@ -107,6 +108,39 @@ async def get_user(session: AsyncSession, user_id: UUID) -> UserRow | None:
 
 async def get_user_by_email(session: AsyncSession, email: str) -> UserRow | None:
     return (await session.scalars(select(UserRow).where(UserRow.email == email))).one_or_none()
+
+
+async def insert_or_none[RowT](session: AsyncSession, stmt: ReturningInsert[RowT]) -> RowT | None:
+    """Run an ``INSERT … RETURNING`` in a savepoint; ``None`` on a unique conflict.
+
+    The savepoint keeps the caller's transaction usable after the conflict.
+    """
+    try:
+        async with session.begin_nested():
+            return (await session.scalars(stmt)).one()
+    except IntegrityError:
+        return None
+
+
+async def get_user_by_auth_sub(session: AsyncSession, auth_sub: str) -> UserRow | None:
+    stmt = select(UserRow).where(UserRow.auth_sub == auth_sub)
+    return (await session.scalars(stmt)).one_or_none()
+
+
+async def insert_user(session: AsyncSession, claims: UserClaims) -> UserRow | None:
+    """Insert a new user; ``None`` if its ``auth_sub`` or email is already taken."""
+    stmt = (
+        insert(UserRow)
+        .values(
+            id=uuid7(),
+            auth_sub=claims.sub,
+            email=claims.email,
+            name=claims.name,
+            image=claims.image,
+        )
+        .returning(UserRow)
+    )
+    return await insert_or_none(session, stmt)
 
 
 async def get_workspace(session: AsyncSession, workspace_id: UUID) -> WorkspaceRow | None:

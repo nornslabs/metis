@@ -4,6 +4,7 @@ Use only what is exported here.
 """
 
 from metis.modules.identity.api import router
+from metis.modules.identity.auth_api import router as auth_router
 from metis.modules.identity.auth_deps import SessionUserDep, session_user
 from metis.modules.identity.deps import (
     CurrentUser,
@@ -40,6 +41,7 @@ __all__ = [
     "current_user",
     "current_workspace",
     "router",
+    "auth_router",
     "MemberRole",
     "Membership",
     "ProviderCredentials",

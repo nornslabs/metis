@@ -1,4 +1,4 @@
-"""Session tokens and the session cookie.
+"""Session tokens, the session cookie and OAuth random values (state, nonce, PKCE).
 
 A session token is 32 random bytes (URL-safe base64). Only its SHA-256 hash is
 stored; the raw token lives in the browser's ``HttpOnly`` cookie and is never
@@ -8,6 +8,7 @@ logged. Resolving tokens to sessions lives in the identity module
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import secrets
 from typing import Final
@@ -17,6 +18,9 @@ from starlette.responses import Response
 from metis.core.config import get_settings
 
 SESSION_TOKEN_BYTES = 32
+OAUTH_VALUE_BYTES = 32
+# 32 random bytes encode to 43 characters: the RFC 7636 minimum verifier length.
+CODE_VERIFIER_BYTES = 32
 SECONDS_PER_DAY = 86_400
 COOKIE_PATH = "/"
 COOKIE_SAMESITE: Final = "lax"
@@ -30,6 +34,22 @@ def new_session_token() -> str:
 def hash_session_token(token: str) -> bytes:
     """Return the SHA-256 digest stored for ``token``."""
     return hashlib.sha256(token.encode("utf-8")).digest()
+
+
+def new_oauth_value() -> str:
+    """Return a fresh random OAuth ``state`` or ``nonce`` (URL-safe, 32 bytes)."""
+    return secrets.token_urlsafe(OAUTH_VALUE_BYTES)
+
+
+def new_code_verifier() -> str:
+    """Return a fresh PKCE ``code_verifier`` (RFC 7636, 43 unreserved characters)."""
+    return secrets.token_urlsafe(CODE_VERIFIER_BYTES)
+
+
+def code_challenge(verifier: str) -> str:
+    """Return the PKCE ``S256`` challenge: base64url(SHA-256(verifier)) without padding."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
 
 
 def set_session_cookie(response: Response, token: str) -> None:
@@ -63,7 +83,10 @@ def clear_session_cookie(response: Response) -> None:
 __all__ = [
     "SESSION_TOKEN_BYTES",
     "clear_session_cookie",
+    "code_challenge",
     "hash_session_token",
+    "new_code_verifier",
+    "new_oauth_value",
     "new_session_token",
     "set_session_cookie",
 ]
