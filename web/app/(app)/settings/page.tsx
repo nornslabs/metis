@@ -15,57 +15,61 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 w-64 animate-pulse bg-muted rounded" />
-        <div className="h-80 animate-pulse bg-muted rounded-lg" />
+      <div className="space-y-6 animate-pulse">
+        <div className="h-8 w-64 bg-muted rounded" />
+        <div className="h-80 bg-muted rounded-lg" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl space-y-9">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your provider keys and workspace settings
+        <p className="mb-2 text-callout font-medium text-foreground-muted">Preferences</p>
+        <h1 className="text-large-title">Settings</h1>
+        <p className="mt-3 text-body text-foreground-muted">
+          Manage the services and limits for this workspace.
         </p>
       </div>
 
       {/* Workspace Info */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-lg">
+      <Card className="overflow-hidden">
+        <CardHeader className="flex items-center gap-4 !p-5 sm:!p-6">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground-muted">
             {currentWorkspace?.workspace.is_personal ? (
               <User className="h-5 w-5" />
             ) : (
               <Building2 className="h-5 w-5" />
             )}
-            <span>{currentWorkspace?.workspace.name}</span>
-            <span className="px-2 py-0.5 text-xs rounded-full bg-muted">
+          </div>
+          <div className="min-w-0">
+            <p className="text-caption-1 text-foreground-muted">Current workspace</p>
+            <CardTitle className="mt-0.5 truncate text-body-strong">{currentWorkspace?.workspace.name}</CardTitle>
+          </div>
+          <span className="ml-auto rounded-full bg-muted px-3 py-1 text-caption-1 font-medium capitalize text-foreground-muted">
               {currentWorkspace?.role}
-            </span>
-          </CardTitle>
+          </span>
         </CardHeader>
       </Card>
 
       <Tabs defaultValue="keys" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full max-w-md grid-cols-2" aria-label="Settings tabs">
           <TabsTrigger value="keys">
             <Key className="mr-2 h-4 w-4" />
-            Provider Keys
+            <span>Provider Keys</span>
           </TabsTrigger>
           <TabsTrigger value="workspace">
             <Settings className="mr-2 h-4 w-4" />
-            Workspace
+            <span>Workspace</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="keys" className="pt-4">
+        <TabsContent value="keys" className="pt-3 animate-fade-in">
           <Card>
-            <CardHeader>
+            <CardHeader className="!pb-3">
               <CardTitle className="flex items-center gap-2">
                 <Key className="h-5 w-5" />
-                BYO Provider Keys
+                <span>BYO Provider Keys</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -74,12 +78,12 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="workspace" className="pt-4">
+        <TabsContent value="workspace" className="pt-3 animate-fade-in">
           <Card>
-            <CardHeader>
+            <CardHeader className="!pb-3">
               <CardTitle className="flex items-center gap-2">
                 <Settings className="h-5 w-5" />
-                Workspace Settings
+                <span>Workspace Settings</span>
               </CardTitle>
             </CardHeader>
             <CardContent>

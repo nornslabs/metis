@@ -41,29 +41,34 @@ export function WorkspaceSwitcher() {
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="outline"
-            className="w-full justify-between h-9 px-2 text-xs"
+            className="w-full justify-between h-11 px-3 text-body"
             aria-label="Switch workspace"
           >
             <div className="flex items-center gap-2 overflow-hidden">
               {currentWorkspace?.workspace.is_personal ? (
-                <User className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <User className="h-4 w-4 flex-shrink-0 text-foreground-muted" />
               ) : (
-                <Building2 className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <Building2 className="h-4 w-4 flex-shrink-0 text-foreground-muted" />
               )}
               <span className="truncate font-medium">
                 {currentWorkspace?.workspace.name || "Select workspace"}
               </span>
             </div>
-            <ChevronDown className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
+            <ChevronDown className="h-4 w-4 flex-shrink-0 text-foreground-muted" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="font-normal">
+        <DropdownMenuContent
+          side="top"
+          align="start"
+          sideOffset={8}
+          className="max-h-[min(26rem,calc(100dvh-2rem))] w-64 overflow-y-auto"
+        >
+          <DropdownMenuLabel className="font-medium">
             Your Workspaces
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
@@ -72,7 +77,7 @@ export function WorkspaceSwitcher() {
               key={membership.workspace.id}
               className={
                 membership.workspace.id === storedWorkspaceId
-                  ? "bg-accent text-accent-foreground"
+                  ? "bg-accent-bg text-accent"
                   : ""
               }
               onClick={() => {
@@ -86,29 +91,29 @@ export function WorkspaceSwitcher() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {membership.workspace.is_personal ? (
-                    <User className="h-4 w-4 text-muted-foreground" />
+                    <User className="h-4 w-4 text-foreground-muted" />
                   ) : (
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <Building2 className="h-4 w-4 text-foreground-muted" />
                   )}
-                  <span className="font-medium">
+                  <span className="font-medium truncate">
                     {membership.workspace.name}
                   </span>
                 </div>
-                <span className="text-xs text-muted-foreground capitalize">
+                <span className="text-caption-1 text-foreground-muted capitalize">
                   {membership.role}
                 </span>
               </div>
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <form onSubmit={handleCreateWorkspace} className="p-2">
+          <form onSubmit={handleCreateWorkspace} className="p-3 space-y-2">
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newWorkspaceName}
                 onChange={(e) => setNewWorkspaceName(e.target.value)}
                 placeholder="New workspace name"
-                className="flex-1 h-8 px-2 text-sm rounded-md border bg-background"
+                className="flex-1 h-10 px-3 text-body rounded-md border border-border bg-background placeholder:text-foreground-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 maxLength={50}
               />
               <Button type="submit" size="icon" disabled={createWorkspace.isPending}>
