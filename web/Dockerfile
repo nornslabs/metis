@@ -3,8 +3,8 @@ FROM node:22-slim AS deps
 
 WORKDIR /app/web
 
-COPY package.json ./
-RUN npm install --no-package-lock --legacy-peer-deps
+COPY package.json package-lock.json ./
+RUN npm install --legacy-peer-deps
 
 # Stage 2: build Next.js standalone output
 FROM node:22-slim AS builder
