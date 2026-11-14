@@ -3,7 +3,7 @@ FROM node:22-slim AS deps
 
 WORKDIR /app/web
 
-COPY package.json package-lock.json ./
+COPY package.json ./
 RUN npm ci
 
 # Stage 2: build Next.js standalone output
