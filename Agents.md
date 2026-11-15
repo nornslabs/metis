@@ -33,7 +33,7 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 │   │   ├── agent/             # agent graph
 │   │   ├── core/              # infrastructure: config, db, errors, jobs, events, outbox, security (session cookies), crypto
 │   │   ├── entrypoints/       # api, worker, scheduler processes
-│   │   ├── modules/           # domain modules (identity owns users, workspaces, sessions, sign-in)
+│   │   ├── modules/           # domain modules (auth owns users, sessions, sign-in; identity owns workspaces, members, keys, settings)
 │   │   ├── evals/             # evaluation datasets
 │   │   └── prompts/           # prompt versions
 │   ├── migrations/            # Alembic migrations
