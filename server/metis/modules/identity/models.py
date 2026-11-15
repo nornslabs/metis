@@ -27,7 +27,6 @@ class UserRow(Base):
     __table_args__ = {"schema": SCHEMA}
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    auth_sub: Mapped[str] = mapped_column(Text, unique=True)
     email: Mapped[str] = mapped_column(Text, unique=True)
     name: Mapped[str | None] = mapped_column(Text)
     image: Mapped[str | None] = mapped_column(Text)

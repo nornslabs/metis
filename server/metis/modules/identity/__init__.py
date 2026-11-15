@@ -5,11 +5,10 @@ Use only what is exported here.
 
 from metis.modules.identity.api import router
 from metis.modules.identity.auth_api import router as auth_router
-from metis.modules.identity.auth_deps import SessionUserDep, session_user
-from metis.modules.identity.deps import (
-    CurrentUser,
+from metis.modules.identity.auth_deps import (
     CurrentUserDep,
     CurrentWorkspaceDep,
+    check_csrf,
     current_user,
     current_workspace,
 )
@@ -28,18 +27,15 @@ from metis.modules.identity.service import (
     ensure_personal_workspace,
     get_key_for_use,
     list_workspaces,
-    upsert_user_from_claims,
 )
 
 __all__ = [
     "SessionUser",
-    "SessionUserDep",
-    "session_user",
-    "CurrentUser",
     "CurrentUserDep",
     "CurrentWorkspaceDep",
     "current_user",
     "current_workspace",
+    "check_csrf",
     "router",
     "auth_router",
     "MemberRole",
@@ -53,5 +49,4 @@ __all__ = [
     "ensure_personal_workspace",
     "get_key_for_use",
     "list_workspaces",
-    "upsert_user_from_claims",
 ]

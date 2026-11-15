@@ -246,7 +246,6 @@ def test_auth_error_codes() -> None:
     """Auth error codes should have expected values."""
     assert ErrorCode.UNAUTHORIZED == "auth.unauthorized"
     assert ErrorCode.FORBIDDEN == "auth.forbidden"
-    assert ErrorCode.TOKEN_EXPIRED == "auth.token_expired"
     assert ErrorCode.INVALID_CREDENTIALS == "auth.invalid_credentials"
 
 

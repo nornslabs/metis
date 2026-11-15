@@ -1,4 +1,4 @@
-"""HTTP-seam fixtures for identity tests: a migrated Postgres and an app client.
+"""HTTP-seam fixtures for identity tests: a migrated Postgres, Redis and an app client.
 
 The app's request session runs as the non-superuser ``metis_app`` role
 (``SET LOCAL ROLE``), so RLS is enforced exactly as in production. Set
@@ -54,21 +54,6 @@ async def engine() -> AsyncIterator[AsyncEngine]:
 
 
 @pytest_asyncio.fixture
-async def client(engine: AsyncEngine) -> AsyncIterator[httpx.AsyncClient]:
-    async def app_role_session() -> AsyncIterator[AsyncSession]:
-        async with AsyncSession(engine, expire_on_commit=False) as session:
-            async with transaction(session):
-                await session.execute(text(f"SET LOCAL ROLE {APP_ROLE}"))
-                yield session
-
-    app.dependency_overrides[get_request_session] = app_role_session
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-        yield client
-    app.dependency_overrides.clear()
-
-
-@pytest_asyncio.fixture
 async def redis() -> AsyncIterator[Redis]:
     client: Redis = Redis.from_url(REDIS_URL)
     try:
@@ -83,7 +68,24 @@ async def redis() -> AsyncIterator[Redis]:
 
 
 @pytest_asyncio.fixture
-async def http(client: httpx.AsyncClient, redis: Redis) -> httpx.AsyncClient:
-    """The app client with the request Redis pointed at the test database."""
+async def client(engine: AsyncEngine, redis: Redis) -> AsyncIterator[httpx.AsyncClient]:
+    """The app client: request sessions as ``metis_app``, Redis on the test database."""
+
+    async def app_role_session() -> AsyncIterator[AsyncSession]:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            async with transaction(session):
+                await session.execute(text(f"SET LOCAL ROLE {APP_ROLE}"))
+                yield session
+
+    app.dependency_overrides[get_request_session] = app_role_session
     app.dependency_overrides[get_redis] = lambda: redis
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def http(client: httpx.AsyncClient) -> httpx.AsyncClient:
+    """Alias of ``client`` kept for the session and sign-in tests."""
     return client

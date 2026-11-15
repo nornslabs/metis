@@ -25,18 +25,20 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 ├── opencode.json              # opencode configuration
 ├── .env.example               # environment variable template
 ├── dist/                      # build artifacts
+├── .github/                   # CI workflow, PR template
 ├── server/                    # Python: FastAPI api, Arq worker, scheduler, LangGraph agent
-│   ├── adapters/              # adapter layer (one file per external vendor)
-│   ├── helpers/               # generic, stateless helpers (see architecture.md)
-│   ├── agent/                 # agent graph
-│   ├── core/                  # core domain
-│   ├── entrypoints/           # API entrypoints
-│   ├── modules/               # domain modules
-│   ├── evals/                 # evaluation datasets
-│   ├── prompts/               # prompt versions
+│   ├── metis/                 # the Python package
+│   │   ├── adapters/          # adapter layer (one file per external vendor; MCP ones in adapters/mcp/)
+│   │   ├── helpers/           # generic, stateless helpers (see architecture.md)
+│   │   ├── agent/             # agent graph
+│   │   ├── core/              # infrastructure: config, db, errors, jobs, events, outbox, security (session cookies), crypto
+│   │   ├── entrypoints/       # api, worker, scheduler processes
+│   │   ├── modules/           # domain modules (identity owns users, workspaces, sessions, sign-in)
+│   │   ├── evals/             # evaluation datasets
+│   │   └── prompts/           # prompt versions
 │   ├── migrations/            # Alembic migrations
-│   ├── tests/                 # tests
-│   └── ...                    # other server files
+│   ├── tests/                 # tests (mirror metis/)
+│   └── ...                    # pyproject.toml, uv.lock, Dockerfile, alembic.ini
 └── web/                       # Next.js app
     ├── AGENTS.md              # web-specific agent instructions
     ├── app/                   # Next.js app router

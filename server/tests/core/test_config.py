@@ -24,8 +24,6 @@ class TestSettingsDefaults:
         settings = Settings(
             database_url="postgresql+asyncpg://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/0",
-            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            auth_jwt_audience="test-audience",
             encryption_master_key=get_valid_secret(),
         )
 
@@ -57,6 +55,16 @@ class TestSettingsValidation:
         has_error = "database_url" in combined_errors or "redis_url" in combined_errors
         assert has_error
 
+    def test_removed_jwt_settings_in_env_are_ignored(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """An old ``.env`` that still sets ``AUTH_JWT_*`` keeps booting."""
+        monkeypatch.setenv("AUTH_JWT_SECRET", "left-over-secret")
+        monkeypatch.setenv("AUTH_JWT_AUDIENCE", "metis")
+
+        settings = Settings()
+
+        assert not hasattr(settings, "auth_jwt_secret")
+        assert not hasattr(settings, "auth_jwt_audience")
+
     def test_encryption_master_key_must_be_32_bytes(self) -> None:
         """Encryption master key must decode to exactly 32 bytes."""
         # Use a valid base64 key that's NOT 32 bytes when decoded
@@ -67,8 +75,6 @@ class TestSettingsValidation:
             Settings(
                 database_url="postgresql+asyncpg://test:test@localhost:5432/test",
                 redis_url="redis://localhost:6379/0",
-                auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                auth_jwt_audience="test-audience",
                 encryption_master_key=invalid_key,
             )
 
@@ -83,8 +89,6 @@ class TestSettingsValidation:
                 app_env="production",
                 database_url="postgresql+asyncpg://test:test@localhost:5432/test",
                 redis_url="redis://localhost:6379/0",
-                auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                auth_jwt_audience="test-audience",
                 encryption_master_key=get_valid_secret(),
                 log_json=False,
             )
@@ -96,8 +100,6 @@ class TestSettingsValidation:
         settings = Settings(
             database_url="postgresql+asyncpg://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/0",
-            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            auth_jwt_audience="test-audience",
             encryption_master_key=get_valid_secret(),
         )
 
@@ -110,8 +112,6 @@ class TestSettingsValidation:
             log_json=True,
             database_url="postgresql+asyncpg://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/0",
-            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            auth_jwt_audience="test-audience",
             encryption_master_key=get_valid_secret(),
         )
 
@@ -127,8 +127,6 @@ class TestCorsOriginsParsing:
         settings = Settings(
             database_url="postgresql://test:5432/db",
             redis_url="redis://localhost",
-            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            auth_jwt_audience="audience",
             encryption_master_key=get_valid_secret(),
         )
         assert settings.get_cors_origins() == ["http://localhost:3000"]
@@ -140,8 +138,6 @@ class TestCorsOriginsParsing:
             {
                 "DATABASE_URL": "postgresql://test:5432/db",
                 "REDIS_URL": "redis://localhost",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
                 "CORS_ORIGINS": "http://localhost:3000",
             },
@@ -157,8 +153,6 @@ class TestCorsOriginsParsing:
             {
                 "DATABASE_URL": "postgresql://test:5432/db",
                 "REDIS_URL": "redis://localhost",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
                 "CORS_ORIGINS": "http://localhost:3000,http://localhost:8000",
             },
@@ -175,8 +169,6 @@ class TestCorsOriginsParsing:
         settings = Settings(
             database_url="postgresql://test:5432/db",
             redis_url="redis://localhost",
-            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            auth_jwt_audience="audience",
             encryption_master_key=get_valid_secret(),
         )
         assert isinstance(settings.cors_origins, str)
@@ -188,19 +180,17 @@ class TestSecretsRedaction:
 
     def test_secrets_are_redacted_in_repr(self) -> None:
         """Secrets should be redacted in repr() output."""
+        secret = get_valid_secret()
         settings = Settings(
             database_url="postgresql+asyncpg://test:test@localhost:5432/test",
             redis_url="redis://localhost:6379/0",
-            auth_jwt_secret="super-secret-jwt-key-that-is-very-long-123456",
-            auth_jwt_audience="test-audience",
-            encryption_master_key=get_valid_secret(),
+            encryption_master_key=secret,
         )
 
         repr_str = repr(settings)
         # Secrets should be redacted (not show the actual secret value)
-        assert "super-secret-jwt-key-that-is-very-long-123456" not in repr_str
+        assert secret not in repr_str
         # The field name should be present
-        assert "auth_jwt_secret" in repr_str
         assert "encryption_master_key" in repr_str
 
 
@@ -216,8 +206,6 @@ class TestSettingsCaching:
             {
                 "DATABASE_URL": "postgresql+asyncpg://test:test@localhost:5432/test",
                 "REDIS_URL": "redis://localhost:6379/0",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "test-audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
             },
         ):
@@ -234,8 +222,6 @@ class TestSettingsCaching:
             {
                 "DATABASE_URL": "postgresql+asyncpg://test:test@localhost:5432/test",
                 "REDIS_URL": "redis://localhost:6379/0",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "test-audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
             },
         ):
@@ -250,8 +236,6 @@ class TestSettingsCaching:
             {
                 "DATABASE_URL": "postgresql+asyncpg://test:test@localhost:5432/test",
                 "REDIS_URL": "redis://localhost:6379/0",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "test-audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
             },
         ):
@@ -313,8 +297,6 @@ class TestEnvExampleMatchesFields:
         required_fields = [
             "DATABASE_URL",
             "REDIS_URL",
-            "AUTH_JWT_SECRET",
-            "AUTH_JWT_AUDIENCE",
             "ENCRYPTION_MASTER_KEY",
         ]
 
@@ -335,20 +317,17 @@ class TestSettingsFromEnvFile:
         env_file.write_text(
             "DATABASE_URL=postgresql://from-dotenv:5432/db\n"
             "REDIS_URL=redis://from-dotenv\n"
-            "AUTH_JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
-            "AUTH_JWT_AUDIENCE=dotenv-audience\n"
             f"ENCRYPTION_MASTER_KEY={get_valid_secret()}\n"
         )
 
         # Clear env vars so the .env file is the source of truth.
         # pydantic-settings uses _env_file as a private argument.
-        keys = ["DATABASE_URL", "REDIS_URL", "AUTH_JWT_SECRET", "AUTH_JWT_AUDIENCE"]
+        keys = ["DATABASE_URL", "REDIS_URL"]
         saved = {k: os.environ.pop(k, None) for k in keys}
         try:
             settings = Settings(_env_file=str(env_file))  # type: ignore[call-arg, unused-ignore]
             assert settings.database_url == "postgresql://from-dotenv:5432/db"
             assert settings.redis_url == "redis://from-dotenv"
-            assert settings.auth_jwt_audience == "dotenv-audience"
         finally:
             for k, v in saved.items():
                 if v is not None:
@@ -364,8 +343,6 @@ class TestSettingsFromEnvFile:
             {
                 "DATABASE_URL": "postgresql://from-env:5432/db",
                 "REDIS_URL": "redis://localhost:6379/0",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "env-audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
             },
         ):
@@ -384,8 +361,6 @@ class TestValidationAlias:
         settings = Settings(
             database_url="postgresql://test:5432/db",
             redis_url="redis://localhost",
-            auth_jwt_secret="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-            auth_jwt_audience="audience",
             encryption_master_key=get_valid_secret(),
         )
 
@@ -398,8 +373,6 @@ class TestValidationAlias:
             {
                 "DATABASE_URL": "postgresql://test:5432/db",
                 "REDIS_URL": "redis://localhost",
-                "AUTH_JWT_SECRET": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "AUTH_JWT_AUDIENCE": "audience",
                 "ENCRYPTION_MASTER_KEY": get_valid_secret(),
             },
         ):
@@ -417,8 +390,6 @@ class TestSessionSettings:
         base: dict[str, object] = {
             "database_url": "postgresql://test:5432/db",
             "redis_url": "redis://localhost",
-            "auth_jwt_secret": "a" * 50,
-            "auth_jwt_audience": "audience",
             "encryption_master_key": get_valid_secret(),
         }
         return Settings(**{**base, **overrides})  # type: ignore[arg-type]
@@ -470,8 +441,6 @@ class TestGoogleSettings:
         base: dict[str, object] = {
             "database_url": "postgresql://test:5432/db",
             "redis_url": "redis://localhost",
-            "auth_jwt_secret": "a" * 50,
-            "auth_jwt_audience": "audience",
             "encryption_master_key": get_valid_secret(),
             "log_json": True,
         }

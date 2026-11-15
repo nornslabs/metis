@@ -34,10 +34,6 @@ _CLIENT_ERROR_MIN = 400
 _CLIENT_ERROR_MAX = 499
 _SERVER_ERROR_MIN = 500
 
-# Bearer-token failures carry a ``WWW-Authenticate: Bearer`` challenge; session
-# (cookie) failures do not.
-_BEARER_CHALLENGE_CODES = frozenset({ErrorCode.UNAUTHORIZED, ErrorCode.TOKEN_EXPIRED})
-
 logger = structlog.get_logger(__name__)
 
 
@@ -95,8 +91,6 @@ def _build_problem_response(
 
     if meta and "retry_after" in meta:
         headers["Retry-After"] = str(meta["retry_after"])
-    if code in _BEARER_CHALLENGE_CODES:
-        headers["WWW-Authenticate"] = "Bearer"
 
     return JSONResponse(body, status_code=error_spec.status, headers=headers)
 

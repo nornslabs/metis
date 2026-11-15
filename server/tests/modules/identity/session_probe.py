@@ -1,4 +1,4 @@
-"""Test-only probe routes that depend on ``SessionUserDep``, mounted once on the app.
+"""Test-only probe routes that depend on ``CurrentUserDep``, mounted once on the app.
 
 Importing this module mounts ``/v1/_test/*``; Python imports it once, so every
 test file that needs the probe can import it.
@@ -10,7 +10,7 @@ from fastapi import APIRouter, Response
 
 from metis.core import security
 from metis.entrypoints.api import app
-from metis.modules.identity import SessionUserDep
+from metis.modules.identity import CurrentUserDep
 from metis.modules.identity.schemas import SessionUser
 
 PROBE = "/v1/_test/session"
@@ -25,12 +25,12 @@ def _who(caller: SessionUser) -> dict[str, str]:
 
 
 @_probe.get("/session")
-async def _session_get(caller: SessionUserDep) -> dict[str, str]:
+async def _session_get(caller: CurrentUserDep) -> dict[str, str]:
     return _who(caller)
 
 
 @_probe.post("/session")
-async def _session_post(caller: SessionUserDep) -> dict[str, str]:
+async def _session_post(caller: CurrentUserDep) -> dict[str, str]:
     return _who(caller)
 
 

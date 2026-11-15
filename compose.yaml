@@ -7,8 +7,6 @@ name: metis
 x-app-settings: &app-settings
   DATABASE_URL: postgresql+asyncpg://metis_app:${APP_DB_PASSWORD:-metis_app}@postgres:5432/${POSTGRES_DB:-metis}
   REDIS_URL: redis://redis:6379/0
-  AUTH_JWT_AUDIENCE: ${AUTH_JWT_AUDIENCE:-metis}
-  AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:?is not set. Run `cp .env.example .env` and fill in AUTH_JWT_SECRET}
   ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:?is not set. Run `cp .env.example .env` and fill in ENCRYPTION_MASTER_KEY}
 services:
   postgres:

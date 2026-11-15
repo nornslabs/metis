@@ -8,8 +8,8 @@ A session resolves while it is not revoked, ``now < expires_at`` (absolute,
 ``SESSION_TTL_DAYS``) and ``now - last_seen_at < SESSION_IDLE_DAYS``. Use
 advances ``last_seen_at`` at most once per :data:`SESSION_TOUCH_INTERVAL`.
 ``sign_in`` turns a verified provider profile into a user: by
-``(provider, subject)``, else by a legacy ``users.auth_sub`` or the same email
-(linking a new identity), else a new user with a personal workspace.
+``(provider, subject)``, else by the same email (linking a new identity), else a
+new user with a personal workspace.
 
 Internal to identity: the auth routes and ``auth_deps`` call it.
 """
@@ -36,7 +36,6 @@ from metis.helpers.validation import validate_input
 from metis.modules.identity import identities_repo, repo, service, sessions_repo
 from metis.modules.identity.models import UserRow
 from metis.modules.identity.providers.base import (
-    AuthProviderName,
     OAuthFailure,
     OAuthStep,
     ProviderProfile,
@@ -177,7 +176,6 @@ def _claims(profile: ProviderProfile) -> UserClaims:
     try:
         return validate_input(
             UserClaims,
-            sub=profile.subject,
             email=profile.email,
             name=profile.name,
             image=profile.avatar_url,
@@ -186,22 +184,11 @@ def _claims(profile: ProviderProfile) -> UserClaims:
         raise oauth_failed(profile.provider, OAuthStep.SIGN_IN, OAuthFailure.BAD_RESPONSE) from None
 
 
-async def _find_user_to_link(
-    session: AsyncSession, profile: ProviderProfile, claims: UserClaims
-) -> UserRow | None:
-    # Accounts created through Auth.js keyed on the Google subject (until SHIP-267).
-    if profile.provider is AuthProviderName.GOOGLE:
-        row = await repo.get_user_by_auth_sub(session, claims.sub)
-        if row is not None:
-            return row
-    return await repo.get_user_by_email(session, claims.email)
-
-
 async def _user_for(
-    session: AsyncSession, profile: ProviderProfile, claims: UserClaims
+    session: AsyncSession, claims: UserClaims
 ) -> tuple[UserRow, SignInOutcome] | None:
     """The user to link this new identity to, creating one if needed; ``None`` on a race."""
-    linked = await _find_user_to_link(session, profile, claims)
+    linked = await repo.get_user_by_email(session, claims.email)
     if linked is not None:
         return linked, SignInOutcome.LINKED
     created = await repo.insert_user(session, claims)
@@ -224,7 +211,7 @@ async def _try_sign_in(
         )
         row = await repo.get_user(session, identity.user_id)
         return None if row is None else await _signed_in(session, row, SignInOutcome.EXISTING)
-    found = await _user_for(session, profile, claims)
+    found = await _user_for(session, claims)
     if found is None:
         return None
     row, outcome = found

@@ -26,6 +26,8 @@ class AppSettings:
 
 
 _GOOGLE_FIELDS = ("google_client_id", "google_client_secret", "google_redirect_uri")
+# Plain-string secrets masked by ``Settings.__repr__``; ``SecretStr`` fields mask themselves.
+SECRET_FIELDS = frozenset({"encryption_master_key"})
 
 
 class Settings(BaseSettings):
@@ -61,8 +63,6 @@ class Settings(BaseSettings):
     redis_url: str = Field(default="", validation_alias="REDIS_URL")
 
     # Security settings
-    auth_jwt_secret: str = Field(default="", validation_alias="AUTH_JWT_SECRET")
-    auth_jwt_audience: str = Field(default="", validation_alias="AUTH_JWT_AUDIENCE")
     encryption_master_key: str = Field(default="", validation_alias="ENCRYPTION_MASTER_KEY")
     cors_origins: str = Field(
         default="http://localhost:3000",
@@ -139,10 +139,6 @@ class Settings(BaseSettings):
             raise ValueError("database_url is required")
         if not self.redis_url:
             raise ValueError("redis_url is required")
-        if not self.auth_jwt_secret:
-            raise ValueError("auth_jwt_secret is required")
-        if not self.auth_jwt_audience:
-            raise ValueError("auth_jwt_audience is required")
         if not self.encryption_master_key:
             raise ValueError("encryption_master_key is required")
 
@@ -206,7 +202,7 @@ class Settings(BaseSettings):
         data: dict[str, Any] = {}
         for field_name, _field_info in Settings.model_fields.items():
             value = getattr(self, field_name)
-            if field_name in ("auth_jwt_secret", "encryption_master_key"):
+            if field_name in SECRET_FIELDS:
                 data[field_name] = "**********"
             else:
                 data[field_name] = value

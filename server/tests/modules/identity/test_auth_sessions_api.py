@@ -1,7 +1,7 @@
 """Server-side sessions: cookie auth, expiry, revocation, CSRF and storage.
 
 Seam: HTTP requests against the real FastAPI app (``ASGITransport``) through
-test-only probe routes that depend on ``SessionUserDep``. Postgres is migrated
+test-only probe routes that depend on ``CurrentUserDep``. Postgres is migrated
 to head and the request session runs as ``metis_app``; Redis is real
 (``TEST_REDIS_URL``). Sessions are created with ``auth_service.create_session``
 and expiry is driven by editing session rows, not by mocking the clock.
@@ -19,7 +19,7 @@ from uuid import UUID
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import assert_problem, make_token, me
+from api_helpers import assert_problem, create_user
 from redis.asyncio import Redis
 from session_probe import COOKIE_PROBE, PROBE
 from sqlalchemy import text
@@ -41,9 +41,8 @@ WEB_CLIENT = {"X-Metis-Client": "web"}
 # -------------------------------------------------------------------- fixtures
 
 
-async def _user_id(http: httpx.AsyncClient, sub: str = "auth|ada", email: str = "ada@x.io") -> UUID:
-    body = await me(http, make_token(sub=sub, email=email))
-    return UUID(body["user"]["id"])
+async def _user_id(engine: AsyncEngine, sub: str = "google-ada", email: str = "ada@x.io") -> UUID:
+    return await create_user(engine, sub=sub, email=email)
 
 
 async def _new_session(engine: AsyncEngine, user_id: UUID) -> str:
@@ -57,15 +56,6 @@ async def _exec(engine: AsyncEngine, sql: str, **params: Any) -> Any:
     async with engine.begin() as conn:
         result = await conn.execute(text(sql), params)
         return result.all() if result.returns_rows else None
-
-
-def _load_migration() -> ModuleType:
-    path = Path(__file__).resolve().parents[3] / "migrations/versions/0006_auth_sessions.py"
-    spec = importlib.util.spec_from_file_location("migration_0006", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
 
 
 def _cookie(token: str | None) -> dict[str, str]:
@@ -84,7 +74,7 @@ async def _post(
 
 @pytest_asyncio.fixture
 async def ada(http: httpx.AsyncClient, engine: AsyncEngine) -> tuple[UUID, str]:
-    user_id = await _user_id(http)
+    user_id = await _user_id(engine)
     return user_id, await _new_session(engine, user_id)
 
 
@@ -200,7 +190,7 @@ async def test_logout_all_revokes_every_session_of_the_user_only(
 ) -> None:
     ada_id, first = ada
     second = await _new_session(engine, ada_id)
-    bob = await _new_session(engine, await _user_id(http, "auth|bob", "bob@x.io"))
+    bob = await _new_session(engine, await _user_id(engine, "google-bob", "bob@x.io"))
     assert (await _get(http, first)).status_code == 200  # cached
 
     async with AsyncSession(engine, expire_on_commit=False) as session:
@@ -274,7 +264,7 @@ async def test_only_the_token_hash_is_stored(engine: AsyncEngine, ada: tuple[UUI
 async def test_raw_token_never_reaches_the_logs(
     http: httpx.AsyncClient, engine: AsyncEngine, redis: Redis
 ) -> None:
-    user_id = await _user_id(http)
+    user_id = await _user_id(engine)
     with capture_logs() as logs:
         token = await _new_session(engine, user_id)
         await _get(http, token)
@@ -300,24 +290,6 @@ async def test_falls_back_to_postgres_when_redis_is_down(
 
     assert response.status_code == 200, response.text
     assert response.json()["user_id"] == str(user_id)
-
-
-async def test_existing_users_were_backfilled_with_a_google_identity(
-    engine: AsyncEngine,
-) -> None:
-    # The backfill is a single INSERT … SELECT in 0006; replay it on a fresh user.
-    await _exec(
-        engine,
-        "INSERT INTO identity.users (id, auth_sub, email) "
-        "VALUES (gen_random_uuid(), 'google-123', 'old@x.io')",
-    )
-    await _exec(engine, _load_migration().BACKFILL_SQL)
-
-    rows = await _exec(
-        engine,
-        "SELECT provider, subject, email, email_verified FROM identity.auth_identities",
-    )
-    assert [tuple(r) for r in rows] == [("google", "google-123", "old@x.io", True)]
 
 
 # ---------------------------------------------------------------------- cookie
@@ -362,3 +334,32 @@ async def test_cors_preflight_allows_credentials_and_client_header(
     assert response.headers["access-control-allow-origin"] == WEB_ORIGIN
     assert response.headers["access-control-allow-credentials"] == "true"
     assert "x-metis-client" in response.headers["access-control-allow-headers"].lower()
+
+
+# ------------------------------------------------------------------- migration
+def _migration_0007() -> ModuleType:
+    path = Path(__file__).resolve().parents[3] / "migrations/versions/0007_drop_users_auth_sub.py"
+    spec = importlib.util.spec_from_file_location("migration_0007", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+async def test_downgrade_restores_auth_sub_from_google_identities(engine: AsyncEngine) -> None:
+    google_user = await create_user(engine, "google-ada", "ada@x.io")
+    bare = await _exec(
+        engine,
+        "INSERT INTO identity.users (id, email) VALUES (gen_random_uuid(), 'bare@x.io') "
+        "RETURNING id",
+    )
+    bare_id = bare[0][0]
+
+    # DDL is transactional in Postgres: replay the downgrade's SQL, then roll back.
+    async with engine.connect() as conn, conn.begin() as tx:
+        await conn.execute(text("ALTER TABLE identity.users ADD COLUMN auth_sub text"))
+        await conn.execute(text(_migration_0007().RESTORE_SQL))
+        rows = dict((await conn.execute(text("SELECT id, auth_sub FROM identity.users"))).all())
+        await tx.rollback()
+
+    assert rows == {google_user: "google-ada", bare_id: f"user:{bare_id}"}

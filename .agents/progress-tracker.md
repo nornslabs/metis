@@ -7,7 +7,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
 - **Active PRD:** —
 - **Branch:** —
-- **Last updated:** 2026-11-14 — Completed feat-auth-google (SHIP-265): Google sign-in, `/v1/auth/*` routes. Previously: Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Last updated:** 2026-11-15 — Completed refactor-remove-jwt-auth (SHIP-267): routes on session cookies, JWT auth and `users.auth_sub` removed. Previously: Completed feat-auth-google (SHIP-265): Google sign-in, `/v1/auth/*` routes. Previously: Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| refactor-remove-jwt-auth | refactor/remove-jwt-auth | done | SHIP-267: routes on sessions, drop JWT + `users.auth_sub` |
 | feat-auth-google | feat/auth-google | done | SHIP-265: Google sign-in, `/v1/auth/*` routes |
 | feat-auth-sessions | feat/auth-sessions | done | SHIP-264: server sessions, auth identities, `session_user` |
 | feat-provider-keys | feat/provider-keys | done | SHIP-217: BYO LLM + Exa keys, workspace settings |
@@ -50,6 +51,12 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-15 | SHIP-267 migration `0007` drops `users.auth_sub` outright; an exception to "backward-compatible migrations only" | Pre-launch: no production data or rolling deploys; tested downgrade restores the column |
+| 2026-11-15 | SHIP-267 branched from `feat/server-owned-auth`, not `main` | `main` doesn't have SHIP-264/265 yet; same integration branch as SHIP-265 |
+| 2026-11-15 | Auth dependencies live in one module, `modules/identity/auth_deps.py` (`current_user` on the session, `current_workspace` on it); `deps.py` removed | One caller type (`SessionUser`), one place for route guards |
+| 2026-11-14 | SHIP-267 specced despite open blocker SHIP-224 (user decision) | Web app never sends the API JWT, so the server cutover breaks nothing |
+| 2026-11-14 | SHIP-267 keeps `AuthError` / `auth.unauthorized` as the generic 401; removes only `auth.token_expired` and the Bearer challenge | Starlette 401s still need a code; only JWT-specific pieces go |
+| 2026-11-14 | SHIP-267 tested at the HTTP seam with a session-cookie sign-in helper + one parametrized route-table test (public allowlist) | Same seam as SHIP-264/265; a route that forgets auth fails CI |
 | 2026-11-14 | Sign-in providers live in `modules/identity/providers/`, not `adapters/` (recorded in `architecture.md`) | They return identity types and errors; adapters must not import a module |
 | 2026-11-14 | `uvicorn.access` lines drop the query string (`StripQueryFilter`) | The OAuth callback carries `code` and `state` in its query |
 | 2026-11-14 | SHIP-265: `GOOGLE_*` settings required outside development; in dev, unset ⇒ Google not offered | Misconfigured deploys fail at boot; local/CI runs need no Google credentials |
@@ -96,6 +103,17 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Session Notes
 
+- SHIP-267 built on `refactor/remove-jwt-auth` (branched from `feat/server-owned-auth`):
+  - Every `/v1` route except `/v1/health` and the public `/v1/auth/*` routes uses the session cookie: `current_user` / `current_workspace` in `auth_deps.py`.
+  - Removed: `core/auth.py`, `deps.py`, `AUTH_JWT_*` (settings, `.env.example`, compose, CI), `auth.token_expired` / `TokenExpiredError`, the Bearer challenge, `upsert_user_from_claims`, the `auth_sub` sign-in step and `EmailTakenError`.
+  - Migration `0007_drop_users_auth_sub`.
+  - Tests:
+    - `test_route_auth.py` walks the route table, with an explicit public allowlist.
+    - The identity tests sign in through `api_helpers.sign_in` (real session) / `create_user`.
+    - 388 pass.
+  - Local DBs: `alembic upgrade head`.
+  - Docs synced: `architecture.md`, `server-context.md`, the AGENTS.md tree.
+  - Next: SHIP-221 / SHIP-224 (web on server sessions), then `feat-ideas-crud`.
 - SHIP-265 built on `feat/auth-google` (branched from the 12A integration branch `feat/server-owned-auth`, not `main`):
   - `modules/identity/providers/` holds the `AuthProvider` protocol, `ProviderProfile`, the `OAuthStep` / `OAuthFailure` enums, and `GoogleProvider` (`httpx` + PyJWT, discovery and JWKS cached 1 h, refetch on an unknown `kid` at most once a minute).
   - `oauth_flow.py`: `start_login` / `finish_login`, with Redis `auth:oauth:{state}` (600 s, `GETDEL`).

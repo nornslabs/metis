@@ -3,7 +3,7 @@
 ``create_app()`` builds the app; the module-level ``app`` is what uvicorn
 serves (``metis.entrypoints.api:app``). ``/v1/health`` and ``/v1/auth/*``
 (sign-in, sign-out) are public; every other ``/v1`` route depends on
-``current_user`` or ``current_workspace`` (JWT auth + workspace scoping).
+``current_user`` or ``current_workspace`` (session cookie + workspace scoping).
 Module routers are added per PRD as the modules land. See
 ``server-context.md`` for the API conventions.
 """
@@ -29,7 +29,6 @@ from metis.modules.identity import router as identity_router
 
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_HEADERS = [
-    "Authorization",
     "Content-Type",
     "X-Workspace-Id",
     "Idempotency-Key",
@@ -78,7 +77,7 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(health_router)
     # Public sign-in / sign-out (redirects and the session cookie).
     app.include_router(auth_router)
-    # Every other /v1 route requires a valid JWT via current_user / current_workspace.
+    # Every other /v1 route requires a session cookie via current_user / current_workspace.
     app.include_router(identity_router)
 
 
