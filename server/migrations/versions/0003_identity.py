@@ -6,6 +6,8 @@ of ``app.user_id``) so a user can list their memberships across workspaces.
 Permissive policies OR together; with neither setting, no rows are visible.
 """
 
+from datetime import datetime
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
@@ -23,7 +25,7 @@ USING (user_id = nullif(current_setting('app.user_id', true), '')::uuid)
 """
 
 
-def _created_at() -> sa.Column[sa.DateTime]:
+def _created_at() -> sa.Column[datetime]:
     return sa.Column(
         "created_at",
         sa.DateTime(timezone=True),
