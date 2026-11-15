@@ -5,9 +5,9 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 ## Status
 
 - **Phase:** Hackathon MVP — in progress (M0 Foundations)
-- **Active PRD:** —
-- **Branch:** —
-- **Last updated:** 2026-11-15 — Completed refactor-remove-jwt-auth (SHIP-267): routes on session cookies, JWT auth and `users.auth_sub` removed. Previously: Completed feat-auth-google (SHIP-265): Google sign-in, `/v1/auth/*` routes. Previously: Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
+- **Active PRD:** `refactor-auth-module` (SHIP-268)
+- **Branch:** `refactor/auth-module`
+- **Last updated:** 2026-11-15 — Started refactor-auth-module (SHIP-268). Previously: Completed refactor-remove-jwt-auth (SHIP-267): routes on session cookies, JWT auth and `users.auth_sub` removed. Previously: Completed feat-auth-google (SHIP-265): Google sign-in, `/v1/auth/*` routes. Previously: Completed feat-auth-sessions (SHIP-264): server sessions, auth identities, `session_user`. Previously: Completed feat-provider-keys (SHIP-217): BYO LLM + Exa keys, key test, workspace settings. Previously: Completed feat-jwt-auth (SHIP-216): JWT auth, workspace scoping, `/me`, `metis_app` role. Previously: Completed feat-secret-encryption (SHIP-215): envelope encryption in `core/crypto.py`. Previously: Completed feat-identity-workspaces (SHIP-214): identity users, workspaces, members + RLS. Previously: Completed fix-foundation-gaps (SHIP-262): RLS helper fixed, RLS tests run, request_id in errors, compose fails clearly without secrets. Previously: 2026-11-13 — Completed chore-outbox-relay (SHIP-213): transactional outbox + relay job. Previously: Completed chore-redis-streams (SHIP-212): Redis Streams run event bus. Previously completed chore-arq-worker (SHIP-211): Arq agent + maintenance workers and cron scheduler. Previously 2026-11-12 — Completed CI pipeline (SHIP-210): added `.github/workflows/ci.yml` with server/web/docker/smoke jobs; README badge; fixed pre-existing ruff violations.
 
 ## External Tools
 
@@ -18,6 +18,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| refactor-auth-module | refactor/auth-module | in progress | SHIP-268: `auth` module + schema (users, sessions, identities), lazy personal workspace |
 | refactor-remove-jwt-auth | refactor/remove-jwt-auth | done | SHIP-267: routes on sessions, drop JWT + `users.auth_sub` |
 | feat-auth-google | feat/auth-google | done | SHIP-265: Google sign-in, `/v1/auth/*` routes |
 | feat-auth-sessions | feat/auth-sessions | done | SHIP-264: server sessions, auth identities, `session_user` |
@@ -51,6 +52,8 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 | Date       | Decision                                                                | Why                                                                       |
 | ---------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| 2026-11-15 | SHIP-268: `users` move to the `auth` module and schema; personal workspace created lazily in `current_workspace`; imports one-way `identity → auth` | `auth` imports no other module, so sign-in can't create workspaces |
+| 2026-11-15 | SHIP-268 branches from `feat/server-owned-auth`, not `main` | PR #28 not merged; same integration branch as SHIP-267 |
 | 2026-11-15 | SHIP-267 migration `0007` drops `users.auth_sub` outright; an exception to "backward-compatible migrations only" | Pre-launch: no production data or rolling deploys; tested downgrade restores the column |
 | 2026-11-15 | SHIP-267 branched from `feat/server-owned-auth`, not `main` | `main` doesn't have SHIP-264/265 yet; same integration branch as SHIP-265 |
 | 2026-11-15 | Auth dependencies live in one module, `modules/identity/auth_deps.py` (`current_user` on the session, `current_workspace` on it); `deps.py` removed | One caller type (`SessionUser`), one place for route guards |
