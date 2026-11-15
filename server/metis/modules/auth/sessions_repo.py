@@ -1,6 +1,6 @@
 """Data access for sessions: Postgres rows plus a short-lived Redis cache.
 
-Queries and cache operations only; expiry rules live in ``auth_service``.
+Queries and cache operations only; expiry rules live in ``service``.
 
 Cache entries (``auth:session:{hex hash}``) hold a ``SessionRecord`` for at
 most :data:`CACHE_TTL_SECONDS`. Revoking writes a tombstone
@@ -24,8 +24,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.logging import get_logger
-from metis.modules.identity.models import SessionRow
-from metis.modules.identity.schemas import CacheLookup, SessionRecord
+from metis.modules.auth.models import SessionRow
+from metis.modules.auth.schemas import CacheLookup, SessionRecord
 
 CACHE_KEY_PREFIX = "auth:session:"
 TOMBSTONE_KEY_PREFIX = "auth:session:revoked:"

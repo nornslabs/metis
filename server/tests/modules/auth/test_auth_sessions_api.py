@@ -9,17 +9,13 @@ and expiry is driven by editing session rows, not by mocking the clock.
 
 from __future__ import annotations
 
-import importlib.util
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from types import ModuleType
 from typing import Any
 from uuid import UUID
 
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import assert_problem, create_user
 from redis.asyncio import Redis
 from session_probe import COOKIE_PROBE, PROBE
 from sqlalchemy import text
@@ -30,8 +26,11 @@ from metis.core import security
 from metis.core.config import get_settings
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
-from metis.modules.identity import auth_service, sessions_repo
-from metis.modules.identity.schemas import SessionRecord
+from metis.modules.auth import service as auth_service
+from metis.modules.auth import sessions_repo
+from metis.modules.auth.schemas import SessionRecord
+from tests.helpers.auth import assert_problem, create_user
+from tests.helpers.migrations import load_migration
 
 WEB_ORIGIN = get_settings().get_cors_origins()[0]
 COOKIE = get_settings().session_cookie_name
@@ -110,7 +109,7 @@ async def test_session_past_absolute_expiry_is_rejected(
     _, token = ada
     await _exec(
         engine,
-        "UPDATE identity.sessions SET expires_at = now() - interval '1 second'",
+        "UPDATE auth.sessions SET expires_at = now() - interval '1 second'",
     )
 
     assert_problem(await _get(http, token), 401, "auth.session_expired")
@@ -122,7 +121,7 @@ async def test_session_idle_for_seven_days_is_rejected(
     _, token = ada
     await _exec(
         engine,
-        "UPDATE identity.sessions SET last_seen_at = now() - interval '7 days 1 second'",
+        "UPDATE auth.sessions SET last_seen_at = now() - interval '7 days 1 second'",
     )
 
     assert_problem(await _get(http, token), 401, "auth.session_expired")
@@ -133,12 +132,12 @@ async def test_use_after_touch_interval_advances_last_seen(
 ) -> None:
     _, token = ada
     old = datetime.now(UTC) - timedelta(days=2)
-    await _exec(engine, "UPDATE identity.sessions SET last_seen_at = :old", old=old)
+    await _exec(engine, "UPDATE auth.sessions SET last_seen_at = :old", old=old)
 
     response = await _get(http, token)
 
     assert response.status_code == 200, response.text
-    [(seen,)] = await _exec(engine, "SELECT last_seen_at FROM identity.sessions")
+    [(seen,)] = await _exec(engine, "SELECT last_seen_at FROM auth.sessions")
     assert seen > datetime.now(UTC) - timedelta(minutes=1)
 
 
@@ -147,12 +146,12 @@ async def test_use_within_touch_interval_does_not_write(
 ) -> None:
     _, token = ada
     recent = datetime.now(UTC) - timedelta(minutes=2)
-    await _exec(engine, "UPDATE identity.sessions SET last_seen_at = :at", at=recent)
+    await _exec(engine, "UPDATE auth.sessions SET last_seen_at = :at", at=recent)
 
     response = await _get(http, token)
 
     assert response.status_code == 200, response.text
-    [(seen,)] = await _exec(engine, "SELECT last_seen_at FROM identity.sessions")
+    [(seen,)] = await _exec(engine, "SELECT last_seen_at FROM auth.sessions")
     assert seen == recent
 
 
@@ -251,7 +250,7 @@ async def test_mutation_without_cookie_is_not_signed_in_before_csrf(
 async def test_only_the_token_hash_is_stored(engine: AsyncEngine, ada: tuple[UUID, str]) -> None:
     _, token = ada
 
-    [row] = await _exec(engine, "SELECT * FROM identity.sessions")
+    [row] = await _exec(engine, "SELECT * FROM auth.sessions")
 
     assert bytes(row.token_hash) == security.hash_session_token(token)
     assert all(token not in str(value) for value in row)
@@ -337,28 +336,21 @@ async def test_cors_preflight_allows_credentials_and_client_header(
 
 
 # ------------------------------------------------------------------- migration
-def _migration_0007() -> ModuleType:
-    path = Path(__file__).resolve().parents[3] / "migrations/versions/0007_drop_users_auth_sub.py"
-    spec = importlib.util.spec_from_file_location("migration_0007", path)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 async def test_downgrade_restores_auth_sub_from_google_identities(engine: AsyncEngine) -> None:
     google_user = await create_user(engine, "google-ada", "ada@x.io")
     bare = await _exec(
         engine,
-        "INSERT INTO identity.users (id, email) VALUES (gen_random_uuid(), 'bare@x.io') "
-        "RETURNING id",
+        "INSERT INTO auth.users (id, email) VALUES (gen_random_uuid(), 'bare@x.io') RETURNING id",
     )
     bare_id = bare[0][0]
 
-    # DDL is transactional in Postgres: replay the downgrade's SQL, then roll back.
+    # DDL is transactional in Postgres: replay the downgrades' SQL, then roll back.
+    # 0008's downgrade runs first: 0007's SQL expects the tables in ``identity``.
     async with engine.connect() as conn, conn.begin() as tx:
+        for statement in load_migration("0008_auth_schema.py").DOWNGRADE_SQL:
+            await conn.execute(text(statement))
         await conn.execute(text("ALTER TABLE identity.users ADD COLUMN auth_sub text"))
-        await conn.execute(text(_migration_0007().RESTORE_SQL))
+        await conn.execute(text(load_migration("0007_drop_users_auth_sub.py").RESTORE_SQL))
         rows = dict((await conn.execute(text("SELECT id, auth_sub FROM identity.users"))).all())
         await tx.rollback()
 

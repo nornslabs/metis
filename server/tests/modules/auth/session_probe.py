@@ -10,8 +10,7 @@ from fastapi import APIRouter, Response
 
 from metis.core import security
 from metis.entrypoints.api import app
-from metis.modules.identity import CurrentUserDep
-from metis.modules.identity.schemas import SessionUser
+from metis.modules.auth import CurrentUserDep, SessionUser
 
 PROBE = "/v1/_test/session"
 COOKIE_PROBE = "/v1/_test/cookie"

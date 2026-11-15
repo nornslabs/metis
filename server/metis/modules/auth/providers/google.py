@@ -26,7 +26,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from metis.core.errors import OAuthFailedError, UpstreamError
 from metis.helpers.http import ClientFactory, FailureReason, send
-from metis.modules.identity.providers.base import (
+from metis.modules.auth.providers.base import (
     AuthProviderName,
     OAuthFailure,
     OAuthStep,

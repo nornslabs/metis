@@ -20,8 +20,8 @@ from metis.core.errors import OAuthStateInvalidError
 from metis.core.logging import get_logger
 from metis.core.security import code_challenge, new_code_verifier, new_oauth_value
 from metis.helpers.redirects import safe_relative_path
-from metis.modules.identity import auth_service
-from metis.modules.identity.providers.base import (
+from metis.modules.auth import service
+from metis.modules.auth.providers.base import (
     AuthProvider,
     OAuthFailure,
     OAuthStep,
@@ -121,6 +121,6 @@ async def finish_login(
     profile = await provider.complete(code, pending.code_verifier, pending.nonce)
     # A failure past this point leaves nothing behind for the request's commit.
     async with session.begin_nested():
-        signed_in = await auth_service.sign_in(session, profile)
-        created = await auth_service.create_session(session, signed_in.user.id, user_agent, ip)
+        signed_in = await service.sign_in(session, profile)
+        created = await service.create_session(session, signed_in.user.id, user_agent, ip)
     return FinishedLogin(token=created.token, redirect_to=pending.redirect_to)

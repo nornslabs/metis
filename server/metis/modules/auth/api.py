@@ -4,7 +4,7 @@ Login and callback answer with browser redirects, never JSON errors: a failed
 callback goes to ``{WEB_BASE_URL}/sign-in?error=<code>`` with no cookie
 (``finish_login`` rolls its writes back). Logout routes follow the cookie CSRF rule
 (``X-Metis-Client: web``). Thin controllers: the work lives in ``oauth_flow``
-and ``auth_service``.
+and ``service``.
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ from metis.core.db import SessionDep
 from metis.core.errors import MetisError
 from metis.core.redis import RedisDep
 from metis.core.security import clear_session_cookie, set_session_cookie
-from metis.modules.identity import auth_service, oauth_flow
-from metis.modules.identity.auth_deps import CurrentUserDep, check_csrf
-from metis.modules.identity.providers import GoogleProviderDep
-from metis.modules.identity.providers.base import (
+from metis.modules.auth import oauth_flow, service
+from metis.modules.auth.deps import CurrentUserDep, check_csrf
+from metis.modules.auth.providers import GoogleProviderDep
+from metis.modules.auth.providers.base import (
     AuthProvider,
     AuthProviderName,
     OAuthFailure,
@@ -116,12 +116,12 @@ async def logout(request: Request, session: SessionDep, redis: RedisDep) -> Resp
     check_csrf(request)
     token = request.cookies.get(get_settings().session_cookie_name)
     if token:
-        await auth_service.logout(session, redis, token)
+        await service.logout(session, redis, token)
     return _no_content()
 
 
 @router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
 async def logout_all(caller: CurrentUserDep, session: SessionDep, redis: RedisDep) -> Response:
     """End every session of the signed-in user and clear this browser's cookie."""
-    await auth_service.logout_all(session, redis, caller.user.id)
+    await service.logout_all(session, redis, caller.user.id)
     return _no_content()

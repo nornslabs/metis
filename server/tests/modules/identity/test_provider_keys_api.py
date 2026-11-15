@@ -18,7 +18,7 @@ from uuid import UUID
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import APP_ROLE, add_member_directly, assert_problem, auth, me, sign_in
+from api_helpers import add_member_directly, me
 from fake_exa_mcp import ExaMode, FakeExaMcp
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -31,6 +31,7 @@ from metis.helpers import http as provider_http
 from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import identity
 from metis.modules.identity import ProviderKind
+from tests.helpers.auth import APP_ROLE, assert_problem, auth, sign_in
 
 LLM_KEY = "sk-test-0123456789abcdef"
 EXA_KEY = "exa-test-0123456789abcd"

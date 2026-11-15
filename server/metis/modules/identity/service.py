@@ -1,5 +1,5 @@
-"""Public API of the identity module: users, workspaces, membership, BYO
-provider keys and workspace settings.
+"""Public API of the identity module: workspaces, membership, BYO provider
+keys and workspace settings. Users come from ``metis.modules.auth``.
 
 Every function takes the caller's ``AsyncSession``, flushes but never commits:
 the caller owns the transaction. Each function sets the RLS context it needs
@@ -32,6 +32,8 @@ from metis.core.errors import (
 from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory
 from metis.helpers.validation import validate_input
+from metis.modules import auth
+from metis.modules.auth import User
 from metis.modules.identity import repo
 from metis.modules.identity.models import ProviderKeyRow, WorkspaceSettingsRow
 from metis.modules.identity.schemas import (
@@ -48,7 +50,6 @@ from metis.modules.identity.schemas import (
     ProviderKind,
     SettingsPatch,
     SettingsResponse,
-    User,
     Workspace,
     WorkspaceName,
     WorkspaceSettingsView,
@@ -97,7 +98,7 @@ async def add_member(
         # A non-member gets the same error, so it cannot probe which workspaces exist.
         if await repo.get_member_role(session, workspace_id, actor.id) != MemberRole.OWNER:
             raise PermissionDeniedError("Only workspace owners can add members")
-        user = await repo.get_user_by_email(session, new.email)
+        user = await auth.find_user_by_email(session, new.email)
         if user is None:
             raise MemberUserNotFoundError("No user with that email; they must sign in first")
         if not await repo.insert_member(session, workspace_id, user.id, new.role):

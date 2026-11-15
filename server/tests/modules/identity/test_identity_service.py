@@ -18,7 +18,6 @@ from contextlib import asynccontextmanager
 
 import pytest
 import pytest_asyncio
-from api_helpers import google_profile
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
@@ -30,7 +29,10 @@ from metis.core.errors import (
     PermissionDeniedError,
 )
 from metis.modules import identity
-from metis.modules.identity import MemberRole, User, auth_service
+from metis.modules.auth import User
+from metis.modules.auth import service as auth_service
+from metis.modules.identity import MemberRole
+from tests.helpers.auth import TRUNCATE_USERS, google_profile
 
 DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/metis"
@@ -49,8 +51,13 @@ $$
 _GRANTS = [
     f"GRANT USAGE ON SCHEMA identity TO {TEST_ROLE}",
     f"GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA identity TO {TEST_ROLE}",
+    f"GRANT USAGE ON SCHEMA auth TO {TEST_ROLE}",
+    f"GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA auth TO {TEST_ROLE}",
 ]
-_TRUNCATE = "TRUNCATE identity.members, identity.workspaces, identity.users CASCADE"
+_MIGRATED = (
+    "SELECT to_regclass('identity.members') IS NOT NULL AND to_regclass('auth.users') IS NOT NULL"
+)
+_TRUNCATE = TRUNCATE_USERS
 
 
 @pytest_asyncio.fixture
@@ -59,13 +66,13 @@ async def engine() -> AsyncIterator[AsyncEngine]:
     engine = create_async_engine(DATABASE_URL)
     try:
         async with engine.connect() as conn:
-            migrated = await conn.scalar(text("SELECT to_regclass('identity.members') IS NOT NULL"))
+            migrated = await conn.scalar(text(_MIGRATED))
     except Exception:  # noqa: BLE001
         await engine.dispose()
         pytest.skip("Postgres not reachable")
     if not migrated:
         await engine.dispose()
-        pytest.skip("identity tables missing; run `alembic upgrade head`")
+        pytest.skip("auth/identity tables missing; run `alembic upgrade head`")
 
     async with engine.begin() as conn:
         await conn.execute(text(_CREATE_TEST_ROLE))
@@ -89,9 +96,14 @@ async def app_session(engine: AsyncEngine) -> AsyncGenerator[AsyncSession]:
 async def sign_in(
     engine: AsyncEngine, sub: str, email: str, name: str | None = None, image: str | None = None
 ) -> User:
-    """A verified Google sign-in: finds or creates the user and their personal workspace."""
+    """A verified Google sign-in, then the user's personal workspace.
+
+    Auth's sign-in finds or creates the user; the personal workspace is made
+    the way the app's first workspace-scoped call makes it.
+    """
     async with app_session(engine) as session:
         signed_in = await auth_service.sign_in(session, google_profile(sub, email, name, image))
+        await identity.ensure_personal_workspace(session, signed_in.user)
         return signed_in.user
 
 

@@ -18,14 +18,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from api_helpers import (
-    APP_ROLE,
-    add_member_directly,
-    assert_problem,
-    auth,
-    me,
-    sign_in,
-)
+from api_helpers import add_member_directly, me
 from fastapi import APIRouter
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -35,7 +28,14 @@ from metis.core.db import SessionDep
 from metis.core.errors import PermissionDeniedError
 from metis.entrypoints.api import app
 from metis.modules import identity
-from metis.modules.identity import CurrentUserDep, CurrentWorkspaceDep
+from metis.modules.auth import CurrentUserDep
+from metis.modules.identity import CurrentWorkspaceDep
+from tests.helpers.auth import (
+    APP_ROLE,
+    assert_problem,
+    auth,
+    sign_in,
+)
 
 WEB_ORIGIN = get_settings().get_cors_origins()[0]
 
@@ -187,6 +187,7 @@ async def test_create_workspace_makes_caller_owner_and_lists_it(
     engine: AsyncEngine,
 ) -> None:
     token = await sign_in(engine)
+    await me(client, token)  # the first /me creates the personal workspace
 
     created = await client.post("/v1/workspaces", json={"name": "  Team  "}, headers=auth(token))
     listed = await client.get("/v1/workspaces", headers=auth(token))

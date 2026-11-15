@@ -13,8 +13,9 @@ from fastapi.responses import JSONResponse
 from metis.core.db import SessionDep
 from metis.core.error_handlers import metis_error_response
 from metis.helpers.http import ClientFactory, provider_http_factory
+from metis.modules.auth import CurrentUserDep
 from metis.modules.identity import service
-from metis.modules.identity.auth_deps import CurrentUserDep, CurrentWorkspaceDep
+from metis.modules.identity.deps import CurrentWorkspaceDep
 from metis.modules.identity.schemas import (
     CreateWorkspaceRequest,
     MemberRole,
@@ -36,7 +37,14 @@ router = APIRouter(prefix="/v1", tags=["identity"])
 async def get_me(
     session: SessionDep, caller: CurrentUserDep, workspace: CurrentWorkspaceDep
 ) -> MeResponse:
-    """The signed-in user, their workspaces and the request's current workspace."""
+    """The signed-in user, their workspaces and the request's current workspace.
+
+    The first ``/me`` always creates the personal workspace, even when it is
+    sent with an ``X-Workspace-Id`` (without one, ``current_workspace`` did).
+    """
+    current = workspace.workspace
+    if not (current.is_personal and current.created_by == caller.user.id):
+        await service.ensure_personal_workspace(session, caller.user)
     memberships = await service.list_workspaces(session, caller.user)
     return MeResponse(user=caller.user, workspaces=memberships, current_workspace=workspace)
 
