@@ -1,4 +1,4 @@
-"""SQLAlchemy models for the ``auth`` schema (``0006_auth_sessions``, ``0008_auth_schema``)."""
+"""SQLAlchemy models for the ``auth`` schema (migrations ``0006`` to ``0009``)."""
 
 from __future__ import annotations
 
@@ -27,10 +27,10 @@ class UserRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
-class AuthIdentityRow(Base):
+class IdentityRow(Base):
     """One sign-in method of a user: ``(provider, subject)`` is unique."""
 
-    __tablename__ = "auth_identities"
+    __tablename__ = "identities"
     __table_args__ = {"schema": SCHEMA}
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)

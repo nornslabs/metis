@@ -238,7 +238,7 @@ async def test_first_sign_in_creates_user_workspace_identity_and_session(
     identities = await _rows(
         engine,
         "SELECT user_id, provider, subject, email, email_verified, last_login_at "
-        "FROM auth.auth_identities",
+        "FROM auth.identities",
     )
     assert len(identities) == 1
     assert identities[0][:5] == (user_id, "google", SUBJECT, EMAIL, True)
@@ -251,7 +251,7 @@ async def test_second_sign_in_reuses_the_user_and_advances_last_login(
     first = _session_token(await _sign_in(api, google))
     assert first is not None
     await _first_me(api, first)
-    before = (await _rows(engine, "SELECT last_login_at FROM auth.auth_identities"))[0][0]
+    before = (await _rows(engine, "SELECT last_login_at FROM auth.identities"))[0][0]
 
     second = _session_token(await _sign_in(api, google))
 
@@ -262,8 +262,8 @@ async def test_second_sign_in_reuses_the_user_and_advances_last_login(
     ]
     assert await _count(engine, "auth.users") == 1
     assert await _count(engine, "identity.workspaces") == 1
-    assert await _count(engine, "auth.auth_identities") == 1
-    after = (await _rows(engine, "SELECT last_login_at FROM auth.auth_identities"))[0][0]
+    assert await _count(engine, "auth.identities") == 1
+    after = (await _rows(engine, "SELECT last_login_at FROM auth.identities"))[0][0]
     assert after > before
 
 
@@ -279,7 +279,7 @@ async def test_verified_email_match_links_the_existing_user(
     await _first_me(api, token)
     assert await _count(engine, "auth.users") == 1
     assert await _count(engine, "identity.workspaces") == 1
-    identities = await _rows(engine, "SELECT user_id, subject FROM auth.auth_identities")
+    identities = await _rows(engine, "SELECT user_id, subject FROM auth.identities")
     assert identities == [(UUID(existing_id), SUBJECT)]
 
 
@@ -289,7 +289,7 @@ async def test_backfilled_identity_is_found_by_subject(
     existing_id = await _user_without_identity(engine, "other@example.com")
     await _rows(
         engine,
-        "INSERT INTO auth.auth_identities (id, user_id, provider, subject, email, "
+        "INSERT INTO auth.identities (id, user_id, provider, subject, email, "
         "email_verified) VALUES (gen_random_uuid(), :user_id, 'google', :sub, :email, true) "
         "RETURNING id",
         user_id=existing_id,
@@ -333,7 +333,7 @@ async def test_failure_after_the_user_is_created_leaves_nothing_behind(
     assert _session_token(response) is None
     assert await _count(engine, "auth.users") == 0
     assert await _count(engine, "identity.workspaces") == 0
-    assert await _count(engine, "auth.auth_identities") == 0
+    assert await _count(engine, "auth.identities") == 0
 
 
 async def test_unverified_email_is_refused_even_for_a_known_identity(

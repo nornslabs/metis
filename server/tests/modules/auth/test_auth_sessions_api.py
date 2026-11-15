@@ -345,10 +345,12 @@ async def test_downgrade_restores_auth_sub_from_google_identities(engine: AsyncE
     bare_id = bare[0][0]
 
     # DDL is transactional in Postgres: replay the downgrades' SQL, then roll back.
-    # 0008's downgrade runs first: 0007's SQL expects the tables in ``identity``.
+    # 0009's and 0008's downgrades run first: 0007's SQL expects
+    # ``identity.auth_identities``.
     async with engine.connect() as conn, conn.begin() as tx:
-        for statement in load_migration("0008_auth_schema.py").DOWNGRADE_SQL:
-            await conn.execute(text(statement))
+        for migration in ("0009_rename_auth_identities.py", "0008_auth_schema.py"):
+            for statement in load_migration(migration).DOWNGRADE_SQL:
+                await conn.execute(text(statement))
         await conn.execute(text("ALTER TABLE identity.users ADD COLUMN auth_sub text"))
         await conn.execute(text(load_migration("0007_drop_users_auth_sub.py").RESTORE_SQL))
         rows = dict((await conn.execute(text("SELECT id, auth_sub FROM identity.users"))).all())

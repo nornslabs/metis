@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
-from metis.modules.auth.models import AuthIdentityRow, SessionRow, UserRow
+from metis.modules.auth.models import IdentityRow, SessionRow, UserRow
 from metis.modules.auth.providers.base import AuthProviderName
 from metis.modules.auth.schemas import SessionRecord, UserClaims
 
@@ -47,12 +47,12 @@ async def insert_user(session: AsyncSession, claims: UserClaims) -> UserRow | No
     return await insert_or_none(session, stmt)
 
 
-# ------------------------------------------------------------- auth identities
+# ------------------------------------------------------------------ identities
 async def get_identity(
     session: AsyncSession, provider: AuthProviderName, subject: str
-) -> AuthIdentityRow | None:
-    stmt = select(AuthIdentityRow).where(
-        AuthIdentityRow.provider == provider, AuthIdentityRow.subject == subject
+) -> IdentityRow | None:
+    stmt = select(IdentityRow).where(
+        IdentityRow.provider == provider, IdentityRow.subject == subject
     )
     return (await session.scalars(stmt)).one_or_none()
 
@@ -66,10 +66,10 @@ async def insert_identity(
     email: str,
     email_verified: bool,
     now: datetime,
-) -> AuthIdentityRow | None:
+) -> IdentityRow | None:
     """Link ``(provider, subject)`` to ``user_id``; ``None`` if it is already linked."""
     stmt = (
-        insert(AuthIdentityRow)
+        insert(IdentityRow)
         .values(
             id=uuid7(),
             user_id=user_id,
@@ -80,7 +80,7 @@ async def insert_identity(
             created_at=now,
             last_login_at=now,
         )
-        .returning(AuthIdentityRow)
+        .returning(IdentityRow)
     )
     return await insert_or_none(session, stmt)
 
@@ -90,8 +90,8 @@ async def record_login(
 ) -> None:
     """Set ``last_login_at`` and refresh what the provider says about the email."""
     await session.execute(
-        update(AuthIdentityRow)
-        .where(AuthIdentityRow.id == identity_id)
+        update(IdentityRow)
+        .where(IdentityRow.id == identity_id)
         .values(last_login_at=now, email=email, email_verified=email_verified)
     )
 

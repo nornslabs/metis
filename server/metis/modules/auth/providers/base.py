@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 
 
 class AuthProviderName(StrEnum):
-    """Sign-in methods; matches the ``auth_identities.provider`` CHECK."""
+    """Sign-in methods; matches the ``auth.identities.provider`` CHECK."""
 
     GOOGLE = "google"
     EMAIL = "email"
