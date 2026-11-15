@@ -13,8 +13,9 @@ from fastapi.responses import JSONResponse
 from metis.core.db import SessionDep
 from metis.core.error_handlers import metis_error_response
 from metis.helpers.http import ClientFactory, provider_http_factory
+from metis.modules.auth import CurrentUserDep
 from metis.modules.identity import service
-from metis.modules.identity.auth_deps import CurrentUserDep, CurrentWorkspaceDep
+from metis.modules.identity.deps import CurrentWorkspaceDep
 from metis.modules.identity.schemas import (
     CreateWorkspaceRequest,
     MemberRole,
@@ -37,8 +38,7 @@ async def get_me(
     session: SessionDep, caller: CurrentUserDep, workspace: CurrentWorkspaceDep
 ) -> MeResponse:
     """The signed-in user, their workspaces and the request's current workspace."""
-    memberships = await service.list_workspaces(session, caller.user)
-    return MeResponse(user=caller.user, workspaces=memberships, current_workspace=workspace)
+    return await service.get_me(session, caller.user, workspace)
 
 
 @router.get("/workspaces", response_model=MembershipPage)

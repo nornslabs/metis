@@ -15,11 +15,11 @@ from datetime import UTC, datetime, timedelta
 import httpx
 import jwt
 import pytest
-from api_helpers import assert_problem, auth, sign_in
 from fastapi.routing import APIRoute, iter_route_contexts
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from metis.entrypoints.api import app
+from tests.helpers.auth import assert_problem, auth, sign_in
 
 API_PREFIX = "/v1/"
 # Test-only probe routes mounted by other test files; not part of the product.

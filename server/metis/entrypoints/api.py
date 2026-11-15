@@ -23,8 +23,8 @@ from metis.core.error_handlers import register_error_handlers
 from metis.core.logging import configure_logging
 from metis.core.middleware import RequestContextMiddleware
 from metis.core.redis import close_redis
+from metis.modules.auth import router as auth_router
 from metis.modules.health import router as health_router
-from metis.modules.identity import auth_router
 from metis.modules.identity import router as identity_router
 
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]

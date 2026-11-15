@@ -1,7 +1,7 @@
 """The sign-in provider contract: send the browser away, then turn the answer into a profile.
 
 Every provider (Google now, email later) implements ``AuthProvider``. The
-OAuth flow (``oauth_flow``) and ``auth_service.sign_in`` only see this
+OAuth flow (``oauth_flow``) and ``service.sign_in`` only see this
 protocol and ``ProviderProfile``, so adding a provider changes neither.
 """
 

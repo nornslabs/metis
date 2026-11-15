@@ -1,24 +1,16 @@
-"""Identity module: users, sessions, workspaces, membership, provider keys and settings.
+"""Identity module: where you work. Workspaces, membership, provider keys and settings.
 
-Use only what is exported here.
+Users, sessions and sign-in live in ``metis.modules.auth``. Use only what is
+exported here.
 """
 
 from metis.modules.identity.api import router
-from metis.modules.identity.auth_api import router as auth_router
-from metis.modules.identity.auth_deps import (
-    CurrentUserDep,
-    CurrentWorkspaceDep,
-    check_csrf,
-    current_user,
-    current_workspace,
-)
+from metis.modules.identity.deps import CurrentWorkspaceDep, current_workspace
 from metis.modules.identity.schemas import (
     MemberRole,
     Membership,
     ProviderCredentials,
     ProviderKind,
-    SessionUser,
-    User,
     Workspace,
 )
 from metis.modules.identity.service import (
@@ -30,19 +22,13 @@ from metis.modules.identity.service import (
 )
 
 __all__ = [
-    "SessionUser",
-    "CurrentUserDep",
     "CurrentWorkspaceDep",
-    "current_user",
     "current_workspace",
-    "check_csrf",
     "router",
-    "auth_router",
     "MemberRole",
     "Membership",
     "ProviderCredentials",
     "ProviderKind",
-    "User",
     "Workspace",
     "add_member",
     "create_workspace",

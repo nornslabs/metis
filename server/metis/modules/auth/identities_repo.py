@@ -1,4 +1,4 @@
-"""Data access for ``identity.auth_identities`` (sign-in methods). Queries only.
+"""Data access for ``auth.auth_identities`` (sign-in methods). Queries only.
 
 Not tenant data: no RLS context needed. Inserts run in a savepoint and return
 ``None`` on a unique conflict so the caller's transaction stays usable and a
@@ -14,10 +14,10 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
-from metis.modules.identity.models import AuthIdentityRow
-from metis.modules.identity.providers.base import AuthProviderName
-from metis.modules.identity.repo import insert_or_none
+from metis.modules.auth.models import AuthIdentityRow
+from metis.modules.auth.providers.base import AuthProviderName
 
 
 async def get_identity(

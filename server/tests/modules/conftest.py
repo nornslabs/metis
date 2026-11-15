@@ -1,4 +1,4 @@
-"""HTTP-seam fixtures for identity tests: a migrated Postgres, Redis and an app client.
+"""HTTP-seam fixtures for auth and identity tests: a migrated Postgres, Redis and an app client.
 
 The app's request session runs as the non-superuser ``metis_app`` role
 (``SET LOCAL ROLE``), so RLS is enforced exactly as in production. Set
@@ -14,7 +14,6 @@ from collections.abc import AsyncIterator
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import APP_ROLE, DATABASE_URL, TRUNCATE_IDENTITY
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
@@ -23,6 +22,7 @@ from sqlalchemy.pool import NullPool
 from metis.core.db import get_request_session, transaction
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
+from tests.helpers.auth import APP_ROLE, DATABASE_URL, TRUNCATE_USERS
 
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 
@@ -35,6 +35,8 @@ async def engine() -> AsyncIterator[AsyncEngine]:
             ready = await conn.scalar(
                 text(
                     "SELECT to_regclass('identity.members') IS NOT NULL "
+                    "AND to_regclass('auth.users') IS NOT NULL "
+                    "AND to_regclass('auth.sessions') IS NOT NULL "
                     "AND EXISTS (SELECT FROM pg_roles WHERE rolname = :role)"
                 ),
                 {"role": APP_ROLE},
@@ -44,12 +46,12 @@ async def engine() -> AsyncIterator[AsyncEngine]:
         pytest.skip("Postgres not reachable")
     if not ready:
         await engine.dispose()
-        pytest.skip("identity tables or metis_app role missing; run `alembic upgrade head`")
+        pytest.skip("auth/identity tables or metis_app role missing; run `alembic upgrade head`")
     async with engine.begin() as conn:
-        await conn.execute(text(TRUNCATE_IDENTITY))
+        await conn.execute(text(TRUNCATE_USERS))
     yield engine
     async with engine.begin() as conn:
-        await conn.execute(text(TRUNCATE_IDENTITY))
+        await conn.execute(text(TRUNCATE_USERS))
     await engine.dispose()
 
 

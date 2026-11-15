@@ -1,36 +1,23 @@
-"""SQLAlchemy models for the ``identity`` schema (``0003_identity``, ``0005_provider_keys``,
-``0006_auth_sessions``)."""
+"""SQLAlchemy models for the ``identity`` schema (``0003_identity``, ``0005_provider_keys``)."""
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, LargeBinary, Numeric, Text
-from sqlalchemy.dialects.postgresql import INET, JSONB
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from metis.core.models import Base
 from metis.helpers.ids import uuid7
+from metis.helpers.time import utcnow
 
 SCHEMA = "identity"
-
-
-def _utcnow() -> datetime:
-    return datetime.now(tz=UTC)
-
-
-class UserRow(Base):
-    __tablename__ = "users"
-    __table_args__ = {"schema": SCHEMA}
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    email: Mapped[str] = mapped_column(Text, unique=True)
-    name: Mapped[str | None] = mapped_column(Text)
-    image: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+# ``users`` belongs to the auth module; its FK target is named here, never imported.
+USERS_TABLE = "auth.users"
 
 
 class WorkspaceRow(Base):
@@ -40,8 +27,8 @@ class WorkspaceRow(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
     name: Mapped[str] = mapped_column(Text)
     is_personal: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_by: Mapped[UUID] = mapped_column(ForeignKey(f"{SCHEMA}.users.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_by: Mapped[UUID] = mapped_column(ForeignKey(f"{USERS_TABLE}.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class MemberRow(Base):
@@ -52,10 +39,10 @@ class MemberRow(Base):
         ForeignKey(f"{SCHEMA}.workspaces.id", ondelete="CASCADE"), primary_key=True
     )
     user_id: Mapped[UUID] = mapped_column(
-        ForeignKey(f"{SCHEMA}.users.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey(f"{USERS_TABLE}.id", ondelete="CASCADE"), primary_key=True
     )
     role: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ProviderKeyRow(Base):
@@ -76,8 +63,8 @@ class ProviderKeyRow(Base):
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_test_ok: Mapped[bool | None] = mapped_column(Boolean)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class WorkspaceSettingsRow(Base):
@@ -92,37 +79,4 @@ class WorkspaceSettingsRow(Base):
     run_budget_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     max_steps: Mapped[int] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-
-
-class AuthIdentityRow(Base):
-    """One sign-in method of a user: ``(provider, subject)`` is unique."""
-
-    __tablename__ = "auth_identities"
-    __table_args__ = {"schema": SCHEMA}
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey(f"{SCHEMA}.users.id", ondelete="CASCADE"))
-    provider: Mapped[str] = mapped_column(Text)
-    subject: Mapped[str] = mapped_column(Text)
-    email: Mapped[str] = mapped_column(Text)
-    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-
-
-class SessionRow(Base):
-    """One signed-in browser; only the SHA-256 hash of its token is stored."""
-
-    __tablename__ = "sessions"
-    __table_args__ = {"schema": SCHEMA}
-
-    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid7)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey(f"{SCHEMA}.users.id", ondelete="CASCADE"))
-    token_hash: Mapped[bytes] = mapped_column(LargeBinary, unique=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    user_agent: Mapped[str | None] = mapped_column(Text)
-    ip: Mapped[str | None] = mapped_column(INET)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -14,6 +14,7 @@ from uuid import UUID
 
 from fastapi import Depends
 from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import (
     AsyncConnection,
     AsyncEngine,
@@ -21,6 +22,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.sql.dml import ReturningInsert
 
 from metis.core.config import get_settings
 
@@ -90,6 +92,7 @@ async def get_connection() -> AsyncGenerator[AsyncConnection, None]:
     async with engine().connect() as conn:
         yield conn
 
+
 # --------------------------------------------------------------- request scope
 USER_SETTING = "app.user_id"
 WORKSPACE_SETTING = "app.workspace_id"
@@ -135,3 +138,15 @@ async def set_workspace(session: AsyncSession, workspace_id: UUID) -> None:
 async def set_user(session: AsyncSession, user_id: UUID) -> None:
     """Expose the caller to user-scoped RLS policies for this transaction."""
     await set_setting(session, USER_SETTING, str(user_id))
+
+
+async def insert_or_none[RowT](session: AsyncSession, stmt: ReturningInsert[RowT]) -> RowT | None:
+    """Run an ``INSERT … RETURNING`` in a savepoint; ``None`` on a unique conflict.
+
+    The savepoint keeps the caller's transaction usable after the conflict.
+    """
+    try:
+        async with session.begin_nested():
+            return (await session.scalars(stmt)).one()
+    except IntegrityError:
+        return None

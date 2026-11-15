@@ -1,5 +1,5 @@
-"""Public API of the identity module: users, workspaces, membership, BYO
-provider keys and workspace settings.
+"""Public API of the identity module: workspaces, membership, BYO provider
+keys and workspace settings. Users come from ``metis.modules.auth``.
 
 Every function takes the caller's ``AsyncSession``, flushes but never commits:
 the caller owns the transaction. Each function sets the RLS context it needs
@@ -32,6 +32,7 @@ from metis.core.errors import (
 from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory
 from metis.helpers.validation import validate_input
+from metis.modules import auth
 from metis.modules.identity import repo
 from metis.modules.identity.models import ProviderKeyRow, WorkspaceSettingsRow
 from metis.modules.identity.schemas import (
@@ -40,6 +41,7 @@ from metis.modules.identity.schemas import (
     DEFAULT_RUN_BUDGET_USD,
     MemberRole,
     Membership,
+    MeResponse,
     NewMember,
     NewProviderKey,
     ProviderCredentials,
@@ -48,7 +50,6 @@ from metis.modules.identity.schemas import (
     ProviderKind,
     SettingsPatch,
     SettingsResponse,
-    User,
     Workspace,
     WorkspaceName,
     WorkspaceSettingsView,
@@ -64,7 +65,17 @@ async def _add_owner(session: AsyncSession, workspace_id: UUID, user_id: UUID) -
         await repo.insert_member(session, workspace_id, user_id, MemberRole.OWNER)
 
 
-async def ensure_personal_workspace(session: AsyncSession, user: User) -> Workspace:
+async def ensure_personal_workspace(
+    session: AsyncSession, user: auth.User, current: Workspace | None = None
+) -> Workspace:
+    """The user's personal workspace, created on first use (idempotent, race-safe).
+
+    The single rule for creating it: ``current_workspace`` and ``/me`` both
+    call this. ``current`` is the request's workspace when already resolved; if
+    it is the user's personal one, it is returned without touching the DB.
+    """
+    if current is not None and current.is_personal and current.created_by == user.id:
+        return current
     created = await repo.insert_workspace(
         session, PERSONAL_WORKSPACE_NAME, user.id, is_personal=True
     )
@@ -74,13 +85,24 @@ async def ensure_personal_workspace(session: AsyncSession, user: User) -> Worksp
     return Workspace.model_validate(await repo.get_personal_workspace(session, user.id))
 
 
-async def list_workspaces(session: AsyncSession, user: User) -> list[Membership]:
+async def list_workspaces(session: AsyncSession, user: auth.User) -> list[Membership]:
     async with repo.rls_context(session, USER_SETTING, user.id):
         rows = await repo.list_memberships(session, user.id)
     return [Membership(workspace=Workspace.model_validate(ws), role=role) for ws, role in rows]
 
 
-async def create_workspace(session: AsyncSession, user: User, name: str) -> Workspace:
+async def get_me(session: AsyncSession, user: auth.User, current: Membership) -> MeResponse:
+    """The ``/me`` view; makes sure the personal workspace exists first.
+
+    The first ``/me`` always creates it, even when it is sent with an
+    ``X-Workspace-Id`` (without one, ``current_workspace`` already did).
+    """
+    await ensure_personal_workspace(session, user, current.workspace)
+    memberships = await list_workspaces(session, user)
+    return MeResponse(user=user, workspaces=memberships, current_workspace=current)
+
+
+async def create_workspace(session: AsyncSession, user: auth.User, name: str) -> Workspace:
     valid = validate_input(WorkspaceName, name=name)
     row = await repo.insert_workspace(session, valid.name, user.id, is_personal=False)
     if row is None:  # unreachable: only a personal insert can be skipped
@@ -90,14 +112,14 @@ async def create_workspace(session: AsyncSession, user: User, name: str) -> Work
 
 
 async def add_member(
-    session: AsyncSession, actor: User, workspace_id: UUID, email: str, role: MemberRole
+    session: AsyncSession, actor: auth.User, workspace_id: UUID, email: str, role: MemberRole
 ) -> Membership:
     new = validate_input(NewMember, email=email, role=role)
     async with repo.rls_context(session, WORKSPACE_SETTING, workspace_id):
         # A non-member gets the same error, so it cannot probe which workspaces exist.
         if await repo.get_member_role(session, workspace_id, actor.id) != MemberRole.OWNER:
             raise PermissionDeniedError("Only workspace owners can add members")
-        user = await repo.get_user_by_email(session, new.email)
+        user = await auth.find_user_by_email(session, new.email)
         if user is None:
             raise MemberUserNotFoundError("No user with that email; they must sign in first")
         if not await repo.insert_member(session, workspace_id, user.id, new.role):

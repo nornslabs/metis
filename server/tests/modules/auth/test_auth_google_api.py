@@ -20,7 +20,6 @@ from uuid import UUID
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import assert_problem
 from fake_google import AUTHORIZATION_URL, EMAIL, SUBJECT, FakeGoogle, new_rsa_key
 from redis.asyncio import Redis
 from session_probe import PROBE
@@ -32,10 +31,11 @@ from metis.core.config import get_settings
 from metis.core.errors import OAuthFailedError
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
-from metis.modules.identity import auth_service
-from metis.modules.identity.oauth_flow import OAUTH_KEY_PREFIX, OAUTH_STATE_TTL_SECONDS
-from metis.modules.identity.providers import get_google_provider
-from metis.modules.identity.providers.google import GoogleProvider
+from metis.modules.auth import service as auth_service
+from metis.modules.auth.oauth_flow import OAUTH_KEY_PREFIX, OAUTH_STATE_TTL_SECONDS
+from metis.modules.auth.providers import get_google_provider
+from metis.modules.auth.providers.google import GoogleProvider
+from tests.helpers.auth import assert_problem
 
 SETTINGS = get_settings()
 WEB = SETTINGS.web_base_url.rstrip("/")
@@ -124,6 +124,12 @@ async def _whoami(api: httpx.AsyncClient, token: str) -> httpx.Response:
     return await api.get(PROBE, headers=_cookie(token))
 
 
+async def _first_me(api: httpx.AsyncClient, token: str) -> None:
+    """Call ``/me``, which creates the personal workspace on a user's first call."""
+    response = await api.get("/v1/me", headers=_cookie(token))
+    assert response.status_code == 200, response.text
+
+
 async def _rows(engine: AsyncEngine, sql: str, **params: Any) -> list[Any]:
     async with engine.begin() as conn:
         return list((await conn.execute(text(sql), params)).all())
@@ -137,7 +143,7 @@ async def _user_without_identity(engine: AsyncEngine, email: str) -> str:
     """A user row with no sign-in identity yet, as an older account would have."""
     rows = await _rows(
         engine,
-        "INSERT INTO identity.users (id, email) VALUES (gen_random_uuid(), :email) RETURNING id",
+        "INSERT INTO auth.users (id, email) VALUES (gen_random_uuid(), :email) RETURNING id",
         email=email,
     )
     return str(rows[0][0])
@@ -219,18 +225,20 @@ async def test_first_sign_in_creates_user_workspace_identity_and_session(
     assert token is not None
     whoami = await _whoami(api, token)
     assert whoami.status_code == 200
-    users = await _rows(engine, "SELECT id, email, name, image FROM identity.users")
+    users = await _rows(engine, "SELECT id, email, name, image FROM auth.users")
     assert len(users) == 1
     user_id, email, name, image = users[0]
     assert whoami.json()["user_id"] == str(user_id)
     assert (email, name) == (EMAIL, "Ada Lovelace")
     assert image == "https://lh3.googleusercontent.com/a/ada"
+    assert await _count(engine, "identity.workspaces") == 0
+    await _first_me(api, token)
     workspaces = await _rows(engine, "SELECT created_by FROM identity.workspaces WHERE is_personal")
     assert workspaces == [(user_id,)]
     identities = await _rows(
         engine,
         "SELECT user_id, provider, subject, email, email_verified, last_login_at "
-        "FROM identity.auth_identities",
+        "FROM auth.auth_identities",
     )
     assert len(identities) == 1
     assert identities[0][:5] == (user_id, "google", SUBJECT, EMAIL, True)
@@ -241,18 +249,21 @@ async def test_second_sign_in_reuses_the_user_and_advances_last_login(
     api: httpx.AsyncClient, google: FakeGoogle, engine: AsyncEngine
 ) -> None:
     first = _session_token(await _sign_in(api, google))
-    before = (await _rows(engine, "SELECT last_login_at FROM identity.auth_identities"))[0][0]
+    assert first is not None
+    await _first_me(api, first)
+    before = (await _rows(engine, "SELECT last_login_at FROM auth.auth_identities"))[0][0]
 
     second = _session_token(await _sign_in(api, google))
 
     assert first and second and first != second
+    await _first_me(api, second)
     assert (await _whoami(api, first)).json()["user_id"] == (await _whoami(api, second)).json()[
         "user_id"
     ]
-    assert await _count(engine, "identity.users") == 1
+    assert await _count(engine, "auth.users") == 1
     assert await _count(engine, "identity.workspaces") == 1
-    assert await _count(engine, "identity.auth_identities") == 1
-    after = (await _rows(engine, "SELECT last_login_at FROM identity.auth_identities"))[0][0]
+    assert await _count(engine, "auth.auth_identities") == 1
+    after = (await _rows(engine, "SELECT last_login_at FROM auth.auth_identities"))[0][0]
     assert after > before
 
 
@@ -265,9 +276,10 @@ async def test_verified_email_match_links_the_existing_user(
 
     assert token is not None
     assert (await _whoami(api, token)).json()["user_id"] == existing_id
-    assert await _count(engine, "identity.users") == 1
+    await _first_me(api, token)
+    assert await _count(engine, "auth.users") == 1
     assert await _count(engine, "identity.workspaces") == 1
-    identities = await _rows(engine, "SELECT user_id, subject FROM identity.auth_identities")
+    identities = await _rows(engine, "SELECT user_id, subject FROM auth.auth_identities")
     assert identities == [(UUID(existing_id), SUBJECT)]
 
 
@@ -277,7 +289,7 @@ async def test_backfilled_identity_is_found_by_subject(
     existing_id = await _user_without_identity(engine, "other@example.com")
     await _rows(
         engine,
-        "INSERT INTO identity.auth_identities (id, user_id, provider, subject, email, "
+        "INSERT INTO auth.auth_identities (id, user_id, provider, subject, email, "
         "email_verified) VALUES (gen_random_uuid(), :user_id, 'google', :sub, :email, true) "
         "RETURNING id",
         user_id=existing_id,
@@ -289,7 +301,7 @@ async def test_backfilled_identity_is_found_by_subject(
 
     assert token is not None
     assert (await _whoami(api, token)).json()["user_id"] == existing_id
-    assert await _count(engine, "identity.users") == 1
+    assert await _count(engine, "auth.users") == 1
 
 
 async def test_unverified_email_is_refused(
@@ -301,7 +313,7 @@ async def test_unverified_email_is_refused(
 
     assert _sign_in_error(response) == "auth.email_unverified"
     assert _session_token(response) is None
-    assert await _count(engine, "identity.users") == 0
+    assert await _count(engine, "auth.users") == 0
 
 
 async def test_failure_after_the_user_is_created_leaves_nothing_behind(
@@ -319,9 +331,9 @@ async def test_failure_after_the_user_is_created_leaves_nothing_behind(
 
     assert _sign_in_error(response) == "auth.oauth_failed"
     assert _session_token(response) is None
-    assert await _count(engine, "identity.users") == 0
+    assert await _count(engine, "auth.users") == 0
     assert await _count(engine, "identity.workspaces") == 0
-    assert await _count(engine, "identity.auth_identities") == 0
+    assert await _count(engine, "auth.auth_identities") == 0
 
 
 async def test_unverified_email_is_refused_even_for_a_known_identity(
@@ -410,7 +422,7 @@ async def test_tampered_id_token_is_rejected(
 
     assert _sign_in_error(response) == "auth.oauth_failed"
     assert _session_token(response) is None
-    assert await _count(engine, "identity.users") == 0
+    assert await _count(engine, "auth.users") == 0
 
 
 async def test_id_token_signed_by_another_key_is_rejected(
@@ -421,7 +433,7 @@ async def test_id_token_signed_by_another_key_is_rejected(
     response = await _sign_in(api, google)
 
     assert _sign_in_error(response) == "auth.oauth_failed"
-    assert await _count(engine, "identity.users") == 0
+    assert await _count(engine, "auth.users") == 0
 
 
 async def test_rotated_google_key_is_fetched_again(

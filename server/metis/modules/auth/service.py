@@ -9,9 +9,11 @@ A session resolves while it is not revoked, ``now < expires_at`` (absolute,
 advances ``last_seen_at`` at most once per :data:`SESSION_TOUCH_INTERVAL`.
 ``sign_in`` turns a verified provider profile into a user: by
 ``(provider, subject)``, else by the same email (linking a new identity), else a
-new user with a personal workspace.
+new user. The personal workspace is not made here: identity creates it on the
+user's first workspace-scoped call.
 
-Internal to identity: the auth routes and ``auth_deps`` call it.
+``get_user`` and ``find_user_by_email`` are public (re-exported by
+``metis.modules.auth``); everything else is internal to auth.
 """
 
 from __future__ import annotations
@@ -32,16 +34,17 @@ from metis.core.errors import (
 )
 from metis.core.logging import get_logger
 from metis.core.security import hash_session_token, new_session_token
+from metis.helpers.text import normalise_email
 from metis.helpers.validation import validate_input
-from metis.modules.identity import identities_repo, repo, service, sessions_repo
-from metis.modules.identity.models import UserRow
-from metis.modules.identity.providers.base import (
+from metis.modules.auth import identities_repo, sessions_repo, users_repo
+from metis.modules.auth.models import UserRow
+from metis.modules.auth.providers.base import (
     OAuthFailure,
     OAuthStep,
     ProviderProfile,
     oauth_failed,
 )
-from metis.modules.identity.schemas import (
+from metis.modules.auth.schemas import (
     ActiveSession,
     NewSession,
     SessionRecord,
@@ -161,13 +164,24 @@ async def logout_all(session: AsyncSession, redis: Redis, user_id: UUID) -> int:
 
 
 async def get_session_user(session: AsyncSession, active: ActiveSession) -> SessionUser:
-    """Load the user behind ``active`` and their personal workspace."""
-    row = await repo.get_user(session, active.user_id)
-    if row is None:  # sessions cascade on user delete; only a race gets here
+    """Load the user behind ``active``."""
+    user = await get_user(session, active.user_id)
+    if user is None:  # sessions cascade on user delete; only a race gets here
         raise rejection(SessionRejection.UNKNOWN, SessionExpiredError("Session not found"))
-    user = User.model_validate(row)
-    personal = await service.ensure_personal_workspace(session, user)
-    return SessionUser(user=user, personal_workspace=personal, session_id=active.session_id)
+    return SessionUser(user=user, session_id=active.session_id)
+
+
+# ----------------------------------------------------------------------- users
+async def get_user(session: AsyncSession, user_id: UUID) -> User | None:
+    """The user with ``user_id``, or ``None``."""
+    row = await users_repo.get_user(session, user_id)
+    return None if row is None else User.model_validate(row)
+
+
+async def find_user_by_email(session: AsyncSession, email: str) -> User | None:
+    """The user with ``email`` (trimmed, case-insensitive), or ``None``."""
+    row = await users_repo.get_user_by_email(session, normalise_email(email))
+    return None if row is None else User.model_validate(row)
 
 
 # --------------------------------------------------------------------- sign-in
@@ -188,17 +202,15 @@ async def _user_for(
     session: AsyncSession, claims: UserClaims
 ) -> tuple[UserRow, SignInOutcome] | None:
     """The user to link this new identity to, creating one if needed; ``None`` on a race."""
-    linked = await repo.get_user_by_email(session, claims.email)
+    linked = await users_repo.get_user_by_email(session, claims.email)
     if linked is not None:
         return linked, SignInOutcome.LINKED
-    created = await repo.insert_user(session, claims)
+    created = await users_repo.insert_user(session, claims)
     return None if created is None else (created, SignInOutcome.CREATED)
 
 
-async def _signed_in(session: AsyncSession, row: UserRow, outcome: SignInOutcome) -> SignedIn:
-    user = User.model_validate(row)
-    personal = await service.ensure_personal_workspace(session, user)
-    return SignedIn(user=user, personal_workspace=personal, outcome=outcome)
+def _signed_in(row: UserRow, outcome: SignInOutcome) -> SignedIn:
+    return SignedIn(user=User.model_validate(row), outcome=outcome)
 
 
 async def _try_sign_in(
@@ -209,8 +221,8 @@ async def _try_sign_in(
         await identities_repo.record_login(
             session, identity.id, email=claims.email, email_verified=profile.email_verified, now=now
         )
-        row = await repo.get_user(session, identity.user_id)
-        return None if row is None else await _signed_in(session, row, SignInOutcome.EXISTING)
+        row = await users_repo.get_user(session, identity.user_id)
+        return None if row is None else _signed_in(row, SignInOutcome.EXISTING)
     found = await _user_for(session, claims)
     if found is None:
         return None
@@ -224,7 +236,7 @@ async def _try_sign_in(
         email_verified=profile.email_verified,
         now=now,
     )
-    return None if inserted is None else await _signed_in(session, row, outcome)
+    return None if inserted is None else _signed_in(row, outcome)
 
 
 async def sign_in(session: AsyncSession, profile: ProviderProfile) -> SignedIn:

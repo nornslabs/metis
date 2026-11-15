@@ -14,7 +14,7 @@ from fastapi import Depends
 
 from metis.core.config import get_settings
 from metis.helpers.http import make_provider_client
-from metis.modules.identity.providers.base import (
+from metis.modules.auth.providers.base import (
     AuthProvider,
     AuthProviderName,
     OAuthFailure,
@@ -22,7 +22,7 @@ from metis.modules.identity.providers.base import (
     ProviderProfile,
     oauth_failed,
 )
-from metis.modules.identity.providers.google import GoogleProvider
+from metis.modules.auth.providers.google import GoogleProvider
 
 
 @lru_cache

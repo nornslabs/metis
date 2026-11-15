@@ -16,7 +16,7 @@ from __future__ import annotations
 import hmac
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from urllib.parse import urlencode
 
@@ -26,7 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from metis.core.errors import OAuthFailedError, UpstreamError
 from metis.helpers.http import ClientFactory, FailureReason, send
-from metis.modules.identity.providers.base import (
+from metis.helpers.time import utcnow
+from metis.modules.auth.providers.base import (
     AuthProviderName,
     OAuthFailure,
     OAuthStep,
@@ -52,10 +53,6 @@ _UPSTREAM_FAILURES = {
 }
 
 Clock = Callable[[], datetime]
-
-
-def _utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 class _Discovery(BaseModel):
@@ -107,7 +104,7 @@ class GoogleProvider:
         client_secret: str,
         redirect_uri: str,
         client_factory: ClientFactory,
-        clock: Clock = _utcnow,
+        clock: Clock = utcnow,
     ) -> None:
         self._client_id = client_id
         self._client_secret = client_secret
