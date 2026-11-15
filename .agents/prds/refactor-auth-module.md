@@ -186,4 +186,4 @@ Resolved (2026-11-15):
 
 ## Status
 
-in progress
+done
