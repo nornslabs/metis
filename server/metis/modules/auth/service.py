@@ -180,7 +180,7 @@ async def get_user(session: AsyncSession, user_id: UUID) -> User | None:
 
 async def find_user_by_email(session: AsyncSession, email: str) -> User | None:
     """The user with ``email`` (trimmed, case-insensitive), or ``None``."""
-    row = await users_repo.get_user_by_email(session, str(normalise_email(email)))
+    row = await users_repo.get_user_by_email(session, normalise_email(email))
     return None if row is None else User.model_validate(row)
 
 

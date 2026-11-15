@@ -3,7 +3,8 @@
 Built on ``auth.CurrentUserDep``. It picks the request's workspace from
 ``X-Workspace-Id`` (default: personal), checks membership and scopes the
 request session to it for RLS. The personal workspace is created here on the
-user's first workspace-scoped call (idempotent, same transaction).
+user's first workspace-scoped call by ``service.ensure_personal_workspace``,
+the one rule ``/me`` shares (idempotent, same transaction).
 """
 
 from __future__ import annotations

@@ -3,7 +3,7 @@
 ## General
 
 - Small, single-purpose modules; fix root causes, no workarounds.
-- Respect boundaries in `architecture.md`; cross-module calls only via `service.py` or adapters.
+- Respect boundaries in `architecture.md`; cross-module calls only through a module's public surface (its `__init__.py`) or adapters. `identity` may import `metis.modules.auth`; `auth` imports no module.
 - Validate all external input (HTTP, LLM output, Exa, MCP) before use.
 - No secrets in code, logs or tests. Config from env via settings.
 

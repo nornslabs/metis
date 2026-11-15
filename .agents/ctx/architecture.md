@@ -52,7 +52,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Invariants
 
 1. Request handlers never call LLMs, Exa or MCP; long work runs in workers. One exception: `POST /v1/settings/keys/{kind}/test` goes route → `identity.service.test_key` → the LLM adapter or the Exa MCP client for one bounded check (10 s total; the LLM check lists models and spends no tokens, the Exa check is one 1-result `web_search_exa` call).
-2. Modules use each other only via `service.py`; the agent writes only through services.
+2. Modules use each other only through the other module's public surface, its `__init__.py` (`identity` may import `metis.modules.auth`; `auth` imports no module); the agent writes only through services.
 3. External writes (Linear, Notion) and user decisions require an approval `interrupt()`.
 4. Stages end in validated Pydantic output; score runs, specs and snapshots are immutable versions.
 5. Rubric is fixed: weights 25/25/15/15/10/10; below 55 = adviser mode.

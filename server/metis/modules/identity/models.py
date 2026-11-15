@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -13,14 +13,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from metis.core.models import Base
 from metis.helpers.ids import uuid7
+from metis.helpers.time import utcnow
 
 SCHEMA = "identity"
 # ``users`` belongs to the auth module; its FK target is named here, never imported.
 USERS_TABLE = "auth.users"
-
-
-def _utcnow() -> datetime:
-    return datetime.now(tz=UTC)
 
 
 class WorkspaceRow(Base):
@@ -31,7 +28,7 @@ class WorkspaceRow(Base):
     name: Mapped[str] = mapped_column(Text)
     is_personal: Mapped[bool] = mapped_column(Boolean, default=False)
     created_by: Mapped[UUID] = mapped_column(ForeignKey(f"{USERS_TABLE}.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class MemberRow(Base):
@@ -45,7 +42,7 @@ class MemberRow(Base):
         ForeignKey(f"{USERS_TABLE}.id", ondelete="CASCADE"), primary_key=True
     )
     role: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class ProviderKeyRow(Base):
@@ -66,8 +63,8 @@ class ProviderKeyRow(Base):
     last_tested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_test_ok: Mapped[bool | None] = mapped_column(Boolean)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class WorkspaceSettingsRow(Base):
@@ -82,4 +79,4 @@ class WorkspaceSettingsRow(Base):
     run_budget_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     max_steps: Mapped[int] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -2,27 +2,18 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from enum import StrEnum
 from typing import Annotated
 from uuid import UUID
 
-from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
+from pydantic import AfterValidator, BeforeValidator, Field
 
-from metis.helpers.text import normalise_email, strip_to_none
+from metis.helpers.schemas import Email, FrozenModel
+from metis.helpers.text import strip_to_none
 
 MAX_NAME_LENGTH = 200
-MAX_EMAIL_LENGTH = 320
-# Shape check only: claims come from a verified identity provider.
-EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 IMAGE_URL_SCHEMES = ("https://", "http://")
-
-
-def _check_email_shape(value: str) -> str:
-    if not re.fullmatch(EMAIL_PATTERN, value):
-        raise ValueError("must be an email address")
-    return value
 
 
 def _check_image_url(value: str | None) -> str | None:
@@ -31,19 +22,7 @@ def _check_image_url(value: str | None) -> str | None:
     return value
 
 
-Email = Annotated[
-    str,
-    BeforeValidator(normalise_email),
-    Field(max_length=MAX_EMAIL_LENGTH),
-    AfterValidator(_check_email_shape),
-]
-
-
-class _Frozen(BaseModel):
-    model_config = ConfigDict(frozen=True, from_attributes=True)
-
-
-class UserClaims(_Frozen):
+class UserClaims(FrozenModel):
     """A new user's profile from a verified sign-in, validated and normalised."""
 
     email: Email
@@ -56,7 +35,7 @@ class UserClaims(_Frozen):
     ] = None
 
 
-class User(_Frozen):
+class User(FrozenModel):
     id: UUID
     email: str
     name: str | None
@@ -65,7 +44,7 @@ class User(_Frozen):
 
 
 # -------------------------------------------------------------------- sessions
-class SessionRecord(_Frozen):
+class SessionRecord(FrozenModel):
     """A stored session's state: what resolving a token checks (also the cache entry)."""
 
     id: UUID
@@ -75,7 +54,7 @@ class SessionRecord(_Frozen):
     revoked_at: datetime | None = None
 
 
-class CacheLookup(_Frozen):
+class CacheLookup(FrozenModel):
     """Result of a session cache lookup: revoked, a record, or a miss (neither)."""
 
     revoked: bool = False
@@ -93,7 +72,7 @@ class SessionRejection(StrEnum):
     CSRF = "csrf"
 
 
-class NewSession(_Frozen):
+class NewSession(FrozenModel):
     """A session just created; ``token`` goes in the cookie and is never stored."""
 
     token: str
@@ -101,7 +80,7 @@ class NewSession(_Frozen):
     expires_at: datetime
 
 
-class ActiveSession(_Frozen):
+class ActiveSession(FrozenModel):
     """A session that resolved: not revoked, not expired, not idle."""
 
     session_id: UUID
@@ -109,7 +88,7 @@ class ActiveSession(_Frozen):
     expires_at: datetime
 
 
-class SessionUser(_Frozen):
+class SessionUser(FrozenModel):
     """The signed-in user and the session in use."""
 
     user: User
@@ -125,7 +104,7 @@ class SignInOutcome(StrEnum):
     LINKED = "linked"
 
 
-class SignedIn(_Frozen):
+class SignedIn(FrozenModel):
     """The user a provider profile signed in as, and how they were found."""
 
     user: User

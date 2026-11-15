@@ -88,3 +88,22 @@ async def test_concurrent_first_calls_create_exactly_one_personal_workspace(
 
     assert [r.status_code for r in responses] == [200, 200, 200]
     assert len(await _personal_workspaces(engine)) == 1
+
+
+async def test_first_me_with_a_header_racing_one_without_creates_one_personal_workspace(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    token = await sign_in(engine)
+    team = await client.post("/v1/workspaces", json={"name": "Team"}, headers=auth(token))
+    assert team.status_code == 201, team.text
+
+    with_header, without_header = await asyncio.gather(
+        client.get("/v1/me", headers=auth(token, team.json()["workspace"]["id"])),
+        client.get("/v1/me", headers=auth(token)),
+    )
+
+    assert [with_header.status_code, without_header.status_code] == [200, 200]
+    personal = await _personal_workspaces(engine)
+    assert len(personal) == 1
+    assert without_header.json()["current_workspace"]["workspace"]["id"] == personal[0]
+    assert with_header.json()["current_workspace"]["workspace"]["name"] == "Team"

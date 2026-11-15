@@ -103,9 +103,13 @@ async def test_downgrade_and_upgrade_move_the_tables_and_keep_sessions_resolving
     token = await sign_in(engine)
 
     async with engine.connect() as conn, conn.begin() as tx:
+        auth_oid = await conn.scalar(text("SELECT to_regnamespace('auth')::oid"))
+        default_acls_sql = text("SELECT count(*) FROM pg_default_acl WHERE defaclnamespace = :oid")
+        default_acls_before = await conn.scalar(default_acls_sql, {"oid": auth_oid})
         await _replay(conn, migration.DOWNGRADE_SQL)
         after_downgrade = await _schemas_of(conn)
         auth_schema = await conn.scalar(text("SELECT to_regnamespace('auth') IS NOT NULL"))
+        default_acls_after = await conn.scalar(default_acls_sql, {"oid": auth_oid})
         await _replay(conn, migration.UPGRADE_SQL)
         after_upgrade = await _schemas_of(conn)
         await redis.flushdb()  # the lookup must hit the moved table, not the cache
@@ -116,5 +120,7 @@ async def test_downgrade_and_upgrade_move_the_tables_and_keep_sessions_resolving
 
     assert after_downgrade == dict.fromkeys(MOVED_TABLES, "identity")
     assert auth_schema is False
+    assert default_acls_before > 0
+    assert default_acls_after == 0
     assert after_upgrade == dict.fromkeys(MOVED_TABLES, "auth")
     assert user.user.email == "ada@example.com"

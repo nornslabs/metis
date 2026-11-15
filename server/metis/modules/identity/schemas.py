@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
@@ -11,8 +10,6 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from pydantic import (
-    AfterValidator,
-    BaseModel,
     BeforeValidator,
     ConfigDict,
     Field,
@@ -22,13 +19,11 @@ from pydantic import (
     model_validator,
 )
 
-from metis.helpers.text import normalise_email, strip, strip_to_none
+from metis.helpers.schemas import Email, FrozenModel
+from metis.helpers.text import strip, strip_to_none
 from metis.modules.auth import User
 
-MAX_EMAIL_LENGTH = 320
 MAX_WORKSPACE_NAME_LENGTH = 100
-# Shape check only: the invited user must already exist.
-EMAIL_PATTERN = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
 MAX_KEY_LENGTH = 512
 MAX_MODEL_LENGTH = 200
@@ -54,12 +49,6 @@ class ProviderKind(StrEnum):
     EXA = "exa"
 
 
-def _check_email_shape(value: str) -> str:
-    if not re.fullmatch(EMAIL_PATTERN, value):
-        raise ValueError("must be an email address")
-    return value
-
-
 def _check_base_url(value: str, allow_local_http: bool) -> str:
     """Accept an https URL (or local http in development); drop a trailing slash."""
     parts = urlsplit(value)
@@ -72,30 +61,18 @@ def _check_base_url(value: str, allow_local_http: bool) -> str:
     return value.rstrip("/")
 
 
-Email = Annotated[
-    str,
-    BeforeValidator(normalise_email),
-    Field(max_length=MAX_EMAIL_LENGTH),
-    AfterValidator(_check_email_shape),
-]
-
-
-class _Frozen(BaseModel):
-    model_config = ConfigDict(frozen=True, from_attributes=True)
-
-
-class WorkspaceName(_Frozen):
+class WorkspaceName(FrozenModel):
     name: Annotated[
         str, BeforeValidator(strip), Field(min_length=1, max_length=MAX_WORKSPACE_NAME_LENGTH)
     ]
 
 
-class NewMember(_Frozen):
+class NewMember(FrozenModel):
     email: Email
     role: MemberRole
 
 
-class NewProviderKey(_Frozen):
+class NewProviderKey(FrozenModel):
     """A key to save. Validate with context ``{ALLOW_LOCAL_HTTP: bool}``.
 
     ``llm`` needs ``base_url`` and ``model``; ``exa`` takes neither.
@@ -139,7 +116,7 @@ UsdAmount = Annotated[
 StepCount = Annotated[int, Field(ge=1, le=MAX_MAX_STEPS)]
 
 
-class SettingsPatch(_Frozen):
+class SettingsPatch(FrozenModel):
     """Body of ``PATCH /v1/settings``: the ``version`` read, plus at least one change."""
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -155,7 +132,7 @@ class SettingsPatch(_Frozen):
         return self
 
 
-class Workspace(_Frozen):
+class Workspace(FrozenModel):
     id: UUID
     name: str
     is_personal: bool
@@ -163,30 +140,30 @@ class Workspace(_Frozen):
     created_at: datetime
 
 
-class Membership(_Frozen):
+class Membership(FrozenModel):
     workspace: Workspace
     role: MemberRole
 
 
 # --------------------------------------------------------------- HTTP schemas
-class CreateWorkspaceRequest(_Frozen):
+class CreateWorkspaceRequest(FrozenModel):
     """Body of ``POST /v1/workspaces``; the service validates and trims ``name``."""
 
     name: str
 
 
-class MeResponse(_Frozen):
+class MeResponse(FrozenModel):
     user: User
     workspaces: list[Membership]
     current_workspace: Membership
 
 
-class MembershipPage(_Frozen):
+class MembershipPage(FrozenModel):
     items: list[Membership]
     next_cursor: str | None = None
 
 
-class PutProviderKeyRequest(_Frozen):
+class PutProviderKeyRequest(FrozenModel):
     """Body of ``PUT /v1/settings/keys/{kind}``; the service validates it."""
 
     value: str
@@ -194,7 +171,7 @@ class PutProviderKeyRequest(_Frozen):
     model: str | None = None
 
 
-class ProviderKeyView(_Frozen):
+class ProviderKeyView(FrozenModel):
     """A saved key as clients see it: masked, never the plaintext or ciphertext."""
 
     kind: ProviderKind
@@ -207,12 +184,12 @@ class ProviderKeyView(_Frozen):
     updated_at: datetime
 
 
-class ProviderKeys(_Frozen):
+class ProviderKeys(FrozenModel):
     llm: ProviderKeyView | None = None
     exa: ProviderKeyView | None = None
 
 
-class WorkspaceSettingsView(_Frozen):
+class WorkspaceSettingsView(FrozenModel):
     """Run limits; ``version`` 0 means defaults that were never saved."""
 
     run_budget_usd: UsdAmount
@@ -220,12 +197,12 @@ class WorkspaceSettingsView(_Frozen):
     version: int
 
 
-class SettingsResponse(_Frozen):
+class SettingsResponse(FrozenModel):
     keys: ProviderKeys
     settings: WorkspaceSettingsView
 
 
-class ProviderCredentials(_Frozen):
+class ProviderCredentials(FrozenModel):
     """A decrypted key for the LLM gateway and Exa adapter only; never log or return it."""
 
     kind: ProviderKind

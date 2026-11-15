@@ -37,16 +37,8 @@ router = APIRouter(prefix="/v1", tags=["identity"])
 async def get_me(
     session: SessionDep, caller: CurrentUserDep, workspace: CurrentWorkspaceDep
 ) -> MeResponse:
-    """The signed-in user, their workspaces and the request's current workspace.
-
-    The first ``/me`` always creates the personal workspace, even when it is
-    sent with an ``X-Workspace-Id`` (without one, ``current_workspace`` did).
-    """
-    current = workspace.workspace
-    if not (current.is_personal and current.created_by == caller.user.id):
-        await service.ensure_personal_workspace(session, caller.user)
-    memberships = await service.list_workspaces(session, caller.user)
-    return MeResponse(user=caller.user, workspaces=memberships, current_workspace=workspace)
+    """The signed-in user, their workspaces and the request's current workspace."""
+    return await service.get_me(session, caller.user, workspace)
 
 
 @router.get("/workspaces", response_model=MembershipPage)
