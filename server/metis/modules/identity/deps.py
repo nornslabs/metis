@@ -3,8 +3,8 @@
 Built on ``auth.CurrentUserDep``. It picks the request's workspace from
 ``X-Workspace-Id`` (default: personal), checks membership and scopes the
 request session to it for RLS. The personal workspace is created here on the
-user's first workspace-scoped call by ``service.ensure_personal_workspace``,
-the one rule ``/me`` shares (idempotent, same transaction).
+user's first workspace-scoped call by ``service.workspaces.ensure_personal_workspace``,
+the one rule ``/v1/workspaces/current`` shares (idempotent, same transaction).
 """
 
 from __future__ import annotations
@@ -19,19 +19,9 @@ from metis.core.errors import InvalidInputError, PermissionDeniedError
 from metis.core.logging import bind_context
 from metis.modules.auth import CurrentUserDep
 from metis.modules.identity import service
-from metis.modules.identity.schemas import Membership
+from metis.modules.identity.dto import Membership
 
 WORKSPACE_HEADER = "X-Workspace-Id"
-
-
-def _parse_workspace_id(raw: str) -> UUID:
-    try:
-        return UUID(raw)
-    except ValueError as exc:
-        raise InvalidInputError(
-            f"{WORKSPACE_HEADER} must be a UUID",
-            errors=[{"field": f"header.{WORKSPACE_HEADER}", "message": "Invalid UUID"}],
-        ) from exc
 
 
 async def current_workspace(
@@ -45,10 +35,10 @@ async def current_workspace(
     probe which workspaces exist.
     """
     if workspace_id is None:
-        target = (await service.ensure_personal_workspace(session, caller.user)).id
+        target = (await service.workspaces.ensure_personal_workspace(session, caller.user)).id
     else:
         target = _parse_workspace_id(workspace_id)
-    memberships = await service.list_workspaces(session, caller.user)
+    memberships = await service.workspaces.list_workspaces(session, caller.user)
     membership = next((m for m in memberships if m.workspace.id == target), None)
     if membership is None:
         raise PermissionDeniedError("You are not a member of that workspace")
@@ -59,3 +49,13 @@ async def current_workspace(
 
 
 CurrentWorkspaceDep = Annotated[Membership, Depends(current_workspace)]
+
+
+def _parse_workspace_id(raw: str) -> UUID:
+    try:
+        return UUID(raw)
+    except ValueError as exc:
+        raise InvalidInputError(
+            f"{WORKSPACE_HEADER} must be a UUID",
+            errors=[{"field": f"header.{WORKSPACE_HEADER}", "message": "Invalid UUID"}],
+        ) from exc

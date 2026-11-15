@@ -72,8 +72,8 @@ async def test_health_needs_no_session(client: httpx.AsyncClient) -> None:
     assert response.status_code != 401
 
 
-# ----------------------------------------------------------------------- /me
-async def test_first_me_creates_user_and_personal_workspace(
+# ------------------------------------------------- /auth/me, /workspaces/current
+async def test_first_call_creates_user_and_personal_workspace(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
     body = await me(client, await sign_in(engine))
@@ -117,7 +117,9 @@ async def test_foreign_workspace_is_403(client: httpx.AsyncClient, engine: Async
     bob = await me(client, await sign_in(engine, "google-bob", "bob@example.com", "Bob"))
     bobs_workspace = bob["current_workspace"]["workspace"]["id"]
 
-    response = await client.get("/v1/me", headers=auth(await sign_in(engine), bobs_workspace))
+    response = await client.get(
+        "/v1/workspaces/current", headers=auth(await sign_in(engine), bobs_workspace)
+    )
 
     assert_problem(response, 403, "auth.forbidden")
 
@@ -125,7 +127,9 @@ async def test_foreign_workspace_is_403(client: httpx.AsyncClient, engine: Async
 async def test_unknown_workspace_is_403_like_a_foreign_one(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
-    response = await client.get("/v1/me", headers=auth(await sign_in(engine), uuid4()))
+    response = await client.get(
+        "/v1/workspaces/current", headers=auth(await sign_in(engine), uuid4())
+    )
 
     assert_problem(response, 403, "auth.forbidden")
 
@@ -133,7 +137,9 @@ async def test_unknown_workspace_is_403_like_a_foreign_one(
 async def test_malformed_workspace_header_is_422(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
-    response = await client.get("/v1/me", headers=auth(await sign_in(engine), "not-a-uuid"))
+    response = await client.get(
+        "/v1/workspaces/current", headers=auth(await sign_in(engine), "not-a-uuid")
+    )
 
     assert_problem(response, 422, "common.validation_failed")
 
@@ -187,7 +193,7 @@ async def test_create_workspace_makes_caller_owner_and_lists_it(
     engine: AsyncEngine,
 ) -> None:
     token = await sign_in(engine)
-    await me(client, token)  # the first /me creates the personal workspace
+    await me(client, token)  # the first call creates the personal workspace
 
     created = await client.post("/v1/workspaces", json={"name": "  Team  "}, headers=auth(token))
     listed = await client.get("/v1/workspaces", headers=auth(token))
@@ -228,7 +234,7 @@ async def test_create_workspace_without_client_header_is_403_csrf_failed(
 # ------------------------------------------------------------------------ CORS
 async def test_cors_preflight_from_web_origin_is_allowed(client: httpx.AsyncClient) -> None:
     response = await client.options(
-        "/v1/me",
+        "/v1/workspaces/current",
         headers={
             "Origin": WEB_ORIGIN,
             "Access-Control-Request-Method": "GET",
@@ -245,7 +251,7 @@ async def test_cors_preflight_from_web_origin_is_allowed(client: httpx.AsyncClie
 
 async def test_cors_preflight_from_other_origin_is_refused(client: httpx.AsyncClient) -> None:
     response = await client.options(
-        "/v1/me",
+        "/v1/workspaces/current",
         headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"},
     )
 

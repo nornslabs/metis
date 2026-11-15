@@ -123,11 +123,11 @@ class TestAccessLogQueryRedaction:
     def test_path_without_query_is_unchanged(self) -> None:
         from metis.core.logging import StripQueryFilter
 
-        record = self._access_record("/v1/me")
+        record = self._access_record("/v1/auth/me")
 
         StripQueryFilter().filter(record)
 
-        assert record.getMessage() == '127.0.0.1:5000 - "GET /v1/me HTTP/1.1" 302'
+        assert record.getMessage() == '127.0.0.1:5000 - "GET /v1/auth/me HTTP/1.1" 302'
 
     def test_configure_logging_installs_the_filter_on_uvicorn_access(self) -> None:
         from metis.core.config import get_settings

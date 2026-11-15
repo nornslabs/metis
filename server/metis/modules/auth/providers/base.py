@@ -1,8 +1,8 @@
 """The sign-in provider contract: send the browser away, then turn the answer into a profile.
 
 Every provider (Google now, email later) implements ``AuthProvider``. The
-OAuth round trip (``service.start_login`` / ``finish_login``) and
-``service.sign_in`` only see this protocol and ``ProviderProfile``, so
+OAuth round trip (``service.oauth``) and
+``service.identities.sign_in`` only see this protocol and ``ProviderProfile``, so
 adding a provider changes neither.
 """
 

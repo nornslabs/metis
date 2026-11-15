@@ -1,11 +1,11 @@
-"""Shared Pydantic building blocks in ``metis.helpers.schemas``."""
+"""Shared Pydantic building blocks in ``metis.helpers.dto``."""
 
 from __future__ import annotations
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from metis.helpers.schemas import MAX_EMAIL_LENGTH, Email, FrozenModel
+from metis.helpers.dto import MAX_EMAIL_LENGTH, Email, FrozenModel
 
 
 class _Contact(FrozenModel):

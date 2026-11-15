@@ -14,7 +14,7 @@ import asyncpg  # type: ignore[import-untyped]
 import redis.asyncio as redis
 
 from metis.core.config import get_settings
-from metis.modules.health.schemas import HealthStatus
+from metis.modules.health.dto import HealthStatus
 
 
 def to_asyncpg_dsn(url: str) -> str:

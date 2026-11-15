@@ -74,6 +74,22 @@ name = "identity sits above auth"
 type = "layers"
 layers = ["metis.modules.identity", "metis.modules.auth"]
 
+[[tool.importlinter.contracts]]
+name = "identity uses only auth's public surface"
+type = "forbidden"
+source_modules = ["metis.modules.identity"]
+# Only what `metis.modules.auth` exports is public: never its layers. Indirect chains
+# through auth's own `__init__` are fine, so only direct imports are checked.
+forbidden_modules = [
+  "metis.modules.auth.cache",
+  "metis.modules.auth.controller",
+  "metis.modules.auth.dto",
+  "metis.modules.auth.models",
+  "metis.modules.auth.repo",
+  "metis.modules.auth.service",
+]
+allow_indirect_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

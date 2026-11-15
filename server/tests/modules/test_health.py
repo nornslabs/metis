@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from starlette.testclient import TestClient
 
 from metis.core.error_handlers import register_error_handlers
-from metis.modules.health.schemas import HealthResponse, HealthStatus
+from metis.modules.health.dto import HealthResponse, HealthStatus
 
 
 class TestHealthResponse:

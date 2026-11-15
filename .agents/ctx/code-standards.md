@@ -9,56 +9,73 @@
 
 ## Module Structure (Standard Pattern)
 
-Each module in `server/metis/modules/<name>/` follows this structure:
+Each module in `server/metis/modules/<name>/` is organised by layer. A layer is a single file while it covers one domain; once it covers several it becomes a folder with one file per domain. `auth` and `identity` use folders; `health` (one domain) uses single files.
 
 ```
 modules/<name>/
-├── __init__.py      # Exports public API
-├── api.py           # Controller layer: HTTP routes
-├── service.py       # Service layer: business logic/orchestration
-├── repo.py          # Repository layer: all Postgres access (one file per module)
-├── cache.py         # Cache layer: all Redis key/value caches (one file per module, if any)
-├── adapter.py       # External adapters: HTTP clients, MCP, etc.
-├── schemas.py       # Pydantic models (data structures)
-├── models.py        # SQLAlchemy models (if DB tables owned)
+├── __init__.py      # Public surface: the only thing other modules may import
+├── deps.py          # FastAPI dependencies (route guards), if any
+├── controller/      # HTTP routes, one file per domain; __init__ builds the module `router`
+├── service/         # Business logic, one file per domain: `service.sessions.create_session`
+├── repo/            # All Postgres access, one file per table: `repo.sessions.create`
+├── cache/           # All Redis key/value caches, one file per cache: `cache.sessions.read` (if any)
+├── models/          # SQLAlchemy models, one file per domain; __init__ re-exports them
+├── dto/             # Data-transfer objects (Pydantic), one file per domain; __init__ re-exports them
+├── helpers/         # Local helpers: shared by this module's files only (if any)
+├── providers/       # Pluggable integrations owned by the module (or adapter.py), if any
 ├── events.py        # Domain events (if applicable)
 └── parse.py         # Transformers/normalizers (optional)
 ```
 
+The `__init__.py` of `repo/`, `cache/` and `service/` imports its submodules, so callers write `repo.sessions.get_by_hash(...)`; the folder supplies the domain, so function names do not repeat it. `models/` and `dto/` re-export every public name, so `from metis.modules.auth.dto import SessionUser` works. Files inside one layer import their siblings by module (`from ...service import sessions`), so a test can patch `service.sessions.create_session`.
+
 ### Layer Responsibilities
 
-1. **`api.py` (Controller)**: HTTP routes only
-   - Parse request, call service, return schema
-   - No business logic, no DB calls
-   - Thin handlers that delegate to service layer
+1. **`controller/` (Controller)**: HTTP routes only
+   - Parse request, call service, return DTO; thin handlers
+   - No business logic, no DB calls; never imports `repo` or `cache`
+   - One file per domain with its own `APIRouter(prefix="/<domain>")` (e.g. `/workspaces`, `/settings`); route paths inside are relative to it (`""`, `"/current"`, `"/keys/{kind}"`), never repeating the prefix
+   - `controller/__init__.py` builds the module's `router` with the version and module prefix (`/v1`, `/v1/auth`) and includes the domain routers
 
-2. **`service.py` (Service)**: Business logic orchestration
+2. **`service/` (Service)**: Business logic orchestration
    - Coordinates calls between `repo`, `cache` and adapters
    - Pure business rules, no HTTP concerns
    - Never runs SQL or calls Redis directly
    - Raises domain errors from `core/errors.py`
 
-3. **`repo.py` (Repository)**: Postgres access
-   - The module's only file with queries; one per module, never one per table (no `users_repo.py`, `sessions_repo.py`)
-   - Grouped by table, each group under a border comment, e.g. `# ---------------------------------------------------- sessions`
+3. **`repo/` (Repository)**: Postgres access
+   - The module's only code with queries; one file per table, named after it (`repo/users.py`, `repo/sessions.py`), never `users_repo.py` beside other files
    - Queries only, no business rules; returns rows, DTOs or primitives
+   - Name functions so they do not shadow SQLAlchemy's `insert`, `update`, `delete`, `select`: use `create`, `get`, `remove`
 
-4. **`cache.py` (Cache)**: Redis key/value caches
-   - The module's only file that reads or writes its Redis cache keys: key prefixes, TTLs, read/write/evict
-   - One per module; each cache in its own section under a border comment, e.g. `# --------------------------------------------- session cache`, `# ----------------------------------------- oauth login state`
+4. **`cache/` (Cache)**: Redis key/value caches
+   - The module's only code that reads or writes its Redis cache keys: key prefixes, TTLs, read/write/evict
+   - One file per cache (`cache/sessions.py`, `cache/oauth.py`); a new cache is a new file
    - A cache that may be lost logs Redis errors and returns a miss; a store the flow needs (e.g. one-time login state) re-raises `RedisError` for the service to map to a domain error
    - Not for queues, run event streams or locks: those stay in `core/` (`jobs`, `events`)
-   - `api.py` never imports `repo` or `cache`
 
 5. **`adapter.py` (Adapter)**: External integrations
    - HTTP clients for external APIs
    - MCP tool wrappers
    - Third-party SDK usage
 
-6. **`schemas.py` (Data)**: Pydantic models
-   - Request/response schemas
-   - Input validation models
-   - Data transfer objects
+6. **`dto/` (Data)**: Pydantic data-transfer objects
+   - Validated inputs, records and HTTP request/response bodies
+   - Called `dto`, not `schemas`: in this codebase "schema" also means a Postgres schema (`auth`, `identity`)
+   - Base classes shared by all modules (`FrozenModel`, `Email`) live in `metis/helpers/dto.py`
+
+7. **`models/` (Tables)**: SQLAlchemy models
+   - One file per domain; the Postgres schema name lives in the private `models/_schema.py`
+
+### Helpers: local and global
+
+- **Local helpers** (`modules/<name>/helpers/`): stateless functions used by more than one file of one module (e.g. `identity/helpers/permissions.py`). Other modules must not import them (import-linter).
+- **Global helpers** (`metis/helpers/`): stateless helpers that fit two or more modules as-is; they import no module (see `architecture.md`).
+- A helper used by one file stays private in that file. Create `helpers/` only when a second file needs it.
+
+### File order
+
+Public before private: module docstring, imports, constants, then public functions and classes, then private (`_name`) functions at the bottom. A private function needed at import time (a validator used in a class body, a decorator argument, a default value) stays above its user.
 
 ## Python
 

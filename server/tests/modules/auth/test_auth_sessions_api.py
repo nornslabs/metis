@@ -3,7 +3,7 @@
 Seam: HTTP requests against the real FastAPI app (``ASGITransport``) through
 test-only probe routes that depend on ``CurrentUserDep``. Postgres is migrated
 to head and the request session runs as ``metis_app``; Redis is real
-(``TEST_REDIS_URL``). Sessions are created with ``auth_service.create_session``
+(``TEST_REDIS_URL``). Sessions are created with ``auth_service.sessions.create_session``
 and expiry is driven by editing session rows, not by mocking the clock.
 """
 
@@ -28,7 +28,7 @@ from metis.core.redis import get_redis
 from metis.entrypoints.api import app
 from metis.modules.auth import cache, repo
 from metis.modules.auth import service as auth_service
-from metis.modules.auth.schemas import SessionRecord
+from metis.modules.auth.dto import SessionRecord
 from tests.helpers.auth import assert_problem, create_user
 from tests.helpers.migrations import load_migration
 
@@ -46,7 +46,9 @@ async def _user_id(engine: AsyncEngine, sub: str = "google-ada", email: str = "a
 
 async def _new_session(engine: AsyncEngine, user_id: UUID) -> str:
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        created = await auth_service.create_session(session, user_id, "pytest/1.0", "127.0.0.1")
+        created = await auth_service.sessions.create_session(
+            session, user_id, "pytest/1.0", "127.0.0.1"
+        )
         await session.commit()
     return created.token
 
@@ -158,7 +160,7 @@ async def test_use_within_touch_interval_does_not_write(
 # ------------------------------------------------------------------ revocation
 async def _revoke(engine: AsyncEngine, redis: Redis, token: str) -> None:
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        await auth_service.logout(session, redis, token)
+        await auth_service.sessions.logout(session, redis, token)
         await session.commit()
 
 
@@ -193,7 +195,7 @@ async def test_logout_all_revokes_every_session_of_the_user_only(
     assert (await _get(http, first)).status_code == 200  # cached
 
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        count = await auth_service.logout_all(session, redis, ada_id)
+        count = await auth_service.sessions.logout_all(session, redis, ada_id)
         await session.commit()
 
     assert count == 2
@@ -210,11 +212,11 @@ async def test_stale_cache_write_after_revocation_cannot_revive_the_session(
     _, token = ada
     token_hash = security.hash_session_token(token)
     async with AsyncSession(engine) as session:
-        stale = await repo.get_session_by_hash(session, token_hash)
+        stale = await repo.sessions.get_by_hash(session, token_hash)
     assert isinstance(stale, SessionRecord)
 
     await _revoke(engine, redis, token)
-    await cache.write_session(redis, token_hash, stale, datetime.now(UTC))
+    await cache.sessions.write(redis, token_hash, stale, datetime.now(UTC))
 
     assert_problem(await _get(http, token), 401, "auth.session_expired")
 

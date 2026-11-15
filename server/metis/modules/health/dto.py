@@ -1,4 +1,4 @@
-"""Pydantic schemas for the health module.
+"""Pydantic DTOs for the health module.
 
 This module contains only data structures - no business logic or HTTP code.
 """

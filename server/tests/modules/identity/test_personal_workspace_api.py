@@ -1,4 +1,4 @@
-"""Lazy personal workspace: made on the first ``/me`` or workspace-scoped call.
+"""Lazy personal workspace: made on the first workspace-scoped call (``/workspaces/current``).
 
 Seam: HTTP requests against the real app (request session as ``metis_app``),
 plus a read of ``identity.workspaces`` as the DB owner to count what exists.
@@ -23,7 +23,7 @@ async def _personal_workspaces(engine: AsyncEngine) -> list[Any]:
         return [str(workspace_id) for (workspace_id,) in rows]
 
 
-async def test_a_signed_in_user_has_no_personal_workspace_until_their_first_me(
+async def test_a_signed_in_user_has_no_personal_workspace_until_their_first_workspace_call(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
     token = await sign_in(engine)
@@ -48,7 +48,7 @@ async def test_first_workspace_scoped_call_creates_the_personal_workspace(
     assert len(await _personal_workspaces(engine)) == 1
 
 
-async def test_first_me_with_a_workspace_header_still_creates_the_personal_workspace(
+async def test_first_call_with_a_workspace_header_still_creates_the_personal_workspace(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
     token = await sign_in(engine)
@@ -81,16 +81,16 @@ async def test_concurrent_first_calls_create_exactly_one_personal_workspace(
     token = await sign_in(engine)
 
     responses = await asyncio.gather(
-        client.get("/v1/me", headers=auth(token)),
+        client.get("/v1/workspaces/current", headers=auth(token)),
         client.get("/v1/settings", headers=auth(token)),
-        client.get("/v1/me", headers=auth(token)),
+        client.get("/v1/workspaces/current", headers=auth(token)),
     )
 
     assert [r.status_code for r in responses] == [200, 200, 200]
     assert len(await _personal_workspaces(engine)) == 1
 
 
-async def test_first_me_with_a_header_racing_one_without_creates_one_personal_workspace(
+async def test_first_call_with_a_header_racing_one_without_creates_one_personal_workspace(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
     token = await sign_in(engine)
@@ -98,12 +98,12 @@ async def test_first_me_with_a_header_racing_one_without_creates_one_personal_wo
     assert team.status_code == 201, team.text
 
     with_header, without_header = await asyncio.gather(
-        client.get("/v1/me", headers=auth(token, team.json()["workspace"]["id"])),
-        client.get("/v1/me", headers=auth(token)),
+        client.get("/v1/workspaces/current", headers=auth(token, team.json()["workspace"]["id"])),
+        client.get("/v1/workspaces/current", headers=auth(token)),
     )
 
     assert [with_header.status_code, without_header.status_code] == [200, 200]
     personal = await _personal_workspaces(engine)
     assert len(personal) == 1
-    assert without_header.json()["current_workspace"]["workspace"]["id"] == personal[0]
-    assert with_header.json()["current_workspace"]["workspace"]["name"] == "Team"
+    assert without_header.json()["workspace"]["id"] == personal[0]
+    assert with_header.json()["workspace"]["name"] == "Team"

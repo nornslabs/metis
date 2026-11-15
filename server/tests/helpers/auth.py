@@ -50,7 +50,7 @@ async def create_user(
 ) -> UUID:
     """Sign a Google user in (created on first use) without opening a session."""
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        signed_in = await auth_service.sign_in(session, google_profile(sub, email, name))
+        signed_in = await auth_service.identities.sign_in(session, google_profile(sub, email, name))
         await session.commit()
     return signed_in.user.id
 
@@ -64,7 +64,9 @@ async def sign_in(
     """Sign a Google user in (created on first use) and return a new session token."""
     user_id = await create_user(engine, sub, email, name)
     async with AsyncSession(engine, expire_on_commit=False) as session:
-        created = await auth_service.create_session(session, user_id, "pytest/1.0", "127.0.0.1")
+        created = await auth_service.sessions.create_session(
+            session, user_id, "pytest/1.0", "127.0.0.1"
+        )
         await session.commit()
     return created.token
 

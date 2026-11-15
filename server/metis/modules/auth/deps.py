@@ -22,7 +22,7 @@ from metis.core.errors import CsrfError, NotSignedInError
 from metis.core.logging import bind_context
 from metis.core.redis import RedisDep
 from metis.modules.auth import service
-from metis.modules.auth.schemas import SessionRejection, SessionUser
+from metis.modules.auth.dto import SessionRejection, SessionUser
 
 CLIENT_HEADER = "X-Metis-Client"
 WEB_CLIENT = "web"
@@ -34,7 +34,7 @@ def check_csrf(request: Request) -> None:
     if request.method in SAFE_METHODS:
         return
     if request.headers.get(CLIENT_HEADER) != WEB_CLIENT:
-        raise service.rejection(
+        raise service.sessions.rejection(
             SessionRejection.CSRF,
             CsrfError(f"Mutations need the {CLIENT_HEADER}: {WEB_CLIENT} header"),
         )
@@ -44,10 +44,12 @@ async def current_user(request: Request, session: SessionDep, redis: RedisDep) -
     """Resolve the request's session cookie to its user, or raise."""
     token = request.cookies.get(get_settings().session_cookie_name)
     if not token:
-        raise service.rejection(SessionRejection.MISSING, NotSignedInError("Not signed in"))
+        raise service.sessions.rejection(
+            SessionRejection.MISSING, NotSignedInError("Not signed in")
+        )
     check_csrf(request)
-    active = await service.resolve_session(session, redis, token)
-    caller = await service.get_session_user(session, active)
+    active = await service.sessions.resolve_session(session, redis, token)
+    caller = await service.sessions.get_session_user(session, active)
     bind_context(user_id=str(caller.user.id), session_id=str(caller.session_id))
     return caller
 

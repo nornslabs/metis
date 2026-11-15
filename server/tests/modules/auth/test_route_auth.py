@@ -36,7 +36,7 @@ PUBLIC_ROUTES = frozenset(
 PATH_PARAM = re.compile(r"\{(\w+)(?::\w+)?\}")
 PATH_PARAM_VALUES = {"kind": "llm"}
 DEFAULT_PATH_PARAM = "00000000-0000-0000-0000-000000000000"
-ANY_ROUTE_THAT_NEEDS_A_SESSION = "/v1/me"
+ANY_ROUTE_THAT_NEEDS_A_SESSION = "/v1/auth/me"
 OLD_JWT_SECRET = "test-jwt-secret-for-hs256-at-least-32-bytes"
 
 
@@ -58,7 +58,8 @@ def _concrete(path: str) -> str:
 
 
 def test_the_route_table_has_protected_routes() -> None:
-    assert ("GET", "/v1/me") in _protected_routes()
+    assert ("GET", "/v1/auth/me") in _protected_routes()
+    assert ("GET", "/v1/workspaces/current") in _protected_routes()
     assert ("POST", "/v1/auth/logout-all") in _protected_routes()
 
 

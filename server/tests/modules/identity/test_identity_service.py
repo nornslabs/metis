@@ -102,7 +102,9 @@ async def sign_in(
     the way the app's first workspace-scoped call makes it.
     """
     async with app_session(engine) as session:
-        signed_in = await auth_service.sign_in(session, google_profile(sub, email, name, image))
+        signed_in = await auth_service.identities.sign_in(
+            session, google_profile(sub, email, name, image)
+        )
         await identity.ensure_personal_workspace(session, signed_in.user)
         return signed_in.user
 
@@ -294,7 +296,9 @@ async def test_members_rls_scopes_rows_by_context_and_fails_closed(
 async def test_nothing_persists_when_the_caller_rolls_back(engine: AsyncEngine) -> None:
     async with AsyncSession(engine) as session, session.begin():
         await session.execute(text(f"SET LOCAL ROLE {TEST_ROLE}"))
-        await auth_service.sign_in(session, google_profile("google-ghost", "ghost@example.com"))
+        await auth_service.identities.sign_in(
+            session, google_profile("google-ghost", "ghost@example.com")
+        )
         await session.rollback()
 
     ada = await sign_in(engine, "google-ada", "ada@example.com")

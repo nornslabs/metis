@@ -1,29 +1,16 @@
-"""Identity input models, DTOs returned by ``service.py``, ``MemberRole`` and ``ProviderKind``."""
+"""Provider key DTOs: new keys, what is shown back (masked), and credentials for use."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Self
 from urllib.parse import urlsplit
-from uuid import UUID
 
-from pydantic import (
-    BeforeValidator,
-    ConfigDict,
-    Field,
-    PlainSerializer,
-    ValidationInfo,
-    field_validator,
-    model_validator,
-)
+from pydantic import BeforeValidator, Field, ValidationInfo, field_validator, model_validator
 
-from metis.helpers.schemas import Email, FrozenModel
+from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip, strip_to_none
-from metis.modules.auth import User
-
-MAX_WORKSPACE_NAME_LENGTH = 100
 
 MAX_KEY_LENGTH = 512
 MAX_MODEL_LENGTH = 200
@@ -31,17 +18,6 @@ MAX_BASE_URL_LENGTH = 2048
 LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 # Validation context flag: allow http:// base URLs on LOCAL_HOSTS (development only).
 ALLOW_LOCAL_HTTP = "allow_local_http"
-
-DEFAULT_RUN_BUDGET_USD = Decimal("2.00")
-DEFAULT_MAX_STEPS = 50
-MAX_RUN_BUDGET_USD = Decimal("100")
-MAX_MAX_STEPS = 200
-USD_DECIMAL_PLACES = 2
-
-
-class MemberRole(StrEnum):
-    OWNER = "owner"
-    MEMBER = "member"
 
 
 class ProviderKind(StrEnum):
@@ -59,17 +35,6 @@ def _check_base_url(value: str, allow_local_http: bool) -> str:
     if parts.scheme == "http" and not (allow_local_http and parts.hostname in LOCAL_HOSTS):
         raise ValueError("must use https (http only for localhost in development)")
     return value.rstrip("/")
-
-
-class WorkspaceName(FrozenModel):
-    name: Annotated[
-        str, BeforeValidator(strip), Field(min_length=1, max_length=MAX_WORKSPACE_NAME_LENGTH)
-    ]
-
-
-class NewMember(FrozenModel):
-    email: Email
-    role: MemberRole
 
 
 class NewProviderKey(FrozenModel):
@@ -108,61 +73,6 @@ class NewProviderKey(FrozenModel):
         return self
 
 
-UsdAmount = Annotated[
-    Decimal,
-    Field(gt=0, le=MAX_RUN_BUDGET_USD, decimal_places=USD_DECIMAL_PLACES),
-    PlainSerializer(float, return_type=float),
-]
-StepCount = Annotated[int, Field(ge=1, le=MAX_MAX_STEPS)]
-
-
-class SettingsPatch(FrozenModel):
-    """Body of ``PATCH /v1/settings``: the ``version`` read, plus at least one change."""
-
-    model_config = ConfigDict(frozen=True, extra="forbid")
-
-    version: Annotated[int, Field(ge=0)]
-    run_budget_usd: UsdAmount | None = None
-    max_steps: StepCount | None = None
-
-    @model_validator(mode="after")
-    def _has_a_change(self) -> Self:
-        if self.run_budget_usd is None and self.max_steps is None:
-            raise ValueError("give run_budget_usd or max_steps")
-        return self
-
-
-class Workspace(FrozenModel):
-    id: UUID
-    name: str
-    is_personal: bool
-    created_by: UUID
-    created_at: datetime
-
-
-class Membership(FrozenModel):
-    workspace: Workspace
-    role: MemberRole
-
-
-# --------------------------------------------------------------- HTTP schemas
-class CreateWorkspaceRequest(FrozenModel):
-    """Body of ``POST /v1/workspaces``; the service validates and trims ``name``."""
-
-    name: str
-
-
-class MeResponse(FrozenModel):
-    user: User
-    workspaces: list[Membership]
-    current_workspace: Membership
-
-
-class MembershipPage(FrozenModel):
-    items: list[Membership]
-    next_cursor: str | None = None
-
-
 class PutProviderKeyRequest(FrozenModel):
     """Body of ``PUT /v1/settings/keys/{kind}``; the service validates it."""
 
@@ -187,19 +97,6 @@ class ProviderKeyView(FrozenModel):
 class ProviderKeys(FrozenModel):
     llm: ProviderKeyView | None = None
     exa: ProviderKeyView | None = None
-
-
-class WorkspaceSettingsView(FrozenModel):
-    """Run limits; ``version`` 0 means defaults that were never saved."""
-
-    run_budget_usd: UsdAmount
-    max_steps: int
-    version: int
-
-
-class SettingsResponse(FrozenModel):
-    keys: ProviderKeys
-    settings: WorkspaceSettingsView
 
 
 class ProviderCredentials(FrozenModel):

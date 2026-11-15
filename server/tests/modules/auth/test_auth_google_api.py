@@ -32,7 +32,8 @@ from metis.core.errors import OAuthFailedError
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
 from metis.modules.auth import service as auth_service
-from metis.modules.auth.cache import OAUTH_KEY_PREFIX, OAUTH_STATE_TTL_SECONDS
+from metis.modules.auth.cache.oauth import KEY_PREFIX as OAUTH_KEY_PREFIX
+from metis.modules.auth.cache.oauth import STATE_TTL_SECONDS as OAUTH_STATE_TTL_SECONDS
 from metis.modules.auth.providers import get_google_provider
 from metis.modules.auth.providers.google import GoogleProvider
 from tests.helpers.auth import assert_problem
@@ -124,9 +125,9 @@ async def _whoami(api: httpx.AsyncClient, token: str) -> httpx.Response:
     return await api.get(PROBE, headers=_cookie(token))
 
 
-async def _first_me(api: httpx.AsyncClient, token: str) -> None:
-    """Call ``/me``, which creates the personal workspace on a user's first call."""
-    response = await api.get("/v1/me", headers=_cookie(token))
+async def _first_workspace_call(api: httpx.AsyncClient, token: str) -> None:
+    """Call ``/workspaces/current``, which creates the personal workspace on a first call."""
+    response = await api.get("/v1/workspaces/current", headers=_cookie(token))
     assert response.status_code == 200, response.text
 
 
@@ -232,7 +233,7 @@ async def test_first_sign_in_creates_user_workspace_identity_and_session(
     assert (email, name) == (EMAIL, "Ada Lovelace")
     assert image == "https://lh3.googleusercontent.com/a/ada"
     assert await _count(engine, "identity.workspaces") == 0
-    await _first_me(api, token)
+    await _first_workspace_call(api, token)
     workspaces = await _rows(engine, "SELECT created_by FROM identity.workspaces WHERE is_personal")
     assert workspaces == [(user_id,)]
     identities = await _rows(
@@ -250,13 +251,13 @@ async def test_second_sign_in_reuses_the_user_and_advances_last_login(
 ) -> None:
     first = _session_token(await _sign_in(api, google))
     assert first is not None
-    await _first_me(api, first)
+    await _first_workspace_call(api, first)
     before = (await _rows(engine, "SELECT last_login_at FROM auth.identities"))[0][0]
 
     second = _session_token(await _sign_in(api, google))
 
     assert first and second and first != second
-    await _first_me(api, second)
+    await _first_workspace_call(api, second)
     assert (await _whoami(api, first)).json()["user_id"] == (await _whoami(api, second)).json()[
         "user_id"
     ]
@@ -276,7 +277,7 @@ async def test_verified_email_match_links_the_existing_user(
 
     assert token is not None
     assert (await _whoami(api, token)).json()["user_id"] == existing_id
-    await _first_me(api, token)
+    await _first_workspace_call(api, token)
     assert await _count(engine, "auth.users") == 1
     assert await _count(engine, "identity.workspaces") == 1
     identities = await _rows(engine, "SELECT user_id, subject FROM auth.identities")
@@ -325,7 +326,7 @@ async def test_failure_after_the_user_is_created_leaves_nothing_behind(
     async def failing_create_session(*_: object, **__: object) -> None:
         raise OAuthFailedError("session store down")
 
-    monkeypatch.setattr(auth_service, "create_session", failing_create_session)
+    monkeypatch.setattr(auth_service.sessions, "create_session", failing_create_session)
 
     response = await _sign_in(api, google)
 

@@ -79,7 +79,7 @@ async def test_deleting_a_user_cascades_to_sessions_identities_and_members(
     engine: AsyncEngine, client: httpx.AsyncClient
 ) -> None:
     token = await sign_in(engine)
-    assert (await client.get("/v1/me", headers=auth(token))).status_code == 200
+    assert (await client.get("/v1/workspaces/current", headers=auth(token))).status_code == 200
 
     async with engine.begin() as conn:
         await conn.execute(text("DELETE FROM identity.workspaces"))
@@ -129,8 +129,8 @@ async def test_downgrade_and_upgrade_move_the_tables_and_keep_sessions_resolving
         after_upgrade = await _schemas_of(conn)
         await redis.flushdb()  # the lookup must hit the moved table, not the cache
         async with AsyncSession(bind=conn) as session:
-            active = await auth_service.resolve_session(session, redis, token)
-            user = await auth_service.get_session_user(session, active)
+            active = await auth_service.sessions.resolve_session(session, redis, token)
+            user = await auth_service.sessions.get_session_user(session, active)
         await tx.rollback()
 
     assert after_downgrade == dict.fromkeys(MOVED_TABLES, "identity")

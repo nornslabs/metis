@@ -13,7 +13,7 @@ from __future__ import annotations
 import subprocess
 from typing import Literal
 
-from metis.modules.health.schemas import HealthResponse
+from metis.modules.health.dto import HealthResponse
 
 
 def get_git_version() -> str:
