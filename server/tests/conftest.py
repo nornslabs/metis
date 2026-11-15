@@ -7,9 +7,10 @@ import os
 _REQUIRED_ENV = {
     "DATABASE_URL": "postgresql+asyncpg://postgres:postgres@localhost:5432/metis",
     "REDIS_URL": "redis://localhost:6379/0",
-    "AUTH_JWT_SECRET": "test-jwt-secret-for-hs256-at-least-32-bytes",
-    "AUTH_JWT_AUDIENCE": "metis",
     "ENCRYPTION_MASTER_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
+    "GOOGLE_CLIENT_ID": "metis-test.apps.googleusercontent.com",
+    "GOOGLE_CLIENT_SECRET": "test-google-client-secret",
+    "GOOGLE_REDIRECT_URI": "http://test/v1/auth/google/callback",
 }
 
 for _name, _value in _REQUIRED_ENV.items():

@@ -18,7 +18,7 @@ from uuid import UUID
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import APP_ROLE, add_member_directly, assert_problem, bearer, make_token, me
+from api_helpers import add_member_directly, me
 from fake_exa_mcp import ExaMode, FakeExaMcp
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -31,6 +31,7 @@ from metis.helpers import http as provider_http
 from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import identity
 from metis.modules.identity import ProviderKind
+from tests.helpers.auth import APP_ROLE, assert_problem, auth, sign_in
 
 LLM_KEY = "sk-test-0123456789abcdef"
 EXA_KEY = "exa-test-0123456789abcd"
@@ -122,20 +123,20 @@ async def put_llm(
         body["base_url"] = base_url
     if model is not None:
         body["model"] = model
-    return await client.put("/v1/settings/keys/llm", json=body, headers=bearer(token, workspace))
+    return await client.put("/v1/settings/keys/llm", json=body, headers=auth(token, workspace))
 
 
 async def put_exa(
     client: httpx.AsyncClient, token: str, value: str = EXA_KEY, **extra: str
 ) -> httpx.Response:
     body = {"value": value, **extra}
-    return await client.put("/v1/settings/keys/exa", json=body, headers=bearer(token))
+    return await client.put("/v1/settings/keys/exa", json=body, headers=auth(token))
 
 
 async def get_settings_body(
     client: httpx.AsyncClient, token: str, workspace: str | None = None
 ) -> Any:
-    response = await client.get("/v1/settings", headers=bearer(token, workspace))
+    response = await client.get("/v1/settings", headers=auth(token, workspace))
     assert response.status_code == 200, response.text
     return response.json()
 
@@ -162,23 +163,27 @@ def assert_no_plaintext(response: httpx.Response, *secrets: str) -> None:
 
 
 # ----------------------------------------------------------------- GET settings
-async def test_new_workspace_has_no_keys_and_default_settings(client: httpx.AsyncClient) -> None:
-    body = await get_settings_body(client, make_token())
+async def test_new_workspace_has_no_keys_and_default_settings(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    body = await get_settings_body(client, await sign_in(engine))
 
     assert body["keys"] == {"llm": None, "exa": None}
     assert body["settings"] == {"run_budget_usd": 2.0, "max_steps": 50, "version": 0}
 
 
-async def test_settings_need_a_token(client: httpx.AsyncClient) -> None:
-    assert_problem(await client.get("/v1/settings"), 401, "auth.unauthorized")
+async def test_settings_need_a_session(client: httpx.AsyncClient) -> None:
+    assert_problem(await client.get("/v1/settings"), 401, "auth.not_signed_in")
 
 
 # ----------------------------------------------------------------- PUT key
-async def test_saved_llm_key_is_masked_and_never_returned(client: httpx.AsyncClient) -> None:
-    token = make_token()
+async def test_saved_llm_key_is_masked_and_never_returned(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    token = await sign_in(engine)
 
     saved = await put_llm(client, token)
-    listed = await client.get("/v1/settings", headers=bearer(token))
+    listed = await client.get("/v1/settings", headers=auth(token))
 
     assert saved.status_code == 200, saved.text
     key = saved.json()
@@ -197,7 +202,7 @@ async def test_saved_llm_key_is_masked_and_never_returned(client: httpx.AsyncCli
 async def test_stored_key_is_encrypted_and_opens_only_through_get_key_for_use(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_llm(client, token)
     workspace_id = await personal_workspace_id(client, token)
 
@@ -215,9 +220,9 @@ async def test_stored_key_is_encrypted_and_opens_only_through_get_key_for_use(
 async def test_saving_again_replaces_the_key_and_clears_the_test_result(
     client: httpx.AsyncClient, provider: FakeProvider, engine: AsyncEngine
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_llm(client, token)
-    await client.post("/v1/settings/keys/llm/test", headers=bearer(token))
+    await client.post("/v1/settings/keys/llm/test", headers=auth(token))
 
     replaced = await put_llm(client, token, value="sk-new-key-9876543210zz")
     creds = await key_for_use(engine, await personal_workspace_id(client, token))
@@ -230,8 +235,10 @@ async def test_saving_again_replaces_the_key_and_clears_the_test_result(
     assert creds.api_key == "sk-new-key-9876543210zz"
 
 
-async def test_exa_key_needs_no_base_url_or_model(client: httpx.AsyncClient) -> None:
-    response = await put_exa(client, make_token())
+async def test_exa_key_needs_no_base_url_or_model(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    response = await put_exa(client, await sign_in(engine))
 
     assert response.status_code == 200, response.text
     assert response.json()["base_url"] is None
@@ -239,8 +246,10 @@ async def test_exa_key_needs_no_base_url_or_model(client: httpx.AsyncClient) -> 
     assert_no_plaintext(response, EXA_KEY)
 
 
-async def test_base_url_trailing_slash_is_normalised(client: httpx.AsyncClient) -> None:
-    response = await put_llm(client, make_token(), base_url=LLM_BASE_URL + "/")
+async def test_base_url_trailing_slash_is_normalised(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    response = await put_llm(client, await sign_in(engine), base_url=LLM_BASE_URL + "/")
 
     assert response.json()["base_url"] == LLM_BASE_URL
 
@@ -262,26 +271,28 @@ async def test_base_url_trailing_slash_is_normalised(client: httpx.AsyncClient) 
     ],
 )
 async def test_invalid_key_input_is_422_without_echoing_the_key(
-    client: httpx.AsyncClient, body: dict[str, str], kind: str
+    client: httpx.AsyncClient, body: dict[str, str], kind: str, engine: AsyncEngine
 ) -> None:
     response = await client.put(
-        f"/v1/settings/keys/{kind}", json=body, headers=bearer(make_token())
+        f"/v1/settings/keys/{kind}", json=body, headers=auth(await sign_in(engine))
     )
 
     assert_problem(response, 422, "common.validation_failed")
     assert_no_plaintext(response, LLM_KEY, EXA_KEY)
 
 
-async def test_unknown_kind_is_422(client: httpx.AsyncClient) -> None:
+async def test_unknown_kind_is_422(client: httpx.AsyncClient, engine: AsyncEngine) -> None:
     response = await client.put(
-        "/v1/settings/keys/anthropic", json={"value": LLM_KEY}, headers=bearer(make_token())
+        "/v1/settings/keys/anthropic", json={"value": LLM_KEY}, headers=auth(await sign_in(engine))
     )
 
     assert_problem(response, 422, "common.validation_failed")
 
 
-async def test_local_http_base_url_is_allowed_in_development(client: httpx.AsyncClient) -> None:
-    response = await put_llm(client, make_token(), base_url="http://localhost:11434/v1")
+async def test_local_http_base_url_is_allowed_in_development(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    response = await put_llm(client, await sign_in(engine), base_url="http://localhost:11434/v1")
 
     assert response.status_code == 200, response.text
     assert response.json()["base_url"] == "http://localhost:11434/v1"
@@ -289,39 +300,41 @@ async def test_local_http_base_url_is_allowed_in_development(client: httpx.Async
 
 @pytest.mark.usefixtures("production_env")
 async def test_local_http_base_url_is_refused_outside_development(
-    client: httpx.AsyncClient,
+    client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
-    response = await put_llm(client, make_token(), base_url="http://localhost:11434/v1")
+    response = await put_llm(client, await sign_in(engine), base_url="http://localhost:11434/v1")
 
     assert_problem(response, 422, "common.validation_failed")
 
 
 # ----------------------------------------------------------------- DELETE key
-async def test_deleted_key_is_gone(client: httpx.AsyncClient) -> None:
-    token = make_token()
+async def test_deleted_key_is_gone(client: httpx.AsyncClient, engine: AsyncEngine) -> None:
+    token = await sign_in(engine)
     await put_llm(client, token)
 
-    deleted = await client.delete("/v1/settings/keys/llm", headers=bearer(token))
+    deleted = await client.delete("/v1/settings/keys/llm", headers=auth(token))
 
     assert deleted.status_code == 204, deleted.text
     assert (await get_settings_body(client, token))["keys"]["llm"] is None
 
 
-async def test_deleting_a_missing_key_is_404(client: httpx.AsyncClient) -> None:
-    response = await client.delete("/v1/settings/keys/exa", headers=bearer(make_token()))
+async def test_deleting_a_missing_key_is_404(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    response = await client.delete("/v1/settings/keys/exa", headers=auth(await sign_in(engine)))
 
     assert_problem(response, 404, "provider.key_not_found")
 
 
 # ----------------------------------------------------------------- test key
 async def test_llm_key_test_lists_models_with_the_key(
-    client: httpx.AsyncClient, provider: FakeProvider
+    client: httpx.AsyncClient, provider: FakeProvider, engine: AsyncEngine
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_llm(client, token)
     provider.handler = lambda _r: httpx.Response(200, json={"data": [{"id": LLM_MODEL}]})
 
-    response = await client.post("/v1/settings/keys/llm/test", headers=bearer(token))
+    response = await client.post("/v1/settings/keys/llm/test", headers=auth(token))
 
     assert response.status_code == 200, response.text
     assert response.json()["last_test_ok"] is True
@@ -335,12 +348,12 @@ async def test_llm_key_test_lists_models_with_the_key(
 
 @pytest.mark.usefixtures("provider")
 async def test_exa_key_test_calls_web_search_once_over_mcp_with_the_key(
-    client: httpx.AsyncClient, exa: FakeExaMcp
+    client: httpx.AsyncClient, exa: FakeExaMcp, engine: AsyncEngine
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_exa(client, token)
 
-    response = await client.post("/v1/settings/keys/exa/test", headers=bearer(token))
+    response = await client.post("/v1/settings/keys/exa/test", headers=auth(token))
 
     assert response.status_code == 200, response.text
     assert response.json()["last_test_ok"] is True
@@ -362,13 +375,13 @@ async def test_exa_key_test_calls_web_search_once_over_mcp_with_the_key(
     ],
 )
 async def test_failed_exa_key_test_is_502_and_is_recorded(
-    client: httpx.AsyncClient, exa: FakeExaMcp, mode: ExaMode, reason: str
+    client: httpx.AsyncClient, exa: FakeExaMcp, mode: ExaMode, reason: str, engine: AsyncEngine
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_exa(client, token)
     exa.mode = mode
 
-    response = await client.post("/v1/settings/keys/exa/test", headers=bearer(token))
+    response = await client.post("/v1/settings/keys/exa/test", headers=auth(token))
     stored = (await get_settings_body(client, token))["keys"]["exa"]
 
     assert_problem(response, 502, "provider.upstream_error")
@@ -379,14 +392,14 @@ async def test_failed_exa_key_test_is_502_and_is_recorded(
 
 @pytest.mark.usefixtures("provider")
 async def test_exa_key_test_is_capped_at_the_total_timeout(
-    client: httpx.AsyncClient, exa: FakeExaMcp, monkeypatch: pytest.MonkeyPatch
+    client: httpx.AsyncClient, exa: FakeExaMcp, monkeypatch: pytest.MonkeyPatch, engine: AsyncEngine
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_exa(client, token)
     monkeypatch.setattr(provider_http, "PROVIDER_TIMEOUT_SECONDS", TINY_TIMEOUT_SECONDS)
     exa.mode = ExaMode.SLOW
 
-    response = await client.post("/v1/settings/keys/exa/test", headers=bearer(token))
+    response = await client.post("/v1/settings/keys/exa/test", headers=auth(token))
 
     assert_problem(response, 502, "provider.upstream_error")
     assert response.json()["meta"] == {"provider": "exa", "reason": "timeout"}
@@ -412,13 +425,17 @@ def _raise(exc: Exception) -> Handler:
     ],
 )
 async def test_failed_key_test_is_502_and_is_recorded(
-    client: httpx.AsyncClient, provider: FakeProvider, handler: Handler, reason: str
+    client: httpx.AsyncClient,
+    provider: FakeProvider,
+    handler: Handler,
+    reason: str,
+    engine: AsyncEngine,
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_llm(client, token)
     provider.handler = handler
 
-    response = await client.post("/v1/settings/keys/llm/test", headers=bearer(token))
+    response = await client.post("/v1/settings/keys/llm/test", headers=auth(token))
     stored = (await get_settings_body(client, token))["keys"]["llm"]
 
     assert_problem(response, 502, "provider.upstream_error")
@@ -429,14 +446,17 @@ async def test_failed_key_test_is_502_and_is_recorded(
 
 
 async def test_key_test_is_capped_at_the_total_timeout(
-    client: httpx.AsyncClient, provider: FakeProvider, monkeypatch: pytest.MonkeyPatch
+    client: httpx.AsyncClient,
+    provider: FakeProvider,
+    monkeypatch: pytest.MonkeyPatch,
+    engine: AsyncEngine,
 ) -> None:
-    token = make_token()
+    token = await sign_in(engine)
     await put_llm(client, token)
     monkeypatch.setattr(provider_http, "PROVIDER_TIMEOUT_SECONDS", TINY_TIMEOUT_SECONDS)
     provider.async_handler = _slow
 
-    response = await client.post("/v1/settings/keys/llm/test", headers=bearer(token))
+    response = await client.post("/v1/settings/keys/llm/test", headers=auth(token))
 
     assert_problem(response, 502, "provider.upstream_error")
     assert response.json()["meta"] == {"provider": "llm", "reason": "timeout"}
@@ -444,20 +464,22 @@ async def test_key_test_is_capped_at_the_total_timeout(
 
 @pytest.mark.usefixtures("provider")
 async def test_testing_a_missing_key_is_not_configured(
-    client: httpx.AsyncClient, exa: FakeExaMcp
+    client: httpx.AsyncClient, exa: FakeExaMcp, engine: AsyncEngine
 ) -> None:
-    response = await client.post("/v1/settings/keys/exa/test", headers=bearer(make_token()))
+    response = await client.post("/v1/settings/keys/exa/test", headers=auth(await sign_in(engine)))
 
     assert_problem(response, 402, "provider.not_configured")
     assert exa.api_keys == []
 
 
 # ----------------------------------------------------------------- PATCH settings
-async def test_first_patch_creates_settings_from_version_zero(client: httpx.AsyncClient) -> None:
-    token = make_token()
+async def test_first_patch_creates_settings_from_version_zero(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    token = await sign_in(engine)
 
     response = await client.patch(
-        "/v1/settings", json={"version": 0, "max_steps": 80}, headers=bearer(token)
+        "/v1/settings", json={"version": 0, "max_steps": 80}, headers=auth(token)
     )
 
     assert response.status_code == 200, response.text
@@ -466,13 +488,13 @@ async def test_first_patch_creates_settings_from_version_zero(client: httpx.Asyn
 
 
 async def test_patch_with_current_version_updates_and_bumps_version(
-    client: httpx.AsyncClient,
+    client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
-    token = make_token()
-    await client.patch("/v1/settings", json={"version": 0, "max_steps": 80}, headers=bearer(token))
+    token = await sign_in(engine)
+    await client.patch("/v1/settings", json={"version": 0, "max_steps": 80}, headers=auth(token))
 
     response = await client.patch(
-        "/v1/settings", json={"version": 1, "run_budget_usd": 7.5}, headers=bearer(token)
+        "/v1/settings", json={"version": 1, "run_budget_usd": 7.5}, headers=auth(token)
     )
 
     assert response.status_code == 200, response.text
@@ -480,13 +502,15 @@ async def test_patch_with_current_version_updates_and_bumps_version(
 
 
 @pytest.mark.parametrize("stale", [0, 1, 5])
-async def test_patch_with_stale_version_is_409(client: httpx.AsyncClient, stale: int) -> None:
-    token = make_token()
-    await client.patch("/v1/settings", json={"version": 0, "max_steps": 80}, headers=bearer(token))
-    await client.patch("/v1/settings", json={"version": 1, "max_steps": 90}, headers=bearer(token))
+async def test_patch_with_stale_version_is_409(
+    client: httpx.AsyncClient, stale: int, engine: AsyncEngine
+) -> None:
+    token = await sign_in(engine)
+    await client.patch("/v1/settings", json={"version": 0, "max_steps": 80}, headers=auth(token))
+    await client.patch("/v1/settings", json={"version": 1, "max_steps": 90}, headers=auth(token))
 
     response = await client.patch(
-        "/v1/settings", json={"version": stale, "max_steps": 10}, headers=bearer(token)
+        "/v1/settings", json={"version": stale, "max_steps": 10}, headers=auth(token)
     )
 
     assert_problem(response, 409, "common.conflict")
@@ -508,18 +532,20 @@ async def test_patch_with_stale_version_is_409(client: httpx.AsyncClient, stale:
     ],
 )
 async def test_invalid_settings_patch_is_422(
-    client: httpx.AsyncClient, body: dict[str, Any]
+    client: httpx.AsyncClient, body: dict[str, Any], engine: AsyncEngine
 ) -> None:
-    response = await client.patch("/v1/settings", json=body, headers=bearer(make_token()))
+    response = await client.patch("/v1/settings", json=body, headers=auth(await sign_in(engine)))
 
     assert_problem(response, 422, "common.validation_failed")
 
 
-async def test_settings_bounds_are_inclusive(client: httpx.AsyncClient) -> None:
+async def test_settings_bounds_are_inclusive(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
     response = await client.patch(
         "/v1/settings",
         json={"version": 0, "run_budget_usd": 100, "max_steps": 200},
-        headers=bearer(make_token()),
+        headers=auth(await sign_in(engine)),
     )
 
     assert response.status_code == 200, response.text
@@ -529,8 +555,8 @@ async def test_settings_bounds_are_inclusive(client: httpx.AsyncClient) -> None:
 # ----------------------------------------------------------------- owners only
 async def team_with_member(client: httpx.AsyncClient, engine: AsyncEngine) -> tuple[str, str]:
     """Ada owns a team workspace with a saved LLM key; Bob is a plain member."""
-    ada, bob = make_token(), make_token("auth|bob", "bob@example.com", "Bob")
-    created = await client.post("/v1/workspaces", json={"name": "Team"}, headers=bearer(ada))
+    ada, bob = await sign_in(engine), await sign_in(engine, "google-bob", "bob@example.com", "Bob")
+    created = await client.post("/v1/workspaces", json={"name": "Team"}, headers=auth(ada))
     team_id = created.json()["workspace"]["id"]
     bob_id = (await me(client, bob))["user"]["id"]
     await add_member_directly(engine, team_id, bob_id)
@@ -542,7 +568,7 @@ async def test_members_cannot_change_keys_or_settings(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
     team_id, bob = await team_with_member(client, engine)
-    headers = bearer(bob, team_id)
+    headers = auth(bob, team_id)
 
     put = await client.put("/v1/settings/keys/exa", json={"value": EXA_KEY}, headers=headers)
     delete = await client.delete("/v1/settings/keys/llm", headers=headers)
@@ -561,7 +587,7 @@ async def test_members_can_read_and_test_keys(
     team_id, bob = await team_with_member(client, engine)
 
     body = await get_settings_body(client, bob, team_id)
-    tested = await client.post("/v1/settings/keys/llm/test", headers=bearer(bob, team_id))
+    tested = await client.post("/v1/settings/keys/llm/test", headers=auth(bob, team_id))
 
     assert body["keys"]["llm"]["masked"] == "sk-…cdef"
     assert tested.status_code == 200, tested.text
@@ -571,9 +597,9 @@ async def test_members_can_read_and_test_keys(
 async def test_keys_and_settings_are_scoped_to_their_workspace(
     client: httpx.AsyncClient, engine: AsyncEngine
 ) -> None:
-    ada, bob = make_token(), make_token("auth|bob", "bob@example.com", "Bob")
+    ada, bob = await sign_in(engine), await sign_in(engine, "google-bob", "bob@example.com", "Bob")
     await put_llm(client, ada)
-    await client.patch("/v1/settings", json={"version": 0, "max_steps": 80}, headers=bearer(ada))
+    await client.patch("/v1/settings", json={"version": 0, "max_steps": 80}, headers=auth(ada))
     bob_workspace = await personal_workspace_id(client, bob)
 
     bobs_view = await get_settings_body(client, bob)

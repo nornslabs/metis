@@ -25,18 +25,21 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 ├── opencode.json              # opencode configuration
 ├── .env.example               # environment variable template
 ├── dist/                      # build artifacts
+├── .github/                   # CI workflow, PR template
 ├── server/                    # Python: FastAPI api, Arq worker, scheduler, LangGraph agent
-│   ├── adapters/              # adapter layer (one file per external vendor)
-│   ├── helpers/               # generic, stateless helpers (see architecture.md)
-│   ├── agent/                 # agent graph
-│   ├── core/                  # core domain
-│   ├── entrypoints/           # API entrypoints
-│   ├── modules/               # domain modules
-│   ├── evals/                 # evaluation datasets
-│   ├── prompts/               # prompt versions
+│   ├── metis/                 # the Python package
+│   │   ├── adapters/          # adapter layer (one file per external vendor; MCP ones in adapters/mcp/)
+│   │   ├── helpers/           # generic, stateless helpers (see architecture.md)
+│   │   ├── agent/             # agent graph
+│   │   ├── core/              # infrastructure: config, db, errors, jobs, events, outbox, security (session cookies), crypto
+│   │   ├── entrypoints/       # api, worker, scheduler processes
+│   │   ├── modules/           # domain modules; each layer (controller, service, repo, cache, models, dto) a folder of one file per domain
+│   │   │                      # (auth owns users, sessions, sign-in; identity owns workspaces, members, keys, settings)
+│   │   ├── evals/             # evaluation datasets
+│   │   └── prompts/           # prompt versions
 │   ├── migrations/            # Alembic migrations
-│   ├── tests/                 # tests
-│   └── ...                    # other server files
+│   ├── tests/                 # tests (mirror metis/)
+│   └── ...                    # pyproject.toml, uv.lock, Dockerfile, alembic.ini
 └── web/                       # Next.js app
     ├── AGENTS.md              # web-specific agent instructions
     ├── app/                   # Next.js app router
@@ -135,7 +138,7 @@ One PRD = one branch. Never mix two PRDs on the same branch.
 
 - One PRD at a time; small, verifiable increments.
 - Stay inside one system boundary per step (`web/`, an API module, a job, the agent graph).
-- Follow module boundaries: other modules only via `service.py`; the agent only via services.
+- Follow module boundaries: other modules only via the module's `__init__.py`; the agent only via services.
 
 ## When to Split Work
 

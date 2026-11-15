@@ -21,6 +21,7 @@ dependencies = [
   "cryptography>=50.0.2",
   "pyjwt>=2.15.1",
   "mcp>=1.30.0",
+  "httpx>=0.28.1",
 ]
 
 [dependency-groups]
@@ -29,7 +30,7 @@ dev = [
   "mypy",
   "pytest",
   "pytest-asyncio",
-  "httpx",
+  "import-linter>=2.16",
 ]
 
 [build-system]
@@ -50,6 +51,44 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "T201"]
 python_version = "3.12"
 strict = true
 files = ["metis"]
+
+[tool.importlinter]
+root_package = "metis"
+
+[[tool.importlinter.contracts]]
+name = "core and helpers import no domain module"
+type = "forbidden"
+source_modules = ["metis.core", "metis.helpers"]
+forbidden_modules = ["metis.modules"]
+
+[[tool.importlinter.contracts]]
+name = "auth imports no other domain module"
+type = "forbidden"
+source_modules = ["metis.modules.auth"]
+# List every sibling module explicitly: forbidding the parent "metis.modules"
+# does not catch imports from a source that lives inside it. Add new modules here.
+forbidden_modules = ["metis.modules.identity", "metis.modules.health"]
+
+[[tool.importlinter.contracts]]
+name = "identity sits above auth"
+type = "layers"
+layers = ["metis.modules.identity", "metis.modules.auth"]
+
+[[tool.importlinter.contracts]]
+name = "identity uses only auth's public surface"
+type = "forbidden"
+source_modules = ["metis.modules.identity"]
+# Only what `metis.modules.auth` exports is public: never its layers. Indirect chains
+# through auth's own `__init__` are fine, so only direct imports are checked.
+forbidden_modules = [
+  "metis.modules.auth.cache",
+  "metis.modules.auth.controller",
+  "metis.modules.auth.dto",
+  "metis.modules.auth.models",
+  "metis.modules.auth.repo",
+  "metis.modules.auth.service",
+]
+allow_indirect_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

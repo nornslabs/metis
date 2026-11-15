@@ -2,13 +2,13 @@
 
 This module follows the controller-service pattern:
 - __init__.py: exports all public symbols
-- schemas.py: response models (data structures)
+- dto.py: response models (data structures)
 - service.py: business logic (health checks)
-- api.py: HTTP controller (routes)
+- controller.py: HTTP controller (routes)
 """
 
-from metis.modules.health.api import health_check, router
-from metis.modules.health.schemas import HealthResponse, HealthStatus
+from metis.modules.health.controller import health_check, router
+from metis.modules.health.dto import HealthResponse, HealthStatus
 from metis.modules.health.service import (
     check_postgres_health,
     check_redis_health,

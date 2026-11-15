@@ -16,7 +16,7 @@ from fastapi import FastAPI
 from starlette.testclient import TestClient
 
 from metis.core.error_handlers import register_error_handlers
-from metis.modules.health.schemas import HealthResponse, HealthStatus
+from metis.modules.health.dto import HealthResponse, HealthStatus
 
 
 class TestHealthResponse:
@@ -56,9 +56,9 @@ class TestPostgresRepository:
     @pytest.mark.asyncio
     async def test_query_postgres_success(self) -> None:
         """query_postgres should return True when query succeeds."""
-        from metis.modules.health.repository import query_postgres
+        from metis.modules.health.repo import query_postgres
 
-        with patch("metis.modules.health.repository.asyncpg.connect") as mock_connect:
+        with patch("metis.modules.health.repo.asyncpg.connect") as mock_connect:
             mock_conn = AsyncMock()
             mock_conn.execute = AsyncMock(return_value="1")
             mock_conn.close = AsyncMock()
@@ -75,9 +75,9 @@ class TestPostgresRepository:
     @pytest.mark.asyncio
     async def test_query_postgres_failure(self) -> None:
         """query_postgres should return False on connection failure."""
-        from metis.modules.health.repository import query_postgres
+        from metis.modules.health.repo import query_postgres
 
-        with patch("metis.modules.health.repository.asyncpg.connect") as mock_connect:
+        with patch("metis.modules.health.repo.asyncpg.connect") as mock_connect:
             mock_connect.side_effect = Exception("Connection refused")
 
             result = await query_postgres(
@@ -95,9 +95,9 @@ class TestRedisRepository:
     @pytest.mark.asyncio
     async def test_ping_redis_success(self) -> None:
         """ping_redis should return True when reachable."""
-        from metis.modules.health.repository import ping_redis
+        from metis.modules.health.repo import ping_redis
 
-        with patch("metis.modules.health.repository.redis.from_url") as mock_redis:
+        with patch("metis.modules.health.repo.redis.from_url") as mock_redis:
             mock_client = AsyncMock()
             mock_client.ping = AsyncMock(return_value=True)
             mock_client.close = AsyncMock()
@@ -110,9 +110,9 @@ class TestRedisRepository:
     @pytest.mark.asyncio
     async def test_ping_redis_failure(self) -> None:
         """ping_redis should return False on connection failure."""
-        from metis.modules.health.repository import ping_redis
+        from metis.modules.health.repo import ping_redis
 
-        with patch("metis.modules.health.repository.redis.from_url") as mock_redis:
+        with patch("metis.modules.health.repo.redis.from_url") as mock_redis:
             mock_redis.side_effect = Exception("Connection refused")
 
             result = await ping_redis(url="redis://localhost:6379/0", timeout_secs=1.0)
@@ -315,14 +315,14 @@ class TestToAsyncpgDsn:
     """asyncpg rejects SQLAlchemy driver suffixes, so the DSN is normalized."""
 
     def test_strips_sqlalchemy_driver_suffix(self) -> None:
-        from metis.modules.health.repository import to_asyncpg_dsn
+        from metis.modules.health.repo import to_asyncpg_dsn
 
         url = "postgresql+asyncpg://u:p@localhost:5432/metis"
 
         assert to_asyncpg_dsn(url) == "postgresql://u:p@localhost:5432/metis"
 
     def test_leaves_plain_dsn_unchanged(self) -> None:
-        from metis.modules.health.repository import to_asyncpg_dsn
+        from metis.modules.health.repo import to_asyncpg_dsn
 
         url = "postgresql://u:p@localhost:5432/metis"
 

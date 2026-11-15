@@ -91,8 +91,6 @@ def _build_problem_response(
 
     if meta and "retry_after" in meta:
         headers["Retry-After"] = str(meta["retry_after"])
-    if error_spec.status == _HTTP_UNAUTHORIZED:
-        headers["WWW-Authenticate"] = "Bearer"
 
     return JSONResponse(body, status_code=error_spec.status, headers=headers)
 

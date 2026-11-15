@@ -52,6 +52,10 @@ jobs:
         working-directory: server
         run: uv run mypy
 
+      - name: Import contracts
+        working-directory: server
+        run: uv run lint-imports
+
       - name: Database migrations
         working-directory: server
         run: uv run alembic upgrade head
@@ -161,8 +165,6 @@ jobs:
             --network host \
             -e DATABASE_URL="postgresql+asyncpg://postgres:postgres@localhost:5432/metis" \
             -e REDIS_URL="redis://localhost:6379/0" \
-            -e AUTH_JWT_SECRET="ci-only-jwt-secret-not-for-production" \
-            -e AUTH_JWT_AUDIENCE="metis" \
             -e ENCRYPTION_MASTER_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" \
             metis-server:test \
             uvicorn metis.entrypoints.api:app --host 0.0.0.0 --port 8000

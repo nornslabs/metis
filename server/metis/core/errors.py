@@ -45,8 +45,13 @@ class ErrorCode(StrEnum):
     # ----------------------------------------------------------------------- auth
     UNAUTHORIZED = "auth.unauthorized"
     FORBIDDEN = "auth.forbidden"
-    TOKEN_EXPIRED = "auth.token_expired"
     INVALID_CREDENTIALS = "auth.invalid_credentials"
+    NOT_SIGNED_IN = "auth.not_signed_in"
+    SESSION_EXPIRED = "auth.session_expired"
+    CSRF_FAILED = "auth.csrf_failed"
+    OAUTH_STATE_INVALID = "auth.oauth_state_invalid"
+    OAUTH_FAILED = "auth.oauth_failed"
+    EMAIL_UNVERIFIED = "auth.email_unverified"
 
     # -------------------------------------------------------------------- workspace
     WORKSPACE_NOT_FOUND = "workspace.not_found"
@@ -186,14 +191,39 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Forbidden",
         retryable=False,
     ),
-    ErrorCode.TOKEN_EXPIRED: ErrorSpec(
-        status=401,
-        title="Token Expired",
-        retryable=False,
-    ),
     ErrorCode.INVALID_CREDENTIALS: ErrorSpec(
         status=401,
         title="Invalid Credentials",
+        retryable=False,
+    ),
+    ErrorCode.NOT_SIGNED_IN: ErrorSpec(
+        status=401,
+        title="Not Signed In",
+        retryable=False,
+    ),
+    ErrorCode.SESSION_EXPIRED: ErrorSpec(
+        status=401,
+        title="Session Expired",
+        retryable=False,
+    ),
+    ErrorCode.CSRF_FAILED: ErrorSpec(
+        status=403,
+        title="CSRF Check Failed",
+        retryable=False,
+    ),
+    ErrorCode.OAUTH_STATE_INVALID: ErrorSpec(
+        status=400,
+        title="Sign-in Link Invalid",
+        retryable=False,
+    ),
+    ErrorCode.OAUTH_FAILED: ErrorSpec(
+        status=502,
+        title="Sign-in Failed",
+        retryable=True,
+    ),
+    ErrorCode.EMAIL_UNVERIFIED: ErrorSpec(
+        status=403,
+        title="Email Not Verified",
         retryable=False,
     ),
     # workspace
@@ -460,10 +490,40 @@ class AuthError(MetisError):
     code: ErrorCode = ErrorCode.UNAUTHORIZED
 
 
-class TokenExpiredError(AuthError):
-    """The bearer token has expired; the client should refresh it."""
+class NotSignedInError(MetisError):
+    """The request carries no session cookie; the user must sign in."""
 
-    code: ErrorCode = ErrorCode.TOKEN_EXPIRED
+    code: ErrorCode = ErrorCode.NOT_SIGNED_IN
+
+
+class SessionExpiredError(MetisError):
+    """The session cookie is unknown, expired, idle or revoked; sign in again."""
+
+    code: ErrorCode = ErrorCode.SESSION_EXPIRED
+
+
+class CsrfError(MetisError):
+    """A cookie-authenticated mutation lacks the ``X-Metis-Client: web`` header."""
+
+    code: ErrorCode = ErrorCode.CSRF_FAILED
+
+
+class OAuthStateInvalidError(MetisError):
+    """The sign-in callback's ``state`` is missing, unknown, expired or already used."""
+
+    code: ErrorCode = ErrorCode.OAUTH_STATE_INVALID
+
+
+class OAuthFailedError(MetisError):
+    """The identity provider failed or sent an answer that did not verify."""
+
+    code: ErrorCode = ErrorCode.OAUTH_FAILED
+
+
+class EmailUnverifiedError(MetisError):
+    """The identity provider has not verified the account's email."""
+
+    code: ErrorCode = ErrorCode.EMAIL_UNVERIFIED
 
 
 class PermissionDeniedError(MetisError):
@@ -512,10 +572,6 @@ class AlreadyMemberError(ConflictError):
     """The user is already a member of the workspace."""
 
 
-class EmailTakenError(ConflictError):
-    """The email already belongs to another account."""
-
-
 class MalformedEventError(MetisError):
     """A run event stream entry could not be decoded."""
 
@@ -548,7 +604,9 @@ __all__ = [
     "NotFoundError",
     "ConflictError",
     "AuthError",
-    "TokenExpiredError",
+    "NotSignedInError",
+    "SessionExpiredError",
+    "CsrfError",
     "PermissionDeniedError",
     "InvalidInputError",
     "UpstreamError",
@@ -561,5 +619,4 @@ __all__ = [
     "MemberUserNotFoundError",
     "AlreadyMemberError",
     "WorkspaceNotFoundError",
-    "EmailTakenError",
 ]

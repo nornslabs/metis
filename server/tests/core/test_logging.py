@@ -8,6 +8,8 @@ Tests verify:
 
 from __future__ import annotations
 
+import logging
+
 import structlog
 
 
@@ -91,3 +93,47 @@ class TestLoggingFunctions:
 
         # Function exists
         assert callable(configure_logging)
+
+
+class TestAccessLogQueryRedaction:
+    """uvicorn's access line must never carry query strings (OAuth code/state live there)."""
+
+    @staticmethod
+    def _access_record(path: str) -> logging.LogRecord:
+        return logging.LogRecord(
+            name="uvicorn.access",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg='%s - "%s %s HTTP/%s" %d',
+            args=("127.0.0.1:5000", "GET", path, "1.1", 302),
+            exc_info=None,
+        )
+
+    def test_query_string_is_dropped_from_the_access_line(self) -> None:
+        from metis.core.logging import StripQueryFilter
+
+        record = self._access_record("/v1/auth/google/callback?code=c-123&state=s-456")
+
+        assert StripQueryFilter().filter(record) is True
+        message = record.getMessage()
+        assert "/v1/auth/google/callback" in message
+        assert "c-123" not in message and "s-456" not in message and "?" not in message
+
+    def test_path_without_query_is_unchanged(self) -> None:
+        from metis.core.logging import StripQueryFilter
+
+        record = self._access_record("/v1/auth/me")
+
+        StripQueryFilter().filter(record)
+
+        assert record.getMessage() == '127.0.0.1:5000 - "GET /v1/auth/me HTTP/1.1" 302'
+
+    def test_configure_logging_installs_the_filter_on_uvicorn_access(self) -> None:
+        from metis.core.config import get_settings
+        from metis.core.logging import StripQueryFilter, configure_logging
+
+        configure_logging(get_settings())
+
+        access = logging.getLogger("uvicorn.access")
+        assert any(isinstance(f, StripQueryFilter) for f in access.filters)
