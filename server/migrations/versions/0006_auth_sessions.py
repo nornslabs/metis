@@ -11,6 +11,8 @@ Every existing user is backfilled with a ``google`` identity from
 ``users.auth_sub`` stays until SHIP-267.
 """
 
+from datetime import datetime
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
@@ -31,7 +33,7 @@ ON CONFLICT (provider, subject) DO NOTHING
 """
 
 
-def _timestamp(name: str) -> sa.Column[sa.DateTime]:
+def _timestamp(name: str) -> sa.Column[datetime]:
     return sa.Column(
         name, sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )
@@ -59,17 +61,11 @@ def upgrade() -> None:
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id", name="pk_auth_identities"),
         _user_fk("auth_identities"),
-        sa.UniqueConstraint(
-            "provider", "subject", name="uq_auth_identities_provider_subject"
-        ),
-        sa.CheckConstraint(
-            "provider IN ('google', 'email')", name="ck_auth_identities_provider"
-        ),
+        sa.UniqueConstraint("provider", "subject", name="uq_auth_identities_provider_subject"),
+        sa.CheckConstraint("provider IN ('google', 'email')", name="ck_auth_identities_provider"),
         schema=SCHEMA,
     )
-    op.create_index(
-        "ix_auth_identities_user_id", "auth_identities", ["user_id"], schema=SCHEMA
-    )
+    op.create_index("ix_auth_identities_user_id", "auth_identities", ["user_id"], schema=SCHEMA)
     op.create_table(
         "sessions",
         sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),

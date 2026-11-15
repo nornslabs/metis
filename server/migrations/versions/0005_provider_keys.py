@@ -7,6 +7,8 @@ limits; a missing row means defaults. Both are tenant tables with RLS.
 ``metis_app`` gets DML through the default privileges from ``0004_app_role``.
 """
 
+from datetime import datetime
+
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
@@ -19,7 +21,7 @@ depends_on = None
 SCHEMA = "identity"
 
 
-def _timestamp(name: str) -> sa.Column[sa.DateTime]:
+def _timestamp(name: str) -> sa.Column[datetime]:
     return sa.Column(
         name, sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")
     )

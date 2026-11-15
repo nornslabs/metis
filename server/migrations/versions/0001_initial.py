@@ -7,9 +7,7 @@ Creates:
 - Helper function enable_tenant_rls() for tenant isolation
 """
 
-
 from alembic import op
-from sqlalchemy import Connection
 
 # alembic version identifier
 revision = "0001_initial"
@@ -86,54 +84,3 @@ def downgrade() -> None:
     for schema in schemas:
         op.execute(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
     op.execute(DROP_TENANT_RLS_SQL)
-
-
-# -----------------------------------------------------------------------------
-# Async version for future async migrations
-# -----------------------------------------------------------------------------
-
-
-async def upgrade_async(connection: Connection) -> None:
-    """Async version of upgrade (for future use with AsyncConnection)."""
-    await connection.exec_text("SELECT 1")  # keep connection alive
-
-    schemas = [
-        "core",
-        "identity",
-        "ideas",
-        "research",
-        "scoring",
-        "planning",
-        "integrations",
-        "memory",
-        "notifications",
-    ]
-
-    async with connection.begin():
-        await connection.exec_text("CREATE EXTENSION IF NOT EXISTS vector")
-        await connection.exec_text("CREATE EXTENSION IF NOT EXISTS pgcrypto")
-
-        for schema in schemas:
-            await connection.exec_text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
-
-        await connection.exec_text(ENABLE_TENANT_RLS_SQL)
-
-
-async def downgrade_async(connection: Connection) -> None:
-    """Async version of downgrade."""
-    schemas = [
-        "notifications",
-        "memory",
-        "integrations",
-        "planning",
-        "scoring",
-        "research",
-        "ideas",
-        "identity",
-        "core",
-    ]
-
-    async with connection.begin():
-        for schema in schemas:
-            await connection.exec_text(f"DROP SCHEMA IF EXISTS {schema} CASCADE")
-        await connection.exec_text(DROP_TENANT_RLS_SQL)
