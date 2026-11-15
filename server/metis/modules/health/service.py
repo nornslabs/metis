@@ -3,7 +3,7 @@
 This module is the service layer in the controller-service pattern:
 - api.py: Controller (HTTP routes)
 - service.py: Service (orchestration, business logic)
-- repository.py: Repository (data access, connection handling)
+- repo.py: Repository (data access, connection handling)
 - parse.py: Transformers (data normalization)
 
 This module orchestrates health checks and returns results in the
@@ -13,7 +13,7 @@ response format expected by the controller.
 from __future__ import annotations
 
 from metis.modules.health.parse import build_health_response, get_git_version
-from metis.modules.health.repository import (
+from metis.modules.health.repo import (
     check_postgres_connection,
     check_redis_connection,
 )

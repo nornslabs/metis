@@ -26,8 +26,8 @@ from metis.core import security
 from metis.core.config import get_settings
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
+from metis.modules.auth import cache, repo
 from metis.modules.auth import service as auth_service
-from metis.modules.auth import sessions_repo
 from metis.modules.auth.schemas import SessionRecord
 from tests.helpers.auth import assert_problem, create_user
 from tests.helpers.migrations import load_migration
@@ -210,11 +210,11 @@ async def test_stale_cache_write_after_revocation_cannot_revive_the_session(
     _, token = ada
     token_hash = security.hash_session_token(token)
     async with AsyncSession(engine) as session:
-        stale = await sessions_repo.get_session_by_hash(session, token_hash)
+        stale = await repo.get_session_by_hash(session, token_hash)
     assert isinstance(stale, SessionRecord)
 
     await _revoke(engine, redis, token)
-    await sessions_repo.write_cached(redis, token_hash, stale, datetime.now(UTC))
+    await cache.write_session(redis, token_hash, stale, datetime.now(UTC))
 
     assert_problem(await _get(http, token), 401, "auth.session_expired")
 

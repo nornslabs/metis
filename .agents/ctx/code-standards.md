@@ -16,11 +16,11 @@ modules/<name>/
 ├── __init__.py      # Exports public API
 ├── api.py           # Controller layer: HTTP routes
 ├── service.py       # Service layer: business logic/orchestration
-├── repository.py    # Repository layer: data access (DB, cache)
+├── repo.py          # Repository layer: all Postgres access (one file per module)
+├── cache.py         # Cache layer: all Redis key/value caches (one file per module, if any)
 ├── adapter.py       # External adapters: HTTP clients, MCP, etc.
 ├── schemas.py       # Pydantic models (data structures)
 ├── models.py        # SQLAlchemy models (if DB tables owned)
-├── repo.py          # SQLAlchemy repository (if complex queries)
 ├── events.py        # Domain events (if applicable)
 └── parse.py         # Transformers/normalizers (optional)
 ```
@@ -33,21 +33,29 @@ modules/<name>/
    - Thin handlers that delegate to service layer
 
 2. **`service.py` (Service)**: Business logic orchestration
-   - Coordinates calls between repository and adapters
+   - Coordinates calls between `repo`, `cache` and adapters
    - Pure business rules, no HTTP concerns
+   - Never runs SQL or calls Redis directly
    - Raises domain errors from `core/errors.py`
 
-3. **`repository.py` (Repository)**: Data access
-   - Direct DB queries, cache operations
-   - Low-level connection handling
-   - Returns domain objects or primitives
+3. **`repo.py` (Repository)**: Postgres access
+   - The module's only file with queries; one per module, never one per table (no `users_repo.py`, `sessions_repo.py`)
+   - Grouped by table, each group under a border comment, e.g. `# ---------------------------------------------------- sessions`
+   - Queries only, no business rules; returns rows, DTOs or primitives
 
-4. **`adapter.py` (Adapter)**: External integrations
+4. **`cache.py` (Cache)**: Redis key/value caches
+   - The module's only file that reads or writes its Redis cache keys: key prefixes, TTLs, read/write/evict
+   - One per module; each cache in its own section under a border comment, e.g. `# --------------------------------------------- session cache`, `# ----------------------------------------- oauth login state`
+   - A cache that may be lost logs Redis errors and returns a miss; a store the flow needs (e.g. one-time login state) re-raises `RedisError` for the service to map to a domain error
+   - Not for queues, run event streams or locks: those stay in `core/` (`jobs`, `events`)
+   - `api.py` never imports `repo` or `cache`
+
+5. **`adapter.py` (Adapter)**: External integrations
    - HTTP clients for external APIs
    - MCP tool wrappers
    - Third-party SDK usage
 
-5. **`schemas.py` (Data)**: Pydantic models
+6. **`schemas.py` (Data)**: Pydantic models
    - Request/response schemas
    - Input validation models
    - Data transfer objects
@@ -102,4 +110,4 @@ modules/<name>/
 
 - Unit tests with fake ports (fake LLM, recorded Exa, fake MCP); no real external calls.
 - Integration tests on Docker Postgres + Redis; graph tests cover interrupt/resume.
-- Test each layer independently: mock repository when testing service, mock service when testing controller.
+- Test each layer independently: mock `repo` / `cache` when testing service, mock service when testing controller.

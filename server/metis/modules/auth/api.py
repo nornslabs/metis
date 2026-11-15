@@ -3,8 +3,7 @@
 Login and callback answer with browser redirects, never JSON errors: a failed
 callback goes to ``{WEB_BASE_URL}/sign-in?error=<code>`` with no cookie
 (``finish_login`` rolls its writes back). Logout routes follow the cookie CSRF rule
-(``X-Metis-Client: web``). Thin controllers: the work lives in ``oauth_flow``
-and ``service``.
+(``X-Metis-Client: web``). Thin controllers: the work lives in ``service``.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ from metis.core.db import SessionDep
 from metis.core.errors import MetisError
 from metis.core.redis import RedisDep
 from metis.core.security import clear_session_cookie, set_session_cookie
-from metis.modules.auth import oauth_flow, service
+from metis.modules.auth import service
 from metis.modules.auth.deps import CurrentUserDep, check_csrf
 from metis.modules.auth.providers import GoogleProviderDep
 from metis.modules.auth.providers.base import (
@@ -75,7 +74,7 @@ async def google_login(
     """Send the browser to Google; ``redirect_to`` is where to land after sign-in."""
     try:
         provider = _require(google, AuthProviderName.GOOGLE, OAuthStep.LOGIN)
-        return _redirect(await oauth_flow.start_login(redis, provider, redirect_to))
+        return _redirect(await service.start_login(redis, provider, redirect_to))
     except MetisError as exc:
         return _sign_in_error(exc)
 
@@ -93,7 +92,7 @@ async def google_callback(
     """Finish the Google sign-in, set the session cookie and return to the web app."""
     try:
         provider = _require(google, AuthProviderName.GOOGLE, OAuthStep.CALLBACK)
-        finished = await oauth_flow.finish_login(
+        finished = await service.finish_login(
             session,
             redis,
             provider,

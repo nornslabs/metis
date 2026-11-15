@@ -32,7 +32,7 @@ from metis.core.errors import OAuthFailedError
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
 from metis.modules.auth import service as auth_service
-from metis.modules.auth.oauth_flow import OAUTH_KEY_PREFIX, OAUTH_STATE_TTL_SECONDS
+from metis.modules.auth.cache import OAUTH_KEY_PREFIX, OAUTH_STATE_TTL_SECONDS
 from metis.modules.auth.providers import get_google_provider
 from metis.modules.auth.providers.google import GoogleProvider
 from tests.helpers.auth import assert_problem

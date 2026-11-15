@@ -36,7 +36,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Storage Model
 
 - **Postgres**: all business data (ideas, interviews, research, competitor KB, immutable score runs, specs, plans, exports, encrypted keys/tokens), one schema per module, plus LangGraph checkpoints and pgvector embeddings.
-- **Redis**: ephemeral only (queues, run event streams, locks, rate limits, the 60 s session cache, 10 min OAuth login state).
+- **Redis**: ephemeral only (queues, run event streams, locks, rate limits, the 60 s session cache, 10 min OAuth login state). Queues, streams and locks live in `core/`; a module's caches live only in its `cache.py`.
 - **External**: Exa research (hosted MCP server `https://mcp.exa.ai/mcp`, workspace key in `x-api-key`), Linear issues and Notion pages, all via MCP; Metis stores only Linear/Notion ids.
 
 ## Auth and Access Model
@@ -52,7 +52,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 ## Invariants
 
 1. Request handlers never call LLMs, Exa or MCP; long work runs in workers. One exception: `POST /v1/settings/keys/{kind}/test` goes route → `identity.service.test_key` → the LLM adapter or the Exa MCP client for one bounded check (10 s total; the LLM check lists models and spends no tokens, the Exa check is one 1-result `web_search_exa` call).
-2. Modules use each other only through the other module's public surface, its `__init__.py` (`identity` may import `metis.modules.auth`; `auth` imports no module); the agent writes only through services.
+2. Modules use each other only through the other module's public surface, its `__init__.py` (`identity` may import `metis.modules.auth`; `auth` imports no module); the agent writes only through services. Inside a module, Postgres is reached only through its `repo.py` and Redis caches only through its `cache.py`, both called from `service.py`.
 3. External writes (Linear, Notion) and user decisions require an approval `interrupt()`.
 4. Stages end in validated Pydantic output; score runs, specs and snapshots are immutable versions.
 5. Rubric is fixed: weights 25/25/15/15/10/10; below 55 = adviser mode.
