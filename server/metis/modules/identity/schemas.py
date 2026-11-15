@@ -96,9 +96,8 @@ class _Frozen(BaseModel):
 
 
 class UserClaims(_Frozen):
-    """Sign-in claims from a verified token, validated and normalised."""
+    """A new user's profile from a verified sign-in, validated and normalised."""
 
-    sub: Annotated[str, BeforeValidator(strip), Field(min_length=1)]
     email: Email
     name: Annotated[
         Annotated[str, Field(max_length=MAX_NAME_LENGTH)] | None,

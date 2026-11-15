@@ -22,7 +22,6 @@ from metis.core.db import USER_SETTING, WORKSPACE_SETTING
 from metis.core.errors import (
     AlreadyMemberError,
     ConflictError,
-    EmailTakenError,
     MemberUserNotFoundError,
     PermissionDeniedError,
     ProviderKeyNotFoundError,
@@ -50,7 +49,6 @@ from metis.modules.identity.schemas import (
     SettingsPatch,
     SettingsResponse,
     User,
-    UserClaims,
     Workspace,
     WorkspaceName,
     WorkspaceSettingsView,
@@ -64,16 +62,6 @@ logger = get_logger(__name__)
 async def _add_owner(session: AsyncSession, workspace_id: UUID, user_id: UUID) -> None:
     async with repo.rls_context(session, WORKSPACE_SETTING, workspace_id):
         await repo.insert_member(session, workspace_id, user_id, MemberRole.OWNER)
-
-
-async def upsert_user_from_claims(
-    session: AsyncSession, sub: str, email: str, name: str | None, image: str | None
-) -> User:
-    claims = validate_input(UserClaims, sub=sub, email=email, name=name, image=image)
-    row = await repo.upsert_user(session, claims)
-    if row is None:
-        raise EmailTakenError("That email already belongs to another account")
-    return User.model_validate(row)
 
 
 async def ensure_personal_workspace(session: AsyncSession, user: User) -> Workspace:

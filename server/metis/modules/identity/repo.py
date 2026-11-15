@@ -53,34 +53,6 @@ async def rls_context(session: AsyncSession, setting: str, value: UUID) -> Async
     await set_setting(session, setting, previous or "")
 
 
-async def upsert_user(session: AsyncSession, claims: UserClaims) -> UserRow | None:
-    """Insert or update the user keyed on ``auth_sub``.
-
-    Returns ``None`` when the email already belongs to another account (the only
-    other unique constraint); a savepoint keeps the caller's transaction usable.
-    """
-    stmt = (
-        insert(UserRow)
-        .values(
-            id=uuid7(),
-            auth_sub=claims.sub,
-            email=claims.email,
-            name=claims.name,
-            image=claims.image,
-        )
-        .on_conflict_do_update(
-            index_elements=[UserRow.auth_sub],
-            set_={"email": claims.email, "name": claims.name, "image": claims.image},
-        )
-        .returning(UserRow)
-    )
-    try:
-        async with session.begin_nested():
-            return (await session.scalars(stmt)).one()
-    except IntegrityError:
-        return None
-
-
 async def insert_workspace(
     session: AsyncSession, name: str, created_by: UUID, *, is_personal: bool
 ) -> WorkspaceRow | None:
@@ -122,18 +94,12 @@ async def insert_or_none[RowT](session: AsyncSession, stmt: ReturningInsert[RowT
         return None
 
 
-async def get_user_by_auth_sub(session: AsyncSession, auth_sub: str) -> UserRow | None:
-    stmt = select(UserRow).where(UserRow.auth_sub == auth_sub)
-    return (await session.scalars(stmt)).one_or_none()
-
-
 async def insert_user(session: AsyncSession, claims: UserClaims) -> UserRow | None:
-    """Insert a new user; ``None`` if its ``auth_sub`` or email is already taken."""
+    """Insert a new user; ``None`` if its email is already taken."""
     stmt = (
         insert(UserRow)
         .values(
             id=uuid7(),
-            auth_sub=claims.sub,
             email=claims.email,
             name=claims.name,
             image=claims.image,

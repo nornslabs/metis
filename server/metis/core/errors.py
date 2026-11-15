@@ -45,7 +45,6 @@ class ErrorCode(StrEnum):
     # ----------------------------------------------------------------------- auth
     UNAUTHORIZED = "auth.unauthorized"
     FORBIDDEN = "auth.forbidden"
-    TOKEN_EXPIRED = "auth.token_expired"
     INVALID_CREDENTIALS = "auth.invalid_credentials"
     NOT_SIGNED_IN = "auth.not_signed_in"
     SESSION_EXPIRED = "auth.session_expired"
@@ -190,11 +189,6 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.FORBIDDEN: ErrorSpec(
         status=403,
         title="Forbidden",
-        retryable=False,
-    ),
-    ErrorCode.TOKEN_EXPIRED: ErrorSpec(
-        status=401,
-        title="Token Expired",
         retryable=False,
     ),
     ErrorCode.INVALID_CREDENTIALS: ErrorSpec(
@@ -496,12 +490,6 @@ class AuthError(MetisError):
     code: ErrorCode = ErrorCode.UNAUTHORIZED
 
 
-class TokenExpiredError(AuthError):
-    """The bearer token has expired; the client should refresh it."""
-
-    code: ErrorCode = ErrorCode.TOKEN_EXPIRED
-
-
 class NotSignedInError(MetisError):
     """The request carries no session cookie; the user must sign in."""
 
@@ -584,10 +572,6 @@ class AlreadyMemberError(ConflictError):
     """The user is already a member of the workspace."""
 
 
-class EmailTakenError(ConflictError):
-    """The email already belongs to another account."""
-
-
 class MalformedEventError(MetisError):
     """A run event stream entry could not be decoded."""
 
@@ -620,7 +604,6 @@ __all__ = [
     "NotFoundError",
     "ConflictError",
     "AuthError",
-    "TokenExpiredError",
     "NotSignedInError",
     "SessionExpiredError",
     "CsrfError",
@@ -636,5 +619,4 @@ __all__ = [
     "MemberUserNotFoundError",
     "AlreadyMemberError",
     "WorkspaceNotFoundError",
-    "EmailTakenError",
 ]

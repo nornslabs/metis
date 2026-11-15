@@ -14,7 +14,7 @@ from metis.core.db import SessionDep
 from metis.core.error_handlers import metis_error_response
 from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules.identity import service
-from metis.modules.identity.deps import CurrentUserDep, CurrentWorkspaceDep
+from metis.modules.identity.auth_deps import CurrentUserDep, CurrentWorkspaceDep
 from metis.modules.identity.schemas import (
     CreateWorkspaceRequest,
     MemberRole,

@@ -20,7 +20,7 @@ from uuid import UUID
 import httpx
 import pytest
 import pytest_asyncio
-from api_helpers import assert_problem, make_token, me
+from api_helpers import assert_problem
 from fake_google import AUTHORIZATION_URL, EMAIL, SUBJECT, FakeGoogle, new_rsa_key
 from redis.asyncio import Redis
 from session_probe import PROBE
@@ -133,6 +133,16 @@ async def _count(engine: AsyncEngine, table: str) -> int:
     return (await _rows(engine, f"SELECT count(*) FROM {table}"))[0][0]
 
 
+async def _user_without_identity(engine: AsyncEngine, email: str) -> str:
+    """A user row with no sign-in identity yet, as an older account would have."""
+    rows = await _rows(
+        engine,
+        "INSERT INTO identity.users (id, email) VALUES (gen_random_uuid(), :email) RETURNING id",
+        email=email,
+    )
+    return str(rows[0][0])
+
+
 def _challenge(verifier: str) -> str:
     digest = hashlib.sha256(verifier.encode("ascii")).digest()
     return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
@@ -209,11 +219,11 @@ async def test_first_sign_in_creates_user_workspace_identity_and_session(
     assert token is not None
     whoami = await _whoami(api, token)
     assert whoami.status_code == 200
-    users = await _rows(engine, "SELECT id, email, name, image, auth_sub FROM identity.users")
+    users = await _rows(engine, "SELECT id, email, name, image FROM identity.users")
     assert len(users) == 1
-    user_id, email, name, image, auth_sub = users[0]
+    user_id, email, name, image = users[0]
     assert whoami.json()["user_id"] == str(user_id)
-    assert (email, name, auth_sub) == (EMAIL, "Ada Lovelace", SUBJECT)
+    assert (email, name) == (EMAIL, "Ada Lovelace")
     assert image == "https://lh3.googleusercontent.com/a/ada"
     workspaces = await _rows(engine, "SELECT created_by FROM identity.workspaces WHERE is_personal")
     assert workspaces == [(user_id,)]
@@ -249,8 +259,7 @@ async def test_second_sign_in_reuses_the_user_and_advances_last_login(
 async def test_verified_email_match_links_the_existing_user(
     api: httpx.AsyncClient, google: FakeGoogle, engine: AsyncEngine
 ) -> None:
-    existing = await me(api, make_token(sub="auth|legacy-ada", email=EMAIL))
-    existing_id = existing["user"]["id"]
+    existing_id = await _user_without_identity(engine, EMAIL)
 
     token = _session_token(await _sign_in(api, google))
 
@@ -262,28 +271,16 @@ async def test_verified_email_match_links_the_existing_user(
     assert identities == [(UUID(existing_id), SUBJECT)]
 
 
-async def test_user_with_the_google_subject_as_auth_sub_is_found(
-    api: httpx.AsyncClient, google: FakeGoogle, engine: AsyncEngine
-) -> None:
-    existing = await me(api, make_token(sub=SUBJECT, email="old-ada@example.com"))
-
-    token = _session_token(await _sign_in(api, google))
-
-    assert token is not None
-    assert (await _whoami(api, token)).json()["user_id"] == existing["user"]["id"]
-    assert await _count(engine, "identity.users") == 1
-
-
 async def test_backfilled_identity_is_found_by_subject(
     api: httpx.AsyncClient, google: FakeGoogle, engine: AsyncEngine
 ) -> None:
-    existing = await me(api, make_token(sub="auth|other", email="other@example.com"))
+    existing_id = await _user_without_identity(engine, "other@example.com")
     await _rows(
         engine,
         "INSERT INTO identity.auth_identities (id, user_id, provider, subject, email, "
         "email_verified) VALUES (gen_random_uuid(), :user_id, 'google', :sub, :email, true) "
         "RETURNING id",
-        user_id=existing["user"]["id"],
+        user_id=existing_id,
         sub=SUBJECT,
         email="other@example.com",
     )
@@ -291,7 +288,7 @@ async def test_backfilled_identity_is_found_by_subject(
     token = _session_token(await _sign_in(api, google))
 
     assert token is not None
-    assert (await _whoami(api, token)).json()["user_id"] == existing["user"]["id"]
+    assert (await _whoami(api, token)).json()["user_id"] == existing_id
     assert await _count(engine, "identity.users") == 1
 
 
