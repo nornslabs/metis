@@ -480,3 +480,30 @@ class TestGoogleSettings:
         assert "shh-google" not in str(settings.model_dump())
         assert settings.google_client_secret is not None
         assert settings.google_client_secret.get_secret_value() == "shh-google"
+
+
+class TestLlmPrices:
+    """``LLM_PRICES`` is optional JSON of per-model prices."""
+
+    def test_no_prices_by_default(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("LLM_PRICES", raising=False)
+
+        assert Settings(_env_file=None).llm_prices == {}  # type: ignore[call-arg]
+
+    def test_prices_are_read_from_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(
+            "LLM_PRICES",
+            '{"m": {"input_per_million_usd": "0.15", "output_per_million_usd": "0.60"}}',
+        )
+
+        prices = Settings(_env_file=None).llm_prices  # type: ignore[call-arg]
+
+        assert str(prices["m"].output_per_million_usd) == "0.60"
+
+    def test_a_negative_price_fails_at_startup(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv(
+            "LLM_PRICES", '{"m": {"input_per_million_usd": -1, "output_per_million_usd": 1}}'
+        )
+
+        with pytest.raises(ValidationError):
+            Settings(_env_file=None)  # type: ignore[call-arg]

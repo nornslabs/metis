@@ -21,7 +21,7 @@ Metis turns an idea into: adaptive interview → Exa research → live score (6 
 - `web/` — UI only; talks to the server API, nothing else.
 - `server/metis/entrypoints/` — `api`, `worker`, `scheduler` processes; wiring only.
 - `server/metis/core/` — ports (LLM, research, output, input), DB, jobs, outbox, security. No tables except `core.outbox`.
-- `server/metis/adapters/` — one file per external vendor or protocol endpoint (LLM provider, Exa MCP); they translate between Metis and that vendor and nothing else. Group adapters by how Metis connects to them: providers reached over MCP go in `adapters/mcp/` (`exa.py` today; Linear and Notion later), one file per MCP server. A new connection kind gets its own subfolder the same way.
+- `server/metis/adapters/` — one file or package per external vendor or protocol endpoint (LLM provider in `adapters/llm/`, Exa MCP); they translate between Metis and that vendor and nothing else. Group adapters by how Metis connects to them: providers reached over MCP go in `adapters/mcp/` (`exa.py` today; Linear and Notion later), one file per MCP server. A new connection kind gets its own subfolder the same way.
 - `server/metis/helpers/` — generic helpers: stateless functions and small classes with no business rules, no table, no request scope and no knowledge of one vendor or module (e.g. `http.py` provider HTTP plumbing, `mcp.py` MCP sessions, `ids.py` UUIDv7, `validation.py` safe 422 input validation, `text.py` string clean-up). Any layer may import them; they import only the standard library, third-party libraries and `core.errors`.
   Rule for new code: if a function or file would fit two or more modules or adapters as-is, has no business rule and holds no state or config, it goes in `helpers/` (one file per concern), not in a module, `core` or `adapters`. Infrastructure that holds state or config (DB, jobs, events, outbox, auth, crypto, logging, errors, config) stays in `core`; product rules stay in their module; test-only helpers stay under `server/tests/` (`tests/helpers/` tests the helpers themselves).
 - `server/metis/agent/` — the graph: supervisor + Interviewer, Researcher, Scorer, Advisor, Architect, Planner, Integrator; tools; MCP loading; budgets.
@@ -47,7 +47,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 - The api and workers connect as the non-superuser `metis_app` role, so RLS applies to real traffic; only migrations use the owner role.
 - Every tenant row has `workspace_id`, enforced by Postgres RLS via `enable_tenant_rls(regclass)` (policy `tenant_isolation`: `workspace_id = app.workspace_id`, set per transaction with `set_config(..., true)`). An unset or empty `app.workspace_id` matches no rows (fail closed, no error). Superusers bypass RLS, so the app must connect as a non-superuser role. `identity.members` has `tenant_isolation` plus a SELECT-only `member_self` policy (`user_id = app.user_id`, same fail-closed rule) so a user can list their memberships across workspaces; `identity.workspaces` and the `auth` tables (`users`, `sessions`, `identities`) have no RLS. Exception: `core.outbox` carries `workspace_id` without RLS; the outbox relay reads across workspaces and no API route exposes it.
 - Each idea has one owner; only the owner or workspace admins mutate it.
-- LLM, Exa and MCP credentials are per workspace (BYO), encrypted, never returned or logged. Provider keys live in `identity.provider_keys` (RLS); only `identity.get_key_for_use` decrypts them, for the LLM gateway and the Exa MCP client. Only owners change keys and settings.
+- LLM, Exa and MCP credentials are per workspace (BYO), encrypted, never returned or logged. Provider keys live in `identity.provider_keys` (RLS); only `identity.get_key_for_use` decrypts them, for the LLM gateway (`agent/llm.py`) and the Exa MCP client. Only owners change keys and settings.
 
 ## Invariants
 
@@ -56,4 +56,4 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 3. External writes (Linear, Notion) and user decisions require an approval `interrupt()`.
 4. Stages end in validated Pydantic output; score runs, specs and snapshots are immutable versions.
 5. Rubric is fixed: weights 25/25/15/15/10/10; below 55 = adviser mode.
-6. Every LLM/Exa call is metered against the workspace budget (key checks excepted; they spend no tokens or one tiny search).
+6. Every LLM/Exa call is metered against the workspace budget (key checks excepted; they spend no tokens or one tiny search). LLM calls are recorded per call in `ideas.llm_usage` by the LLM gateway (`agent/llm.py`); enforcing `run_budget_usd` and `max_steps` from those rows is SHIP-237. Only `adapters/llm/` imports `langchain_openai` / `openai`.

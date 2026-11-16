@@ -2,7 +2,7 @@
 
 Talks to any endpoint that speaks the OpenAI REST API (``base_url`` + bearer
 key). Today it only lists models, which proves the URL and key work without
-spending tokens; the LLM gateway (SHIP-220) adds chat calls here.
+spending tokens. Chat calls live in ``chat.py``.
 """
 
 from __future__ import annotations

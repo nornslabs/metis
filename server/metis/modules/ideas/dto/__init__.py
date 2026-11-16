@@ -16,6 +16,7 @@ from metis.modules.ideas.dto.ideas import (
     NewIdea,
     Stage,
 )
+from metis.modules.ideas.dto.llm_usage import NewLlmUsage
 
 __all__ = [
     "DEFAULT_PAGE_SIZE",
@@ -29,5 +30,6 @@ __all__ = [
     "IdeaPage",
     "IdeaPatch",
     "NewIdea",
+    "NewLlmUsage",
     "Stage",
 ]

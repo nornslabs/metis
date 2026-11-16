@@ -22,6 +22,7 @@ dependencies = [
   "pyjwt>=2.15.1",
   "mcp>=1.30.0",
   "httpx>=0.28.1",
+  "langfuse>=5.2.0",
 ]
 
 [dependency-groups]
@@ -54,12 +55,28 @@ files = ["metis"]
 
 [tool.importlinter]
 root_package = "metis"
+include_external_packages = true
 
 [[tool.importlinter.contracts]]
 name = "core and helpers import no domain module"
 type = "forbidden"
 source_modules = ["metis.core", "metis.helpers"]
 forbidden_modules = ["metis.modules"]
+
+[[tool.importlinter.contracts]]
+name = "only the LLM adapter imports the OpenAI client libraries"
+type = "forbidden"
+source_modules = [
+  "metis.core",
+  "metis.helpers",
+  "metis.agent",
+  "metis.modules",
+  "metis.entrypoints",
+  "metis.adapters.mcp",
+]
+# Direct imports only: modules reach the adapter through its own package on purpose.
+allow_indirect_imports = true
+forbidden_modules = ["langchain_openai", "openai"]
 
 [[tool.importlinter.contracts]]
 name = "auth imports no other domain module"
