@@ -9,6 +9,7 @@ from collections.abc import AsyncIterator
 
 import pytest
 import pytest_asyncio
+from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -18,6 +19,8 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.pool import NullPool
 
+from metis.agent.checkpoint import open_checkpointer, setup_checkpointer
+from tests.agent.graph_helpers import APP_DATABASE_URL
 from tests.agent.llm_helpers import FakeLLMServer
 from tests.helpers.auth import APP_ROLE, DATABASE_URL
 from tests.modules.conftest import engine  # noqa: F401  (migrated Postgres fixture)
@@ -45,3 +48,11 @@ async def app_sessions(engine: AsyncEngine) -> AsyncIterator[async_sessionmaker[
 
     yield async_sessionmaker(app_engine, expire_on_commit=False)
     await app_engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def checkpointer(engine: AsyncEngine) -> AsyncIterator[AsyncPostgresSaver]:  # noqa: F811
+    """A Postgres checkpointer connected as ``metis_app``, like the worker's."""
+    await setup_checkpointer(APP_DATABASE_URL)
+    async with open_checkpointer(APP_DATABASE_URL) as saver:
+        yield saver

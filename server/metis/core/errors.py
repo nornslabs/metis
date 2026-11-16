@@ -81,6 +81,7 @@ class ErrorCode(StrEnum):
     RUN_TIMEOUT = "run.timeout"
     RUN_CANCELLED = "run.cancelled"
     RUN_EVENT_MALFORMED = "run.event_malformed"
+    RUN_STEP_LIMIT_REACHED = "run.step_limit_reached"
 
     # ---------------------------------------------------------------------- research
     RESEARCH_NO_RESULTS = "research.no_results"
@@ -323,6 +324,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.RUN_EVENT_MALFORMED: ErrorSpec(
         status=500,
         title="Malformed Run Event",
+        retryable=False,
+    ),
+    ErrorCode.RUN_STEP_LIMIT_REACHED: ErrorSpec(
+        status=422,
+        title="Run Step Limit Reached",
         retryable=False,
     ),
     # research

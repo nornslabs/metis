@@ -31,7 +31,6 @@ WORKDIR /app
 
 COPY --from=builder --chown=metis:metis /app/.venv /app/.venv
 COPY --chown=metis:metis metis/ ./metis/
-COPY --chown=metis:metis prompts/ ./prompts/
 COPY --chown=metis:metis alembic.ini ./alembic.ini
 COPY --chown=metis:metis migrations/ ./migrations/
 

@@ -27,7 +27,7 @@ Metis turns an idea into: adaptive interview → Exa research → live score (6 
 - `server/metis/agent/` — the graph: supervisor + Interviewer, Researcher, Scorer, Advisor, Architect, Planner, Integrator; tools; MCP loading; budgets.
 - `server/metis/modules/<name>/` — auth, identity, ideas, research, scoring, planning, integrations, memory, notifications. Each owns its tables; its public surface is its `__init__.py`, and its layers (`controller/`, `service/`, `repo/`, `cache/`, `models/`, `dto/`, `helpers/`) are internal. `auth` owns who you are (users, sessions, sign-in identities, OAuth, providers; `auth` schema); `identity` owns where you work (workspaces, members, provider keys, settings, `current_workspace`; `identity` schema).
   Import rule: `ideas → identity → auth` only, each through the lower module's `__init__.py` surface; `auth` imports no other module; `core` and `helpers` import no module. Enforced by import-linter (`uv run lint-imports` in CI, contracts in `server/pyproject.toml`).
-- `server/prompts/` — versioned specialist prompts. `server/evals/` — scoring evals.
+- `server/metis/prompts/` — versioned specialist prompts. `server/evals/` — scoring evals.
 
 ## Run Flow
 
@@ -35,7 +35,7 @@ API writes intent → enqueues `run_graph(run_id)` → returns `202`. Worker run
 
 ## Storage Model
 
-- **Postgres**: all business data (ideas, interviews, research, competitor KB, immutable score runs, specs, plans, exports, encrypted keys/tokens), one schema per module, plus LangGraph checkpoints and pgvector embeddings.
+- **Postgres**: all business data (ideas, interviews, research, competitor KB, immutable score runs, specs, plans, exports, encrypted keys/tokens), one schema per module, plus LangGraph checkpoints (own `agent` schema, created by the library's `setup()`, driven through `psycopg`) and pgvector embeddings.
 - **Redis**: ephemeral only (queues, run event streams, locks, rate limits, the 60 s session cache, 10 min OAuth login state). Queues, streams and locks live in `core/`; a module's caches live only in its `cache.py`.
 - **External**: Exa research (hosted MCP server `https://mcp.exa.ai/mcp`, workspace key in `x-api-key`), Linear issues and Notion pages, all via MCP; Metis stores only Linear/Notion ids.
 
