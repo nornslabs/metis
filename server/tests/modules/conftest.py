@@ -37,6 +37,7 @@ async def engine() -> AsyncIterator[AsyncEngine]:
                     "SELECT to_regclass('identity.members') IS NOT NULL "
                     "AND to_regclass('auth.users') IS NOT NULL "
                     "AND to_regclass('auth.sessions') IS NOT NULL "
+                    "AND to_regclass('ideas.ideas') IS NOT NULL "
                     "AND EXISTS (SELECT FROM pg_roles WHERE rolname = :role)"
                 ),
                 {"role": APP_ROLE},
@@ -46,7 +47,9 @@ async def engine() -> AsyncIterator[AsyncEngine]:
         pytest.skip("Postgres not reachable")
     if not ready:
         await engine.dispose()
-        pytest.skip("auth/identity tables or metis_app role missing; run `alembic upgrade head`")
+        pytest.skip(
+            "auth/identity/ideas tables or metis_app role missing; run `alembic upgrade head`"
+        )
     async with engine.begin() as conn:
         await conn.execute(text(TRUNCATE_USERS))
     yield engine

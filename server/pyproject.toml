@@ -67,12 +67,16 @@ type = "forbidden"
 source_modules = ["metis.modules.auth"]
 # List every sibling module explicitly: forbidding the parent "metis.modules"
 # does not catch imports from a source that lives inside it. Add new modules here.
-forbidden_modules = ["metis.modules.identity", "metis.modules.health"]
+forbidden_modules = [
+  "metis.modules.identity",
+  "metis.modules.ideas",
+  "metis.modules.health",
+]
 
 [[tool.importlinter.contracts]]
-name = "identity sits above auth"
+name = "ideas sits above identity, identity above auth"
 type = "layers"
-layers = ["metis.modules.identity", "metis.modules.auth"]
+layers = ["metis.modules.ideas", "metis.modules.identity", "metis.modules.auth"]
 
 [[tool.importlinter.contracts]]
 name = "identity uses only auth's public surface"
@@ -81,6 +85,26 @@ source_modules = ["metis.modules.identity"]
 # Only what `metis.modules.auth` exports is public: never its layers. Indirect chains
 # through auth's own `__init__` are fine, so only direct imports are checked.
 forbidden_modules = [
+  "metis.modules.auth.cache",
+  "metis.modules.auth.controller",
+  "metis.modules.auth.dto",
+  "metis.modules.auth.models",
+  "metis.modules.auth.repo",
+  "metis.modules.auth.service",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "ideas uses only identity's and auth's public surface"
+type = "forbidden"
+source_modules = ["metis.modules.ideas"]
+forbidden_modules = [
+  "metis.modules.identity.controller",
+  "metis.modules.identity.dto",
+  "metis.modules.identity.helpers",
+  "metis.modules.identity.models",
+  "metis.modules.identity.repo",
+  "metis.modules.identity.service",
   "metis.modules.auth.cache",
   "metis.modules.auth.controller",
   "metis.modules.auth.dto",
