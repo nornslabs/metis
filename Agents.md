@@ -175,7 +175,7 @@ Do not modify unless explicitly instructed:
 - `.agents/ctx/*` (except when syncing docs, below)
 - `web/components/ui/*` (shadcn/ui generated components)
 - Merged Alembic migrations in `server/migrations/`
-- Existing prompt versions in `server/prompts/` (add a new version instead)
+- Existing prompt versions in `server/metis/prompts/` (add a new version instead)
 - `server/evals/` datasets
 - Lock files (`uv.lock`, `package-lock.json`) except via the package manager
 

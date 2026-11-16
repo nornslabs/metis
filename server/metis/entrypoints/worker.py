@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from metis.agent.checkpoint import setup_checkpointer
 from metis.core.config import get_settings
 from metis.core.db import engine, get_session_maker
 from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, logged_job, redis_settings
@@ -30,6 +31,12 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     configure_logging(get_settings())
     ctx["engine"] = engine()
     logger.info("worker.started")
+
+
+async def agent_on_startup(ctx: dict[str, Any]) -> None:
+    """``on_startup`` plus the graph's checkpoint tables (idempotent)."""
+    await on_startup(ctx)
+    await setup_checkpointer(get_settings().database_url)
 
 
 async def on_shutdown(ctx: dict[str, Any]) -> None:
@@ -70,7 +77,7 @@ class AgentWorkerSettings:
     functions = [ping]
     queue_name = AGENT_QUEUE
     max_jobs = AGENT_MAX_JOBS
-    on_startup = on_startup
+    on_startup = agent_on_startup
     on_shutdown = on_shutdown
     redis_settings = redis_settings()
 

@@ -6,7 +6,7 @@ import asyncio
 from typing import Any
 
 from metis.core.jobs import logged_job
-from metis.entrypoints.worker import AgentWorkerSettings
+from metis.entrypoints.worker import AgentWorkerSettings, on_startup
 
 SLOW_JOB_SECONDS = 30
 
@@ -33,4 +33,6 @@ def derive_settings(base: type, **overrides: Any) -> type:
     return type("DerivedSettings", (), {**inherited, **overrides})
 
 
-SlowWorkerSettings = derive_settings(AgentWorkerSettings, functions=[slow])
+SlowWorkerSettings = derive_settings(
+    AgentWorkerSettings, functions=[slow], on_startup=on_startup
+)  # these tests have no Postgres

@@ -1,0 +1,58 @@
+"""The graph's state: ids, the stage and short summaries only.
+
+The checkpoint stores this after every node, so it stays small and JSON-safe: documents,
+search results and scores live in their module's tables and are read through services.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated, Any, TypedDict
+from uuid import UUID
+
+from langchain_core.messages import AnyMessage
+from langgraph.graph.message import add_messages
+
+from metis.modules.ideas import Stage
+
+
+class Budget(TypedDict):
+    """Limits for one run; the caller loads them from the workspace's settings."""
+
+    max_steps: int
+
+
+class MetisState(TypedDict):
+    """State of one run. ``stage`` is the run's working copy; nodes do not write ``ideas.stage``.
+
+    A checkpoint restores ``stage`` as a plain string (``Stage`` is a ``StrEnum``), so nodes
+    compare it with ``==``, never ``is``.
+    """
+
+    run_id: str
+    workspace_id: str
+    idea_id: str
+    stage: Stage
+    messages: Annotated[list[AnyMessage], add_messages]
+    summary: str
+    step_count: int
+    budget: Budget
+    pending_approval: dict[str, Any] | None
+    last_error: str | None
+
+
+def initial_state(
+    *, run_id: UUID, workspace_id: UUID, idea_id: UUID, stage: Stage, max_steps: int
+) -> MetisState:
+    """The state a new run starts with."""
+    return MetisState(
+        run_id=str(run_id),
+        workspace_id=str(workspace_id),
+        idea_id=str(idea_id),
+        stage=stage,
+        messages=[],
+        summary="",
+        step_count=0,
+        budget=Budget(max_steps=max_steps),
+        pending_approval=None,
+        last_error=None,
+    )

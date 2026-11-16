@@ -82,7 +82,7 @@ async def test_enqueued_ping_runs_in_worker_and_completes(pool: ArqRedis) -> Non
     job = await enqueue("ping", pool=pool)
     assert job is not None
 
-    await _drain(worker.AgentWorkerSettings)
+    await _drain(derive_settings(worker.AgentWorkerSettings, on_startup=worker.on_startup))
 
     assert await job.result(timeout=RESULT_TIMEOUT_SECONDS) == "pong"
 
@@ -118,7 +118,9 @@ async def _report_context(ctx: dict[str, Any], **_: Any) -> dict[str, Any]:
 
 @pytest.mark.asyncio
 async def test_job_logging_binds_ids_and_does_not_leak(pool: ArqRedis) -> None:
-    settings = derive_settings(worker.AgentWorkerSettings, functions=[_report_context])
+    settings = derive_settings(
+        worker.AgentWorkerSettings, functions=[_report_context], on_startup=worker.on_startup
+    )
 
     job = await pool.enqueue_job(
         "_report_context", _job_id="j1", _queue_name=AGENT_QUEUE, run_id="r1", workspace_id="w1"
