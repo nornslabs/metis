@@ -620,3 +620,21 @@ __all__ = [
     "AlreadyMemberError",
     "WorkspaceNotFoundError",
 ]
+
+
+class IdeaNotFoundError(NotFoundError):
+    """404: no such idea in the caller's workspace (also unknown, archived or foreign ideas)."""
+
+    code: ErrorCode = ErrorCode.IDEA_NOT_FOUND
+
+
+class IdeaNotOwnerError(PermissionDeniedError):
+    """403: only the idea's creator or a workspace owner may change it."""
+
+    code: ErrorCode = ErrorCode.IDEA_NOT_OWNER
+
+
+class IllegalTransition(MetisError):  # noqa: N818  (the catalog and issue call it this)
+    """409: the idea cannot move from its stage to the requested one."""
+
+    code: ErrorCode = ErrorCode.IDEA_INVALID_TRANSITION
