@@ -9,6 +9,8 @@ from metis.modules.ideas.dto import RunStatus
 
 TERMINAL_STATUSES = frozenset({RunStatus.SUCCEEDED, RunStatus.FAILED, RunStatus.CANCELLED})
 
+ACTIVE_STATUSES = frozenset({RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.AWAITING_USER})
+
 ALLOWED_RUN_TRANSITIONS: MappingProxyType[RunStatus, frozenset[RunStatus]] = MappingProxyType(
     {
         RunStatus.QUEUED: frozenset({RunStatus.RUNNING, RunStatus.CANCELLED}),

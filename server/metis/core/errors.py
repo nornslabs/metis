@@ -83,6 +83,8 @@ class ErrorCode(StrEnum):
     RUN_EVENT_MALFORMED = "run.event_malformed"
     RUN_STEP_LIMIT_REACHED = "run.step_limit_reached"
     RUN_FAILED = "run.failed"
+    RUN_IDEMPOTENCY_MISMATCH = "run.idempotency_mismatch"
+    RUN_ENQUEUE_FAILED = "run.enqueue_failed"
 
     # ---------------------------------------------------------------------- research
     RESEARCH_NO_RESULTS = "research.no_results"
@@ -336,6 +338,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         status=500,
         title="Run Failed",
         retryable=False,
+    ),
+    ErrorCode.RUN_IDEMPOTENCY_MISMATCH: ErrorSpec(
+        status=409,
+        title="Idempotency Key Reused",
+        retryable=False,
+    ),
+    ErrorCode.RUN_ENQUEUE_FAILED: ErrorSpec(
+        status=503,
+        title="Run Could Not Be Queued",
+        retryable=True,
     ),
     # research
     ErrorCode.RESEARCH_NO_RESULTS: ErrorSpec(
@@ -620,6 +632,24 @@ class IllegalRunTransition(MetisError):  # noqa: N818  (named like ``IllegalTran
     code: ErrorCode = ErrorCode.RUN_INVALID_STATE
 
 
+class RunAlreadyRunningError(MetisError):
+    """409: the idea already has a queued, running or awaiting_user run."""
+
+    code: ErrorCode = ErrorCode.RUN_ALREADY_RUNNING
+
+
+class IdempotencyMismatchError(MetisError):
+    """409: the ``Idempotency-Key`` already started a run on a different idea."""
+
+    code: ErrorCode = ErrorCode.RUN_IDEMPOTENCY_MISMATCH
+
+
+class RunEnqueueError(MetisError):
+    """503: the run was saved but its job could not be queued; retry the same request."""
+
+    code: ErrorCode = ErrorCode.RUN_ENQUEUE_FAILED
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -645,6 +675,9 @@ __all__ = [
     "WorkspaceNotFoundError",
     "RunNotFoundError",
     "IllegalRunTransition",
+    "RunAlreadyRunningError",
+    "IdempotencyMismatchError",
+    "RunEnqueueError",
 ]
 
 

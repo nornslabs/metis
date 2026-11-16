@@ -12,12 +12,32 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.core.errors import IdeaNotFoundError, RunNotFoundError
+from metis.core.errors import (
+    IdeaNotFoundError,
+    IdempotencyMismatchError,
+    IllegalRunTransition,
+    RunAlreadyRunningError,
+    RunNotFoundError,
+)
 from metis.core.logging import get_logger
 from metis.helpers.time import utcnow
 from metis.modules.ideas import repo
-from metis.modules.ideas.dto import RunKind, RunRef, RunStatus, WorkflowRun
-from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES, check_run_transition
+from metis.modules.ideas.dto import (
+    DEFAULT_PAGE_SIZE,
+    RunKind,
+    RunPage,
+    RunRef,
+    RunStatus,
+    RunView,
+    WorkflowRun,
+)
+from metis.modules.ideas.helpers.cursor import decode_cursor, encode_cursor
+from metis.modules.ideas.helpers.resume_value import check_resume_value
+from metis.modules.ideas.helpers.run_transitions import (
+    ACTIVE_STATUSES,
+    TERMINAL_STATUSES,
+    check_run_transition,
+)
 from metis.modules.ideas.models import WorkflowRunRow
 
 logger = get_logger(__name__)
@@ -42,6 +62,93 @@ async def create_run(
     )
     logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id))
     return WorkflowRun.model_validate(row)
+
+
+async def start_run(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, idempotency_key: str
+) -> WorkflowRun:
+    """Start a run on the idea, once per ``idempotency_key``.
+
+    The same key returns the run it started (``IdempotencyMismatchError`` when that run is on
+    another idea). An idea with a ``queued``, ``running`` or ``awaiting_user`` run refuses a
+    new one (``RunAlreadyRunningError``); a lost race on the unique index lands here too.
+    """
+    if await repo.ideas.get(session, workspace_id, idea_id) is None:
+        raise IdeaNotFoundError()
+    if (known := await _run_for_key(session, workspace_id, idea_id, idempotency_key)) is not None:
+        return known
+    await _refuse_if_active(session, workspace_id, idea_id)
+    row = await repo.workflow_runs.create_or_none(
+        session,
+        workspace_id,
+        idea_id,
+        kind=RunKind.PIPELINE.value,
+        idempotency_key=idempotency_key,
+    )
+    if row is None:  # lost a race: the winner holds the key or the idea's active slot
+        known = await _run_for_key(session, workspace_id, idea_id, idempotency_key)
+        if known is not None:
+            return known
+        raise RunAlreadyRunningError()
+    logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id))
+    return WorkflowRun.model_validate(row)
+
+
+async def prepare_resume(
+    session: AsyncSession, workspace_id: UUID, run_id: UUID, value: str | bool
+) -> tuple[WorkflowRun, str | bool]:
+    """The run and the checked value to resume it with; only an ``awaiting_user`` run resumes."""
+    run = await get_run(session, workspace_id, run_id)
+    if run.status != RunStatus.AWAITING_USER:
+        raise IllegalRunTransition(f"A run that is {run.status.value} cannot be resumed")
+    return run, check_resume_value(run.pending_interrupt, value)
+
+
+async def cancel_run(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> WorkflowRun:
+    """Cancel a ``queued`` or ``awaiting_user`` run now; a ``running`` one is returned as is.
+
+    The caller sets the cancel flag so the worker stops a ``running`` run. A cancelled run
+    stays cancelled; any other terminal run is ``IllegalRunTransition``.
+    """
+    run = await get_run(session, workspace_id, run_id)
+    if run.status == RunStatus.CANCELLED or run.status == RunStatus.RUNNING:
+        return run
+    if run.status in TERMINAL_STATUSES:
+        raise IllegalRunTransition(f"A run that is {run.status.value} cannot be cancelled")
+    try:
+        return await mark_cancelled(session, workspace_id, run_id)
+    except RunNotFoundError:  # the worker picked it up first: it is running now
+        return await get_run(session, workspace_id, run_id)
+
+
+async def get_run_view(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> RunView:
+    """The run with its idea's stage; a run of an archived idea is ``RunNotFoundError``."""
+    run = await get_run(session, workspace_id, run_id)
+    idea = await repo.ideas.get(session, workspace_id, run.idea_id)
+    if idea is None:
+        raise RunNotFoundError()
+    return _view(run, idea.stage)
+
+
+async def list_runs(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    cursor: str | None = None,
+    limit: int = DEFAULT_PAGE_SIZE,
+) -> RunPage:
+    """One page of the idea's runs, newest first, resuming after ``cursor``."""
+    idea = await repo.ideas.get(session, workspace_id, idea_id)
+    if idea is None:
+        raise IdeaNotFoundError()
+    after = decode_cursor(cursor) if cursor is not None else None
+    rows = await repo.workflow_runs.list_page(
+        session, workspace_id, idea_id, after=after, limit=limit + 1
+    )
+    page = rows[:limit]
+    next_cursor = encode_cursor(page[-1].created_at, page[-1].id) if len(rows) > limit else None
+    items = [_view(WorkflowRun.model_validate(row), idea.stage) for row in page]
+    return RunPage(items=items, next_cursor=next_cursor)
 
 
 async def get_run(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> WorkflowRun:
@@ -97,6 +204,27 @@ async def list_running_runs(session: AsyncSession) -> list[RunRef]:
     Only crash recovery calls this. It returns ids, never run data."""
     pairs = await repo.workflow_runs.list_running(session)
     return [RunRef(run_id=run_id, workspace_id=workspace_id) for run_id, workspace_id in pairs]
+
+
+def _view(run: WorkflowRun, stage: str) -> RunView:
+    return RunView.model_validate({**run.model_dump(), "stage": stage})
+
+
+async def _run_for_key(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, idempotency_key: str
+) -> WorkflowRun | None:
+    row = await repo.workflow_runs.get_by_key(session, workspace_id, idempotency_key)
+    if row is None:
+        return None
+    if row.idea_id != idea_id:
+        raise IdempotencyMismatchError()
+    return WorkflowRun.model_validate(row)
+
+
+async def _refuse_if_active(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> None:
+    active = tuple(status.value for status in ACTIVE_STATUSES)
+    if await repo.workflow_runs.get_active_for_idea(session, workspace_id, idea_id, active):
+        raise RunAlreadyRunningError()
 
 
 def _finished() -> dict[str, Any]:
