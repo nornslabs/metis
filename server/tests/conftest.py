@@ -9,6 +9,7 @@ import structlog
 
 _REQUIRED_ENV = {
     "DATABASE_URL": "postgresql+asyncpg://postgres:postgres@localhost:5432/metis",
+    "APP_DB_PASSWORD": "metis_app",
     "REDIS_URL": "redis://localhost:6379/0",
     "ENCRYPTION_MASTER_KEY": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
     "GOOGLE_CLIENT_ID": "metis-test.apps.googleusercontent.com",

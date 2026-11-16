@@ -61,12 +61,14 @@ jobs:
         run: uv run alembic upgrade head
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
+          APP_DB_PASSWORD: metis_app
 
       - name: Pytest
         working-directory: server
         run: uv run pytest
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
+          APP_DB_PASSWORD: metis_app
           REDIS_URL: redis://localhost:6379/0
 
   web:
