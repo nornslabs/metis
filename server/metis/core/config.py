@@ -11,6 +11,7 @@ from typing import Annotated, Any, Self
 from pydantic import BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from metis.helpers.pricing import ModelPrice
 from metis.helpers.text import strip_to_none
 
 
@@ -111,6 +112,10 @@ class Settings(BaseSettings):
     google_redirect_uri: Annotated[str | None, BeforeValidator(strip_to_none)] = Field(
         default=None, validation_alias="GOOGLE_REDIRECT_URI"
     )
+
+    # Optional LLM prices, model id -> USD per million tokens (JSON). A model without
+    # an entry has no cost recorded; there is no built-in price list.
+    llm_prices: dict[str, ModelPrice] = Field(default_factory=dict, validation_alias="LLM_PRICES")
 
     # Observability settings (optional)
     sentry_dsn: str | None = Field(default=None, validation_alias="SENTRY_DSN")

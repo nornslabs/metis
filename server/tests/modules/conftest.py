@@ -38,6 +38,7 @@ async def engine() -> AsyncIterator[AsyncEngine]:
                     "AND to_regclass('auth.users') IS NOT NULL "
                     "AND to_regclass('auth.sessions') IS NOT NULL "
                     "AND to_regclass('ideas.ideas') IS NOT NULL "
+                    "AND to_regclass('ideas.llm_usage') IS NOT NULL "
                     "AND EXISTS (SELECT FROM pg_roles WHERE rolname = :role)"
                 ),
                 {"role": APP_ROLE},
