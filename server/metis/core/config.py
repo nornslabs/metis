@@ -63,6 +63,13 @@ class Settings(BaseSettings):
     db_pool_size: int = Field(default=10, validation_alias="DB_POOL_SIZE")
     redis_url: str = Field(default="", validation_alias="REDIS_URL")
 
+    # Run lock: held while a worker runs a run, extended by a heartbeat; it must expire
+    # soon after a worker dies so crash recovery can pick the run up.
+    run_lock_ttl_seconds: int = Field(default=60, ge=3, validation_alias="RUN_LOCK_TTL_SECONDS")
+    run_lock_heartbeat_seconds: int = Field(
+        default=20, ge=1, validation_alias="RUN_LOCK_HEARTBEAT_SECONDS"
+    )
+
     # Security settings
     encryption_master_key: str = Field(default="", validation_alias="ENCRYPTION_MASTER_KEY")
     cors_origins: str = Field(
@@ -146,6 +153,10 @@ class Settings(BaseSettings):
             raise ValueError("redis_url is required")
         if not self.encryption_master_key:
             raise ValueError("encryption_master_key is required")
+        if self.run_lock_heartbeat_seconds * 2 >= self.run_lock_ttl_seconds:
+            raise ValueError(
+                "run_lock_heartbeat_seconds must be under half of run_lock_ttl_seconds"
+            )
 
         return self
 

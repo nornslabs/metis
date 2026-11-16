@@ -29,6 +29,7 @@ from tests.agent.llm_helpers import (
     LLM_MODEL,
     FakeLLMServer,
     chat_completion,
+    make_run,
     usage_rows,
     workspace_with_key,
     workspace_without_key,
@@ -37,7 +38,8 @@ from tests.agent.llm_helpers import (
 HELLO = [HumanMessage("hi")]
 
 
-def gateway(
+async def gateway(
+    engine: AsyncEngine,
     workspace_id: UUID,
     sessions: async_sessionmaker[AsyncSession],
     server: FakeLLMServer,
@@ -46,7 +48,7 @@ def gateway(
 ) -> LLMGateway:
     return LLMGateway(
         workspace_id,
-        run_id or uuid7(),
+        run_id or await make_run(engine, workspace_id),
         sessions=sessions,
         prices=prices or {},
         http_client=server.client(),
@@ -73,8 +75,8 @@ async def test_a_saved_key_gives_a_working_chat_model_that_records_usage(
     engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession], server: FakeLLMServer
 ) -> None:
     workspace_id = await workspace_with_key(engine)
-    run_id = uuid7()
-    gw = gateway(workspace_id, app_sessions, server, run_id)
+    run_id = await make_run(engine, workspace_id)
+    gw = await gateway(engine, workspace_id, app_sessions, server, run_id)
 
     reply = await (await model_for(gw, app_sessions)).ainvoke(HELLO)
 
@@ -94,7 +96,7 @@ async def test_missing_usage_in_the_reply_records_zero_tokens_and_no_cost(
 ) -> None:
     workspace_id = await workspace_with_key(engine)
     server.responder = lambda _request: chat_completion(usage=None)
-    gw = gateway(workspace_id, app_sessions, server)
+    gw = await gateway(engine, workspace_id, app_sessions, server)
 
     await (await model_for(gw, app_sessions)).ainvoke(HELLO)
 
@@ -111,7 +113,7 @@ async def test_a_configured_price_fills_in_the_cost_and_an_unpriced_model_has_no
     prices = {"priced-model": price}
 
     for workspace_id in (priced, unpriced):
-        gw = gateway(workspace_id, app_sessions, server, prices=prices)
+        gw = await gateway(engine, workspace_id, app_sessions, server, prices=prices)
         await (await model_for(gw, app_sessions)).ainvoke(HELLO)
 
     # 11 * 2 / 1e6 + 7 * 10 / 1e6
@@ -123,7 +125,7 @@ async def test_every_call_of_a_run_adds_a_usage_row(
     engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession], server: FakeLLMServer
 ) -> None:
     workspace_id = await workspace_with_key(engine)
-    gw = gateway(workspace_id, app_sessions, server)
+    gw = await gateway(engine, workspace_id, app_sessions, server)
     model = await model_for(gw, app_sessions)
 
     await model.ainvoke(HELLO)
@@ -136,7 +138,7 @@ async def test_the_same_purpose_reuses_the_model_and_purpose_sets_the_temperatur
     engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession], server: FakeLLMServer
 ) -> None:
     workspace_id = await workspace_with_key(engine)
-    gw = gateway(workspace_id, app_sessions, server)
+    gw = await gateway(engine, workspace_id, app_sessions, server)
 
     first = await model_for(gw, app_sessions, "score")
     again = await model_for(gw, app_sessions, "score")
@@ -155,7 +157,7 @@ async def test_a_workspace_without_a_key_gets_provider_not_configured_and_no_cal
     engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession], server: FakeLLMServer
 ) -> None:
     workspace_id = await workspace_without_key(engine)
-    gw = gateway(workspace_id, app_sessions, server)
+    gw = await gateway(engine, workspace_id, app_sessions, server)
 
     with pytest.raises(ProviderNotConfiguredError):
         await model_for(gw, app_sessions)
@@ -169,7 +171,7 @@ async def test_a_workspace_uses_only_its_own_key_and_usage_stays_in_its_workspac
     mine = await workspace_with_key(engine, "mine", key="sk-mine-0123456789")
     theirs = await workspace_with_key(engine, "theirs", key="sk-theirs-0123456789")
 
-    gw = gateway(mine, app_sessions, server)
+    gw = await gateway(engine, mine, app_sessions, server)
     await (await model_for(gw, app_sessions)).ainvoke(HELLO)
 
     assert server.requests[0].headers["authorization"] == "Bearer sk-mine-0123456789"
@@ -184,7 +186,9 @@ async def test_usage_is_invisible_across_workspaces_under_rls(
 
     mine = await workspace_with_key(engine, "mine")
     other = await workspace_with_key(engine, "other")
-    await (await model_for(gateway(mine, app_sessions, server), app_sessions)).ainvoke(HELLO)
+    await (
+        await model_for(await gateway(engine, mine, app_sessions, server), app_sessions)
+    ).ainvoke(HELLO)
 
     async with app_sessions() as session:
         await session.execute(
@@ -218,7 +222,7 @@ async def test_an_error_status_becomes_a_safe_upstream_error(
     server.responder = lambda _request: httpx.Response(
         status, json={"error": {"message": f"upstream said {LLM_KEY}"}}
     )
-    model = await model_for(gateway(workspace_id, app_sessions, server), app_sessions)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
 
     assert await failure_reason(model) == reason.value
     assert await usage_rows(engine, workspace_id) == []
@@ -230,7 +234,7 @@ async def test_a_malformed_reply_is_a_bad_response(
 ) -> None:
     workspace_id = await workspace_with_key(engine)
     server.responder = lambda _request: httpx.Response(200, text="<html>not json</html>")
-    model = await model_for(gateway(workspace_id, app_sessions, server), app_sessions)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
 
     assert await failure_reason(model) == FailureReason.BAD_RESPONSE.value
 
@@ -245,7 +249,7 @@ async def test_an_unreachable_endpoint_is_unreachable(
         raise httpx.ConnectError("connection refused", request=request)
 
     server.responder = refuse
-    model = await model_for(gateway(workspace_id, app_sessions, server), app_sessions)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
 
     assert await failure_reason(model) == FailureReason.UNREACHABLE.value
 
@@ -260,7 +264,7 @@ async def test_a_stalled_endpoint_is_a_timeout(
         raise httpx.ReadTimeout("read timed out", request=request)
 
     server.responder = stall
-    model = await model_for(gateway(workspace_id, app_sessions, server), app_sessions)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
 
     assert await failure_reason(model) == FailureReason.TIMEOUT.value
 
@@ -271,7 +275,7 @@ async def test_a_transient_server_error_is_retried(
     workspace_id = await workspace_with_key(engine)
     replies = iter([httpx.Response(500, json={"error": {"message": "boom"}}), chat_completion()])
     server.responder = lambda _request: next(replies)
-    model = await model_for(gateway(workspace_id, app_sessions, server), app_sessions)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
 
     reply = await model.ainvoke(HELLO)
 
@@ -289,7 +293,7 @@ async def test_a_failing_call_keeps_the_usage_of_earlier_calls_and_logs_no_secre
 ) -> None:
     caplog.set_level(logging.DEBUG)
     workspace_id = await workspace_with_key(engine)
-    model = await model_for(gateway(workspace_id, app_sessions, server), app_sessions)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
     await model.ainvoke(HELLO)
     server.responder = lambda _request: httpx.Response(401, json={"error": f"bad {LLM_KEY}"})
 

@@ -31,6 +31,7 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 │   │   ├── adapters/          # adapter layer (one file per external vendor; MCP ones in adapters/mcp/)
 │   │   ├── helpers/           # generic, stateless helpers (see architecture.md)
 │   │   ├── agent/             # agent graph
+│   │   ├── jobs/              # Arq job functions (thin wrappers; one file per job)
 │   │   ├── core/              # infrastructure: config, db, errors, jobs, events, outbox, security (session cookies), crypto
 │   │   ├── entrypoints/       # api, worker, scheduler processes
 │   │   ├── modules/           # domain modules; each layer (controller, service, repo, cache, models, dto) a folder of one file per domain

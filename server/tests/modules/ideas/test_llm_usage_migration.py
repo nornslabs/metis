@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from tests.agent.llm_helpers import workspace_without_key
+from tests.agent.llm_helpers import make_run, workspace_without_key
 from tests.helpers.auth import APP_ROLE
 from tests.helpers.migrations import load_migration
 
@@ -48,14 +48,14 @@ async def test_metis_app_can_use_the_usage_table(engine: AsyncEngine, privilege:
     assert allowed is True
 
 
-async def test_a_run_id_needs_no_runs_table_yet(engine: AsyncEngine) -> None:
-    foreign_keys = await _scalar(
+async def test_a_usage_row_belongs_to_a_workspace_and_a_run(engine: AsyncEngine) -> None:
+    referenced = await _scalar(
         engine,
-        "SELECT count(*) FROM pg_constraint "
-        "WHERE conrelid = 'ideas.llm_usage'::regclass AND contype = 'f'",
+        "SELECT array_agg(confrelid::regclass::text ORDER BY confrelid::regclass::text) "
+        "FROM pg_constraint WHERE conrelid = 'ideas.llm_usage'::regclass AND contype = 'f'",
     )
 
-    assert foreign_keys == 1  # the workspace only
+    assert referenced == ["ideas.workflow_runs", "identity.workspaces"]
 
 
 @pytest.mark.parametrize(
@@ -65,9 +65,10 @@ async def test_the_table_refuses_negative_tokens_and_cost(
     engine: AsyncEngine, input_tokens: int, output_tokens: int, cost_usd: float
 ) -> None:
     workspace_id = await workspace_without_key(engine)
+    run_id = await make_run(engine, workspace_id)
 
     async with engine.connect() as conn:
-        with pytest.raises(IntegrityError):
+        with pytest.raises(IntegrityError, match="ck_llm_usage"):
             await conn.execute(
                 text(
                     "INSERT INTO ideas.llm_usage "
@@ -76,7 +77,7 @@ async def test_the_table_refuses_negative_tokens_and_cost(
                 ),
                 {
                     "id": uuid4(),
-                    "run": uuid4(),
+                    "run": run_id,
                     "ws": workspace_id,
                     "i": input_tokens,
                     "o": output_tokens,

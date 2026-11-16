@@ -15,8 +15,13 @@ import httpx
 import pytest
 import pytest_asyncio
 from redis.asyncio import Redis
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy import event, text
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 from sqlalchemy.pool import NullPool
 
 from metis.core.db import get_request_session, transaction
@@ -57,6 +62,19 @@ async def engine() -> AsyncIterator[AsyncEngine]:
     async with engine.begin() as conn:
         await conn.execute(text(TRUNCATE_USERS))
     await engine.dispose()
+
+
+@pytest_asyncio.fixture
+async def app_sessions(engine: AsyncEngine) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
+    """Sessions that run as ``metis_app``, like the api and workers, so RLS applies."""
+    app_engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
+
+    @event.listens_for(app_engine.sync_engine, "begin")
+    def _as_app_role(conn: object) -> None:
+        conn.exec_driver_sql(f"SET LOCAL ROLE {APP_ROLE}")  # type: ignore[attr-defined]
+
+    yield async_sessionmaker(app_engine, expire_on_commit=False)
+    await app_engine.dispose()
 
 
 @pytest_asyncio.fixture
