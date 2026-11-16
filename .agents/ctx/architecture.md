@@ -32,7 +32,7 @@ Metis turns an idea into: adaptive interview → Exa research → live score (6 
 
 ## Run Flow
 
-API writes intent → enqueues `run_graph(run_id, workspace_id)` → returns `202`. The worker takes the run's Redis lock (a 60 s TTL kept alive by a heartbeat), runs the graph until done or `interrupt()` (status `awaiting_user`, question stored on the run). User answer → resume with `Command(resume=...)`. Progress: graph stream → Redis → SSE. The API asks for a cancel by setting `cancel:{run_id}`; the worker stops at the next step. A worker killed mid-run leaves the run `running` and its lock expires within a minute; at startup the worker re-enqueues every `running` run without a lock and the job continues from the last checkpoint (each step's checkpoint is written before the next step starts).
+API writes intent, commits, then enqueues `run_graph(run_id, workspace_id)` (so the worker never looks for an unsaved run) → returns `202`; one active run per idea, enforced by a partial unique index; a start is idempotent on its `Idempotency-Key`. The worker takes the run's Redis lock (a 60 s TTL kept alive by a heartbeat), runs the graph until done or `interrupt()` (status `awaiting_user`, question stored on the run). User answer → resume with `Command(resume=...)`. Progress: graph stream → Redis → SSE. The API asks for a cancel by setting `cancel:{run_id}`; the worker stops at the next step. A worker killed mid-run leaves the run `running` and its lock expires within a minute; at startup the worker re-enqueues every `running` run without a lock and the job continues from the last checkpoint (each step's checkpoint is written before the next step starts).
 
 ## Storage Model
 

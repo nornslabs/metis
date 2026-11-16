@@ -17,7 +17,17 @@ from metis.modules.ideas.dto.ideas import (
     Stage,
 )
 from metis.modules.ideas.dto.llm_usage import NewLlmUsage
-from metis.modules.ideas.dto.workflow_runs import RunKind, RunRef, RunStatus, WorkflowRun
+from metis.modules.ideas.dto.workflow_runs import (
+    ResumeBody,
+    RunCancelResult,
+    RunKind,
+    RunPage,
+    RunRef,
+    RunStarted,
+    RunStatus,
+    RunView,
+    WorkflowRun,
+)
 
 __all__ = [
     "DEFAULT_PAGE_SIZE",
@@ -32,9 +42,14 @@ __all__ = [
     "IdeaPatch",
     "NewIdea",
     "NewLlmUsage",
+    "ResumeBody",
+    "RunCancelResult",
     "RunKind",
+    "RunPage",
     "RunRef",
+    "RunStarted",
     "RunStatus",
+    "RunView",
     "Stage",
     "WorkflowRun",
 ]

@@ -138,10 +138,11 @@ async def test_an_idempotency_key_is_unique_per_workspace_only(
     await _new_run(app_sessions, ada, ada_idea, key="k1")
 
     await _new_run(app_sessions, grace, grace_idea, key="k1")
-    await _new_run(app_sessions, ada, ada_idea)
-    await _new_run(app_sessions, ada, ada_idea)
+    # One idea per run: the active-run index would refuse a second queued run on one idea.
+    await _new_run(app_sessions, ada, await _idea(client, ada))
+    await _new_run(app_sessions, ada, await _idea(client, ada))
     with pytest.raises(IntegrityError):
-        await _new_run(app_sessions, ada, ada_idea, key="k1")
+        await _new_run(app_sessions, ada, await _idea(client, ada), key="k1")
 
 
 @pytest.mark.parametrize(

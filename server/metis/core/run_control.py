@@ -12,6 +12,7 @@ from redis.asyncio import Redis
 
 LOCK_KEY_PREFIX = "lock:run:"
 CANCEL_KEY_PREFIX = "cancel:"
+CANCEL_FLAG_TTL_SECONDS = 24 * 60 * 60
 
 
 def lock_key(run_id: UUID | str) -> str:
@@ -27,3 +28,8 @@ def cancel_key(run_id: UUID | str) -> str:
 async def cancel_requested(redis: Redis, run_id: UUID | str) -> bool:
     """Whether the API asked for ``run_id`` to be cancelled."""
     return bool(await redis.exists(cancel_key(run_id)))
+
+
+async def request_cancel(redis: Redis, run_id: UUID | str) -> None:
+    """Ask the worker to stop ``run_id`` at its next step boundary."""
+    await redis.set(cancel_key(run_id), "1", ex=CANCEL_FLAG_TTL_SECONDS)

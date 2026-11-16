@@ -6,13 +6,16 @@ Every query filters by ``workspace_id`` as well as relying on RLS. The one excep
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, text, update
+from sqlalchemy import select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.dml import ReturningInsert
 
+from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
 from metis.modules.ideas.models import WorkflowRunRow
 
@@ -25,7 +28,65 @@ async def create(
     kind: str,
     idempotency_key: str | None,
 ) -> WorkflowRunRow:
-    stmt = (
+    return (await session.scalars(_insert(workspace_id, idea_id, kind, idempotency_key))).one()
+
+
+async def create_or_none(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    *,
+    kind: str,
+    idempotency_key: str | None,
+) -> WorkflowRunRow | None:
+    """Like ``create``; ``None`` when the idempotency key or the one-active-run index conflicts."""
+    return await insert_or_none(session, _insert(workspace_id, idea_id, kind, idempotency_key))
+
+
+async def get_by_key(
+    session: AsyncSession, workspace_id: UUID, idempotency_key: str
+) -> WorkflowRunRow | None:
+    stmt = select(WorkflowRunRow).where(
+        WorkflowRunRow.workspace_id == workspace_id,
+        WorkflowRunRow.idempotency_key == idempotency_key,
+    )
+    return (await session.scalars(stmt.execution_options(populate_existing=True))).one_or_none()
+
+
+async def get_active_for_idea(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, active: tuple[str, ...]
+) -> WorkflowRunRow | None:
+    """The idea's run whose status is in ``active``, if any (the index allows one)."""
+    stmt = select(WorkflowRunRow).where(
+        WorkflowRunRow.workspace_id == workspace_id,
+        WorkflowRunRow.idea_id == idea_id,
+        WorkflowRunRow.status.in_(active),
+    )
+    return (await session.scalars(stmt.execution_options(populate_existing=True))).first()
+
+
+async def list_page(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    *,
+    after: tuple[datetime, UUID] | None,
+    limit: int,
+) -> list[WorkflowRunRow]:
+    """Up to ``limit`` runs of the idea, newest first, strictly after the ``after`` position."""
+    stmt = select(WorkflowRunRow).where(
+        WorkflowRunRow.workspace_id == workspace_id, WorkflowRunRow.idea_id == idea_id
+    )
+    if after is not None:
+        stmt = stmt.where(tuple_(WorkflowRunRow.created_at, WorkflowRunRow.id) < tuple_(*after))
+    stmt = stmt.order_by(WorkflowRunRow.created_at.desc(), WorkflowRunRow.id.desc()).limit(limit)
+    return list((await session.scalars(stmt)).all())
+
+
+def _insert(
+    workspace_id: UUID, idea_id: UUID, kind: str, idempotency_key: str | None
+) -> ReturningInsert[WorkflowRunRow]:
+    return (
         insert(WorkflowRunRow)
         .values(
             id=uuid7(),
@@ -36,7 +97,6 @@ async def create(
         )
         .returning(WorkflowRunRow)
     )
-    return (await session.scalars(stmt)).one()
 
 
 async def get(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> WorkflowRunRow | None:
