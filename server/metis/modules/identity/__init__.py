@@ -5,7 +5,11 @@ exported here.
 """
 
 from metis.modules.identity.controller import router
-from metis.modules.identity.deps import CurrentWorkspaceDep, current_workspace
+from metis.modules.identity.deps import (
+    CurrentWorkspaceDep,
+    StreamWorkspaceDep,
+    current_workspace,
+)
 from metis.modules.identity.dto import (
     MemberRole,
     Membership,
@@ -24,6 +28,7 @@ from metis.modules.identity.service.workspaces import (
 
 __all__ = [
     "CurrentWorkspaceDep",
+    "StreamWorkspaceDep",
     "current_workspace",
     "router",
     "MemberRole",

@@ -175,7 +175,7 @@ One LangGraph `StateGraph` in `agent/graph.py`, compiled with `AsyncPostgresSave
 | Lists       | `{items, next_cursor}`                                                          |
 | Errors      | RFC 7807 `{type, title, status, detail, code}`                                  |
 | Conflicts   | `version` field, `409` on mismatch                                              |
-| Live events | `GET /v1/runs/{id}/events` (SSE, `Last-Event-ID`; session cookie via `EventSource` with credentials, no stream token) |
+| Live events | `GET /v1/runs/{id}/events` (SSE, `Last-Event-ID` or `?after=`; session cookie via `EventSource` with credentials, no stream token; `?workspace_id=` names the workspace because `EventSource` sets no headers, the header wins) |
 
 ## Jobs and Events
 
@@ -188,6 +188,8 @@ One LangGraph `StateGraph` in `agent/graph.py`, compiled with `AsyncPostgresSave
 Enqueue only through `core.jobs.enqueue(job_name, *args, job_id=...)`; a job must be listed in `JOB_QUEUES`. The same `job_id` enqueues once. Job functions use `@logged_job` (binds `job_id`, `run_id`, `workspace_id`). The `watch` queue lands with market-watch. Scheduler is an Arq cron worker whose jobs only enqueue (`outbox_relay` every 5 s, `cleanup` nightly 03:00 UTC).
 
 Run events go through `core.events`: `publish(run_id, type, data)` appends to the Redis stream `run:{run_id}` (`MAXLEN ~ 5000`); `read(run_id, after_id, block_ms)` does one `XREAD` and yields `RunEvent{id, run_id, type, data, ts}`. The Redis entry id is the SSE event id (`Last-Event-ID`). Publishing a terminal `run_status` (`succeeded`, `failed`, `cancelled`) sets a 24 h TTL on the stream.
+
+The SSE route (`modules/ideas/controller/run_events.py`, frames in `helpers/sse.py`) checks the run (404 `run.not_found`) and frees its DB session before streaming. Frames: `id: <redis id>`, `event: <type>`, `data: <RunEvent JSON>`; `retry: 3000` first; `: ping` after each 15 s read with no event; the stream ends after a terminal `run_status`. A finished run is read once without waiting; if its stream has expired it gets one `run_status` frame (no `id`) from the database. An undecodable entry sends `event: error` (`run.event_malformed`) and closes. Bad `Last-Event-ID` / `after` → 422. The stream uses its own Redis client (the shared one has a 0.5 s socket timeout).
 
 Domain events (`DomainEventType`) go through `core.outbox`: a service calls `add_event(session, DomainEvent(...))` inside its own transaction (it only inserts; the caller commits), so a rolled-back change leaves no event. Handlers subscribe with `@on_event(DomainEventType.X)` and receive the `DomainEvent`; they open their own sessions and use other modules only via `service.py`. The `outbox_relay` job runs `relay_once`: up to 100 unpublished events, oldest first, `FOR UPDATE SKIP LOCKED` so concurrent relays never share an event; success sets `published_at`, a handler error increments `attempts` and retries the whole event on the next run; after 10 attempts the event stops and `outbox.event_dead` is logged. Delivery is at least once, so handlers must be idempotent, keyed on `event.id` (UUIDv7 from `core.ids.uuid7`). `core.outbox` has no RLS (the relay reads across workspaces).
 

@@ -12,12 +12,12 @@ from __future__ import annotations
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Query
 
 from metis.core.db import SessionDep, set_user, set_workspace
 from metis.core.errors import InvalidInputError, PermissionDeniedError
 from metis.core.logging import bind_context
-from metis.modules.auth import CurrentUserDep
+from metis.modules.auth import CurrentUserDep, SessionUser
 from metis.modules.identity import service
 from metis.modules.identity.dto import Membership
 
@@ -34,10 +34,29 @@ async def current_workspace(
     An unknown workspace gets the same 403 as a foreign one, so callers cannot
     probe which workspaces exist.
     """
-    if workspace_id is None:
+    return await _scope_to_workspace(session, caller, workspace_id)
+
+
+async def stream_workspace(
+    session: SessionDep,
+    caller: CurrentUserDep,
+    header_id: Annotated[str | None, Header(alias=WORKSPACE_HEADER)] = None,
+    query_id: Annotated[str | None, Query(alias="workspace_id")] = None,
+) -> Membership:
+    """``current_workspace`` for ``EventSource`` routes, which cannot set headers.
+
+    Also reads ``?workspace_id=``; the header wins when both are sent.
+    """
+    return await _scope_to_workspace(session, caller, header_id or query_id)
+
+
+async def _scope_to_workspace(
+    session: SessionDep, caller: SessionUser, raw_workspace_id: str | None
+) -> Membership:
+    if raw_workspace_id is None:
         target = (await service.workspaces.ensure_personal_workspace(session, caller.user)).id
     else:
-        target = _parse_workspace_id(workspace_id)
+        target = _parse_workspace_id(raw_workspace_id)
     memberships = await service.workspaces.list_workspaces(session, caller.user)
     membership = next((m for m in memberships if m.workspace.id == target), None)
     if membership is None:
@@ -49,6 +68,7 @@ async def current_workspace(
 
 
 CurrentWorkspaceDep = Annotated[Membership, Depends(current_workspace)]
+StreamWorkspaceDep = Annotated[Membership, Depends(stream_workspace)]
 
 
 def _parse_workspace_id(raw: str) -> UUID:
