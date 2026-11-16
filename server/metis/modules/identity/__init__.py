@@ -15,6 +15,7 @@ from metis.modules.identity.dto import (
 )
 from metis.modules.identity.service.members import add_member
 from metis.modules.identity.service.provider_keys import get_key_for_use
+from metis.modules.identity.service.settings import get_settings_overview
 from metis.modules.identity.service.workspaces import (
     create_workspace,
     ensure_personal_workspace,
@@ -34,5 +35,6 @@ __all__ = [
     "create_workspace",
     "ensure_personal_workspace",
     "get_key_for_use",
+    "get_settings_overview",
     "list_workspaces",
 ]

@@ -82,6 +82,7 @@ class ErrorCode(StrEnum):
     RUN_CANCELLED = "run.cancelled"
     RUN_EVENT_MALFORMED = "run.event_malformed"
     RUN_STEP_LIMIT_REACHED = "run.step_limit_reached"
+    RUN_FAILED = "run.failed"
 
     # ---------------------------------------------------------------------- research
     RESEARCH_NO_RESULTS = "research.no_results"
@@ -329,6 +330,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.RUN_STEP_LIMIT_REACHED: ErrorSpec(
         status=422,
         title="Run Step Limit Reached",
+        retryable=False,
+    ),
+    ErrorCode.RUN_FAILED: ErrorSpec(
+        status=500,
+        title="Run Failed",
         retryable=False,
     ),
     # research
@@ -602,6 +608,18 @@ class ProviderKeyNotFoundError(NotFoundError):
     code: ErrorCode = ErrorCode.PROVIDER_KEY_NOT_FOUND
 
 
+class RunNotFoundError(NotFoundError):
+    """404: no such run in the caller's workspace."""
+
+    code: ErrorCode = ErrorCode.RUN_NOT_FOUND
+
+
+class IllegalRunTransition(MetisError):  # noqa: N818  (named like ``IllegalTransition``)
+    """409: the run cannot move from its status to the requested one."""
+
+    code: ErrorCode = ErrorCode.RUN_INVALID_STATE
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -625,6 +643,8 @@ __all__ = [
     "MemberUserNotFoundError",
     "AlreadyMemberError",
     "WorkspaceNotFoundError",
+    "RunNotFoundError",
+    "IllegalRunTransition",
 ]
 
 

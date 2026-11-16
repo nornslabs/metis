@@ -92,7 +92,7 @@ async def test_the_downgrade_revokes_access_and_the_upgrade_grants_it_again(
 ) -> None:
     migration = load_migration(MIGRATION)
     async with engine.connect() as conn:
-        await conn.execute(text("DROP TABLE ideas.ideas"))
+        await conn.execute(text("DROP TABLE ideas.ideas CASCADE"))
         await _replay(conn, migration.SCHEMA_DOWN_SQL)
         assert not await conn.scalar(
             text("SELECT has_schema_privilege(:role, 'ideas', 'USAGE')"), {"role": APP_ROLE}

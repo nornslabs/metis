@@ -10,20 +10,14 @@ from collections.abc import AsyncIterator
 import pytest
 import pytest_asyncio
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
 )
-from sqlalchemy.pool import NullPool
 
 from metis.agent.checkpoint import open_checkpointer, setup_checkpointer
 from tests.agent.graph_helpers import APP_DATABASE_URL
 from tests.agent.llm_helpers import FakeLLMServer
-from tests.helpers.auth import APP_ROLE, DATABASE_URL
-from tests.modules.conftest import engine  # noqa: F401  (migrated Postgres fixture)
+from tests.modules.conftest import app_sessions, engine, redis  # noqa: F401  (shared fixtures)
 
 
 @pytest.fixture
@@ -35,19 +29,6 @@ def server() -> FakeLLMServer:
 def no_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     """Error tests should not wait through the provider's retry backoff."""
     monkeypatch.setattr("metis.adapters.llm.chat.MAX_RETRIES", 0)
-
-
-@pytest_asyncio.fixture
-async def app_sessions(engine: AsyncEngine) -> AsyncIterator[async_sessionmaker[AsyncSession]]:  # noqa: F811
-    """Sessions that run as ``metis_app``, like the api and workers, so RLS applies."""
-    app_engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
-
-    @event.listens_for(app_engine.sync_engine, "begin")
-    def _as_app_role(conn: object) -> None:
-        conn.exec_driver_sql(f"SET LOCAL ROLE {APP_ROLE}")  # type: ignore[attr-defined]
-
-    yield async_sessionmaker(app_engine, expire_on_commit=False)
-    await app_engine.dispose()
 
 
 @pytest_asyncio.fixture

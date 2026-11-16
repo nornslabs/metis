@@ -11,6 +11,7 @@ import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from metis.helpers.ids import uuid7
 from metis.modules import auth, identity
 from metis.modules.identity import MemberRole, Membership, ProviderKind
 from metis.modules.identity.service.provider_keys import set_key
@@ -108,3 +109,30 @@ async def usage_rows(engine: AsyncEngine, workspace_id: UUID) -> list[UsageRow]:
             {"ws": workspace_id},
         )
         return [UsageRow(*row) for row in result.all()]
+
+
+async def make_run(engine: AsyncEngine, workspace_id: UUID, stage: str = "intake") -> UUID:
+    """A queued run (and its idea, at ``stage``) in the workspace, inserted as the DB owner.
+
+    ``ideas.llm_usage.run_id`` references ``ideas.workflow_runs``, so a usage row needs a real run.
+    """
+    idea_id, run_id = uuid7(), uuid7()
+    async with engine.begin() as conn:
+        creator = await conn.scalar(
+            text("SELECT created_by FROM identity.workspaces WHERE id = :ws"), {"ws": workspace_id}
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO ideas.ideas (id, workspace_id, created_by, title, raw_text, stage) "
+                "VALUES (:id, :ws, :by, 'Pocket CRM', 'A tiny CRM for freelancers.', :stage)"
+            ),
+            {"id": idea_id, "ws": workspace_id, "by": creator, "stage": stage},
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO ideas.workflow_runs (id, workspace_id, idea_id) "
+                "VALUES (:id, :ws, :idea)"
+            ),
+            {"id": run_id, "ws": workspace_id, "idea": idea_id},
+        )
+    return run_id

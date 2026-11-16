@@ -23,6 +23,7 @@ MAINTENANCE_QUEUE = "maintenance"
 # Job name -> queue it runs on. A job must be registered here to be enqueued.
 JOB_QUEUES: dict[str, str] = {
     "ping": AGENT_QUEUE,
+    "run_graph": AGENT_QUEUE,
     "outbox_relay": MAINTENANCE_QUEUE,
     "cleanup": MAINTENANCE_QUEUE,
 }

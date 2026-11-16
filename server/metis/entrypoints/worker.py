@@ -14,11 +14,13 @@ from __future__ import annotations
 from typing import Any
 
 from metis.agent.checkpoint import setup_checkpointer
+from metis.agent.recovery import recover_stuck_runs
 from metis.core.config import get_settings
 from metis.core.db import engine, get_session_maker
 from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, logged_job, redis_settings
 from metis.core.logging import configure_logging, get_logger
 from metis.core.outbox import relay_once
+from metis.jobs.run_graph import run_graph
 
 AGENT_MAX_JOBS = 10
 MAINTENANCE_MAX_JOBS = 1
@@ -34,9 +36,15 @@ async def on_startup(ctx: dict[str, Any]) -> None:
 
 
 async def agent_on_startup(ctx: dict[str, Any]) -> None:
-    """``on_startup`` plus the graph's checkpoint tables (idempotent)."""
+    """``on_startup`` plus the graph's checkpoint tables (idempotent) and crash recovery."""
     await on_startup(ctx)
     await setup_checkpointer(get_settings().database_url)
+    try:
+        recovered = await recover_stuck_runs(ctx["redis"])
+    except Exception:  # noqa: BLE001  (a failed scan must not keep the worker from starting)
+        logger.exception("run.recovery_failed")
+    else:
+        logger.info("run.recovery_done", recovered=recovered)
 
 
 async def on_shutdown(ctx: dict[str, Any]) -> None:
@@ -74,7 +82,7 @@ async def cleanup(
 class AgentWorkerSettings:
     """Worker for the ``agent`` queue."""
 
-    functions = [ping]
+    functions = [ping, run_graph]
     queue_name = AGENT_QUEUE
     max_jobs = AGENT_MAX_JOBS
     on_startup = agent_on_startup
