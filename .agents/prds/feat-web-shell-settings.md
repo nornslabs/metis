@@ -84,8 +84,8 @@ Goal: the framed, responsive app shell every later screen lives in, the account 
 
 ## Dependencies
 
-- `feat-web-sign-in` (SHIP-221): draft.
-- `feat-web-api-client` (SHIP-222): draft.
+- `feat-web-sign-in` (SHIP-221): done.
+- `feat-web-api-client` (SHIP-222): done.
 
 ## Testing
 
@@ -102,12 +102,12 @@ Seam: the browser against the running local stack (Playwright, SHIP-221's harnes
 
 ## Acceptance criteria
 
-- [ ] A user can switch or create a workspace, and API calls follow with the session cookie and `X-Workspace-Id`.
-- [ ] Keys can be saved, tested and removed; plaintext is never shown after save.
-- [ ] "Sign out" and "Sign out all devices" end the session on the server (`GET /v1/auth/me` returns 401 afterwards).
-- [ ] A new user signs in, lands on `/` in their personal workspace, opens `?settings=keys`, saves an LLM key (base URL, model, key) and an Exa key, and sees Test succeed with masked keys shown (SHIP-219 end-to-end criterion).
-- [ ] Light and dark both match the chat sample; works at 375px with no horizontal scroll; focus, `aria-label`s and tooltips per `ui-context.md` Accessibility.
-- [ ] `npm run lint`, `typecheck`, `build` pass.
+- [x] A user can switch or create a workspace, and API calls follow with the session cookie and `X-Workspace-Id`.
+- [x] Keys can be saved, tested and removed; plaintext is never shown after save.
+- [x] "Sign out" and "Sign out all devices" end the session on the server (`GET /v1/auth/me` returns 401 afterwards).
+- [x] A new user signs in, lands on `/` in their personal workspace, opens `?settings=keys`, saves an LLM key (base URL, model, key) and an Exa key, and sees Test succeed with masked keys shown (SHIP-219 end-to-end criterion).
+- [x] Light and dark both match the chat sample; works at 375px with no horizontal scroll; focus, `aria-label`s and tooltips per `ui-context.md` Accessibility.
+- [x] `npm run lint`, `typecheck`, `build` pass.
 
 ## Open questions
 
@@ -117,6 +117,7 @@ None open.
 
 - "Docs" menu item: hidden until a docs URL exists (user, 2026-11-17).
 - Test seam: Playwright on the compose stack; key Test success checked by hand against real keys, Playwright asserts only the failure path (unreachable base URL → 502 with `meta.reason`) (user, 2026-11-17).
+- Built: `ApiError` gains `meta` (needed for `meta.reason`); the workspace cookie change notifies `useWorkspaceId()`; the avatar is a plain square (shadcn `Avatar` hard-codes `rounded-full`); no composer tool buttons (attach, web research, mention, model) in the empty chat: SHIP-235 adds them with the composer.
 
 From the Linear agent notes:
 
@@ -126,4 +127,4 @@ From the Linear agent notes:
 
 ## Status
 
-draft
+done

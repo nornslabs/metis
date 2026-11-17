@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { SESSION_COOKIE, USER_EMAIL, createSessionToken } from "./support/session";
+import { SESSION_COOKIE, createSessionToken } from "./support/session";
 
 test.describe("signed out", () => {
   test("visiting / redirects to the sign-in page", async ({ page }) => {
@@ -89,20 +89,21 @@ test.describe("signed in", () => {
 
   test("shows the app and sends the sign-in page back to it", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText(`Signed in as ${USER_EMAIL}.`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What are you building?" })).toBeVisible();
     await page.goto("/sign-in?redirect_to=%2F");
     await expect(page).toHaveURL(/\/$/);
   });
 
   test("never exposes the session token to JavaScript", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByText(`Signed in as ${USER_EMAIL}.`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What are you building?" })).toBeVisible();
     expect(await page.evaluate(() => document.cookie)).not.toContain(sessionToken);
   });
 
   test("sign out ends the session on the server", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: "Sign out" }).click();
+    await page.getByRole("button", { name: "Account" }).click();
+    await page.getByRole("menuitem", { name: "Sign out" }).click();
     await expect(page).toHaveURL(/\/sign-in$/);
     const me = await page.request.get("/v1/auth/me");
     expect(me.status()).toBe(401);
@@ -115,7 +116,7 @@ test.describe("signed in", () => {
       if (value) authorization.push(value);
     });
     await page.goto("/");
-    await expect(page.getByText(`Signed in as ${USER_EMAIL}.`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What are you building?" })).toBeVisible();
     expect(authorization).toEqual([]);
   });
 
@@ -123,7 +124,7 @@ test.describe("signed in", () => {
     page,
   }) => {
     await page.goto("/");
-    await expect(page.getByText(`Signed in as ${USER_EMAIL}.`)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What are you building?" })).toBeVisible();
     await page.request.post("/v1/auth/logout", { headers: { "X-Metis-Client": "web" } });
     // Tab focus makes TanStack Query refetch `useMe()`, which now answers 401.
     await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));

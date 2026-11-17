@@ -58,6 +58,7 @@
   /* Breakpoints, used as max-compact: and max-stacked: */
   --breakpoint-compact: 700px;
   --breakpoint-stacked: 900px;
+  --breakpoint-guides: 820px;
 
   /* Font sizes */
   --text-micro: 10px;

@@ -28,10 +28,14 @@ export function getWorkspaceId(): string | null {
   return parseWorkspaceCookie(document.cookie);
 }
 
+export const WORKSPACE_CHANGED_EVENT = "metis:workspace-changed";
+
 export function setWorkspaceId(id: string): void {
   document.cookie = serializeWorkspaceCookie(id);
+  window.dispatchEvent(new Event(WORKSPACE_CHANGED_EVENT));
 }
 
 export function clearWorkspaceId(): void {
   document.cookie = serializeWorkspaceCookie(null);
+  window.dispatchEvent(new Event(WORKSPACE_CHANGED_EVENT));
 }
