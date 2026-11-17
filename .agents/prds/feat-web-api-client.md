@@ -57,7 +57,7 @@ Goal: one typed `openapi-fetch` client generated from the server's OpenAPI schem
 
 ## Dependencies
 
-- `feat-web-sign-in` (SHIP-221): draft.
+- `feat-web-sign-in` (SHIP-221): done.
 
 ## Testing
 
@@ -74,11 +74,11 @@ Seam: the client module (`lib/api`) with `fetch` replaced by a fake that records
 
 ## Acceptance criteria
 
-- [ ] `useMe()` is fully typed and works with only the session cookie.
-- [ ] No `Authorization` header is sent anywhere.
-- [ ] A 401 session error redirects to `/sign-in`; a 409 surfaces as `ApiError` with `code`.
-- [ ] Type drift between server and web fails CI.
-- [ ] `npm run lint`, `typecheck`, `build` pass; Vitest tests pass.
+- [x] `useMe()` is fully typed and works with only the session cookie.
+- [x] No `Authorization` header is sent anywhere.
+- [x] A 401 session error redirects to `/sign-in`; a 409 surfaces as `ApiError` with `code`.
+- [x] Type drift between server and web fails CI.
+- [x] `npm run lint`, `typecheck`, `build` pass; Vitest tests pass.
 
 ## Open questions
 
@@ -92,4 +92,4 @@ None open.
 
 ## Status
 
-draft
+done
