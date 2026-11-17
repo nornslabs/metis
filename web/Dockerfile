@@ -14,6 +14,9 @@ WORKDIR /app/web
 COPY --from=deps /app/web/node_modules ./node_modules
 COPY . .
 
+# The /v1 rewrite target is baked into the build.
+ARG API_ORIGIN=http://localhost:8000
+ENV API_ORIGIN=$API_ORIGIN
 ENV NODE_ENV=production
 RUN npx next build
 
