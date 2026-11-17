@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   ApiError,
+  NETWORK_ERROR_MESSAGE,
+  describeError,
   errorMessage,
   fieldErrors,
   isSessionError,
@@ -107,5 +109,17 @@ describe("upstream errors", () => {
   it("has no reason without meta", async () => {
     const error = await parseApiError(new Response("nope", { status: 500 }));
     expect(upstreamReason(error)).toBeNull();
+  });
+});
+
+describe("describeError", () => {
+  it("uses the problem's detail for an ApiError", () => {
+    const error = new ApiError({ status: 409, code: "run.already_running", title: "Busy", detail: "Run active" });
+    expect(describeError(error)).toBe("Run active");
+  });
+
+  it("gives a generic message for anything else", () => {
+    expect(describeError(new TypeError("Failed to fetch"))).toBe(NETWORK_ERROR_MESSAGE);
+    expect(describeError("nope")).toBe(NETWORK_ERROR_MESSAGE);
   });
 });

@@ -95,6 +95,13 @@ export function errorMessage(error: ApiError): string {
   return error.detail ?? error.title;
 }
 
+export const NETWORK_ERROR_MESSAGE = "Could not reach Metis. Check your connection and try again.";
+
+/** A message for any thrown value: the problem's text for an `ApiError`, else a generic line. */
+export function describeError(error: unknown): string {
+  return error instanceof ApiError ? errorMessage(error) : NETWORK_ERROR_MESSAGE;
+}
+
 // FastAPI locations start with where the value came from (`body.email`); forms name just the field.
 const LOCATION_PREFIX = /^(body|query|path|header|cookie)\./;
 

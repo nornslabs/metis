@@ -4,6 +4,7 @@ import { Suspense } from "react";
 
 import { AccountMenu } from "@/components/account/account-menu";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
+import { RecentIdeas } from "@/components/frame/recent-ideas";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,6 +45,7 @@ export function AppHeader() {
             </TooltipTrigger>
             <TooltipContent>New idea</TooltipContent>
           </Tooltip>
+          <RecentIdeas />
           <ThemeToggle />
           {/* The menu reads the URL (`?settings=`), so it streams in behind a boundary. */}
           <Suspense fallback={<Skeleton className="ml-1.5 size-6" />}>

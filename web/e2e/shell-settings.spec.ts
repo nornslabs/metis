@@ -160,7 +160,8 @@ test.describe("workspaces", () => {
   }) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Account" }).click();
-    await page.getByRole("menuitem").filter({ hasText: /workspace/i }).first().click();
+    // The submenu trigger reads "Workspace" while loading, then the current workspace ("Personal").
+    await page.getByRole("menuitem", { name: /^(Workspace|Personal)$/ }).click();
     await page.getByRole("menuitem", { name: "New workspace" }).click();
     const name = `E2E ${Date.now()}`;
     await page.getByLabel("Workspace name").fill(name);
