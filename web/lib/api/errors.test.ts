@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { ApiError, errorMessage, fieldErrors, isSessionError, parseApiError } from "./errors";
+import {
+  ApiError,
+  errorMessage,
+  fieldErrors,
+  isSessionError,
+  parseApiError,
+  upstreamReason,
+} from "./errors";
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status });
@@ -80,5 +87,25 @@ describe("fieldErrors / errorMessage", () => {
     expect(errorMessage(new ApiError({ status: 400, code: "x", title: "T", detail: "D" }))).toBe(
       "D",
     );
+  });
+});
+
+describe("upstream errors", () => {
+  it("reads meta.reason from a problem body", async () => {
+    const response = new Response(
+      JSON.stringify({
+        title: "Provider error",
+        code: "provider.upstream_error",
+        meta: { provider: "llm", reason: "unauthorized" },
+      }),
+      { status: 502 },
+    );
+    const error = await parseApiError(response);
+    expect(upstreamReason(error)).toBe("unauthorized");
+  });
+
+  it("has no reason without meta", async () => {
+    const error = await parseApiError(new Response("nope", { status: 500 }));
+    expect(upstreamReason(error)).toBeNull();
   });
 });

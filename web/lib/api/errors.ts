@@ -16,6 +16,7 @@ const problemSchema = z.object({
   request_id: z.string().nullish(),
   retryable: z.boolean().default(false),
   errors: z.array(fieldErrorSchema).default([]),
+  meta: z.record(z.string(), z.unknown()).nullish(),
 });
 
 export type FieldError = z.infer<typeof fieldErrorSchema>;
@@ -28,6 +29,7 @@ type ApiErrorInit = {
   request_id?: string | null;
   retryable?: boolean;
   errors?: readonly FieldError[];
+  meta?: Readonly<Record<string, unknown>> | null;
 };
 
 /** Every non-2xx answer from the API. Branch on `code`, never on message text. */
@@ -39,6 +41,7 @@ export class ApiError extends Error {
   readonly request_id: string | null;
   readonly retryable: boolean;
   readonly errors: readonly FieldError[];
+  readonly meta: Readonly<Record<string, unknown>>;
 
   constructor(init: ApiErrorInit) {
     super(init.detail ?? init.title);
@@ -50,6 +53,7 @@ export class ApiError extends Error {
     this.request_id = init.request_id ?? null;
     this.retryable = init.retryable ?? false;
     this.errors = init.errors ?? [];
+    this.meta = init.meta ?? {};
   }
 }
 
@@ -73,6 +77,17 @@ export async function parseApiError(response: Response): Promise<ApiError> {
 /** True for `auth.not_signed_in` and `auth.session_expired`: the session is gone. */
 export function isSessionError(error: unknown): error is ApiError {
   return error instanceof ApiError && SESSION_ERROR_CODES.includes(error.code);
+}
+
+/** Narrows an unknown thrown value to `ApiError`. */
+export function isApiError(error: unknown): error is ApiError {
+  return error instanceof ApiError;
+}
+
+/** `meta.reason` of a `provider.upstream_error` (`unauthorized`, `unreachable`, `timeout`, …), if any. */
+export function upstreamReason(error: ApiError): string | null {
+  const reason = error.meta.reason;
+  return typeof reason === "string" ? reason : null;
 }
 
 /** The message to show: `detail`, else `title`. */

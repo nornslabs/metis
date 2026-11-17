@@ -1,6 +1,9 @@
 import { Suspense, type ReactNode } from "react";
 
 import { RedirectToSignIn } from "@/components/auth/redirect-to-sign-in";
+import { AppFrame } from "@/components/frame/app-frame";
+import { SettingsShortcut } from "@/components/settings/settings-shortcut";
+import { SettingsSheet } from "@/components/settings/settings-sheet";
 import { getMe } from "@/lib/auth/get-me";
 
 // Reads the session behind its own Suspense boundary, next to `children` rather than around them,
@@ -12,11 +15,16 @@ async function AuthGate() {
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
-    <>
+    <AppFrame>
       <Suspense fallback={null}>
         <AuthGate />
       </Suspense>
       {children}
-    </>
+      {/* `useSearchParams` needs a boundary; the sheet and its shortcut hang off `?settings=`. */}
+      <Suspense fallback={null}>
+        <SettingsSheet />
+        <SettingsShortcut />
+      </Suspense>
+    </AppFrame>
   );
 }

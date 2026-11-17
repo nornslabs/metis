@@ -35,7 +35,31 @@ export function createSessionToken(): string {
   return token;
 }
 
-/** Deleting the user cascades to its sessions and identities. */
+const OWNER_ID = "00000000-0000-7000-8000-000000000224";
+const MEMBER_WORKSPACE_ID = "00000000-0000-7000-8000-000000000225";
+
+/**
+ * A workspace owned by another user where the test user is only a member. Returns its id, to be
+ * sent as `X-Workspace-Id` (or set in the workspace cookie).
+ */
+export function seedMemberWorkspace(): string {
+  psql(`
+    insert into auth.users (id, email, name) values ('${OWNER_ID}', 'e2e-owner-ship224@example.com', 'E2E Owner')
+      on conflict do nothing;
+    insert into identity.workspaces (id, name, created_by, is_personal)
+      values ('${MEMBER_WORKSPACE_ID}', 'Owner team', '${OWNER_ID}', false) on conflict do nothing;
+    insert into identity.members (workspace_id, user_id, role) values
+      ('${MEMBER_WORKSPACE_ID}', '${OWNER_ID}', 'owner'),
+      ('${MEMBER_WORKSPACE_ID}', '${USER_ID}', 'member') on conflict do nothing;
+  `);
+  return MEMBER_WORKSPACE_ID;
+}
+
+/** Workspaces do not cascade from users, so they go first; the rest cascades from the users. */
 export function removeUser(): void {
-  psql(`delete from auth.users where id = '${USER_ID}';`);
+  const ids = `'${USER_ID}', '${OWNER_ID}'`;
+  psql(`
+    delete from identity.workspaces where created_by in (${ids});
+    delete from auth.users where id in (${ids});
+  `);
 }
