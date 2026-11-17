@@ -58,6 +58,7 @@ web/
 | Route             | Access    | Screen                                                                                      |
 | ----------------- | --------- | ------------------------------------------------------------------------------------------- |
 | `/sign-in`        | public    | Split: pitch left, form right (form first on mobile)                                        |
+| `/terms`, `/privacy` | public | Terms of Use and Privacy Policy, in the sign-in frame; linked from the sign-in card |
 | `/`               | signed in | Empty chat: "What are you building?", suggestions, composer                                 |
 | `/ideas/[ideaId]` | signed in | Conversation for the idea's latest run                                                      |
 | `?settings=<tab>` | signed in | Opens the settings sheet on any app route. Tabs: `account`, `keys`, `integrations`, `prefs` |

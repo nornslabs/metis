@@ -40,6 +40,30 @@ test.describe("signed out", () => {
     );
   });
 
+  test("links to the terms and privacy pages, which are public", async ({ page }) => {
+    await page.goto("/sign-in");
+    await expect(page.getByText(/By continuing you agree to the/)).toBeVisible();
+    await page.getByRole("link", { name: "Terms", exact: true }).click();
+    await expect(page).toHaveURL(/\/terms$/);
+    await expect(page.getByRole("heading", { name: "Terms of Use" })).toBeVisible();
+    await page.getByRole("link", { name: "Privacy Policy" }).click();
+    await expect(page).toHaveURL(/\/privacy$/);
+    await expect(page.getByRole("heading", { name: "Privacy Policy" })).toBeVisible();
+    await page.getByRole("link", { name: "← Back to sign in" }).click();
+    await expect(page).toHaveURL(/\/sign-in$/);
+  });
+
+  test("legal pages have no horizontal scroll at 375px", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 800 });
+    for (const path of ["/terms", "/privacy"]) {
+      await page.goto(path);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow).toBeLessThanOrEqual(0);
+    }
+  });
+
   test("has no horizontal scroll at 375px", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 800 });
     await page.goto("/sign-in");

@@ -43,19 +43,21 @@ Goal: lay the web foundation (stack, tokens, root providers, `/v1` rewrite) and 
    - A signed-in visitor to `/sign-in` is redirected to `/`.
 7. **App guard.** `app/(app)/layout.tsx` calls a server-only `getMe()`: plain `fetch` of `${API_ORIGIN}/v1/auth/me` forwarding the incoming `cookie` header, `cache: "no-store"`. `401` → `redirect("/sign-in?redirect_to=<current path>")`. Other failures throw to the nearest error boundary. A minimal placeholder `(app)/page.tsx` proves the guard; the shell is SHIP-224. Works with `cacheComponents: true` (cookie reads inside a Suspense boundary, as Next 16 requires).
 8. **Sign out.** `useSignOut()` mutation: `POST /v1/auth/logout` with `X-Metis-Client: web` and `credentials: "include"`, then clear the query cache and `router.replace("/sign-in")`. Not yet shown in a menu (SHIP-224); exposed on the placeholder page for manual testing.
-9. **No proxy file.** No `middleware.ts` / `proxy.ts`; the layout guard is the only redirect.
+9. **Terms and privacy.** The sign-in card ends with "By continuing you agree to the Terms and Privacy Policy" (links to `/terms` and `/privacy`, as in the sample). Both are public pages in the `(auth)` group (same frame as sign-in), static content in `components/legal/` + `app/(auth)/{terms,privacy}/`, written from what the product does (Google profile data, encrypted BYO keys, one `HttpOnly` session cookie, user-chosen LLM and Exa providers, no self-serve deletion yet). Not reviewed by a lawyer.
+10. **No proxy file.** No `middleware.ts` / `proxy.ts`; the layout guard is the only redirect.
 
 ## Out of scope
 
 - Typed API client, `ApiError`, query hooks (SHIP-222). `getMe()` stays a plain `fetch` until then.
 - App shell, account menu, settings sheet (SHIP-224).
 - Email sign-in, invites.
+- Legal review of the Terms and Privacy text.
 - Any server change other than the `.env.example` / compose values above.
 
 ## Touches
 
 - `web/app/` (`layout.tsx`, `globals.css`, `(auth)/sign-in/`, `(app)/layout.tsx`, `(app)/page.tsx`; scaffold `page.tsx` removed)
-- `web/components/` (`providers/`, `auth/`; `ui/` via the shadcn CLI only)
+- `web/components/` (`providers/`, `auth/`, `legal/`; `ui/` via the shadcn CLI only)
 - `web/lib/` (`auth/get-me.ts`, `auth/redirect.ts`, `auth/sign-out.ts`)
 - `web/next.config.ts`, `web/package.json`, `web/package-lock.json` (npm only)
 - `.env.example`, `compose.yaml` (`web` env)
@@ -86,15 +88,17 @@ Seam: the browser against the running local stack (`docker compose up`), driven 
 - [x] A signed-out visit to `/` or `/ideas/...` redirects to `/sign-in`. (`/ideas/[ideaId]` does not exist yet; the `(app)` layout guards it when SHIP-235 adds it)
 - [x] No `next-auth` dependency; no token is readable from JavaScript (`HttpOnly` cookie only).
 - [x] SSE passes through the `/v1` rewrite unbuffered (events arrived ~0.7 s apart through a standalone build; no blocker for SHIP-235).
-- [x] Sign-in matches the sample in light and dark, at 375px with no horizontal scroll. (differences: no Docs link, no Terms/Privacy line, see Open questions)
-- [x] `npm run lint`, `typecheck`, `build` pass; `npm test` (17) and `npm run test:e2e` (9) pass.
+- [x] Sign-in matches the sample in light and dark, at 375px with no horizontal scroll. (difference: no Docs link, see Open questions)
+- [x] `npm run lint`, `typecheck`, `build` pass; `npm test` (17) and `npm run test:e2e` (11) pass.
 
 ## Open questions
 
-1. The sample shows "By continuing you agree to the Terms and Privacy Policy" and a header "Docs" link; neither has a target in the repo. Left out. Recommended: add them when Terms/Privacy pages and a docs URL exist.
+1. The sample's header "Docs" link has no target. Left out until a docs URL exists.
+2. The Terms and Privacy text is a draft written from the product's behavior, with no contact address or governing law. Recommended: have it reviewed and add a contact before real users sign up.
 
 ## Resolved
 
+- Terms and Privacy: added as public `/terms` and `/privacy` pages with the agreement line on sign-in (user, 2026-11-17).
 - Design samples: the user adds `design/samples/metis-auth-shadcn.html` and `metis-chat-shadcn.html`; no screen is built before they are in the repo (user, 2026-11-17).
 - Primitives: keep shadcn `base-nova` on `@base-ui/react`; `ui-context.md` (Stack: "Radix primitives") is updated in this PRD (user, 2026-11-17).
 - Test seam: Playwright against the compose stack for flows, Vitest for pure helpers; a real Google login is checked by hand (user, 2026-11-17).

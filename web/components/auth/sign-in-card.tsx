@@ -1,4 +1,5 @@
 import { Lock } from "lucide-react";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -81,6 +82,18 @@ export async function SignInCard({ searchParams }: { searchParams: SearchParams 
           again.
         </span>
       </div>
+
+      <p className="text-meta text-muted-foreground">
+        By continuing you agree to the{" "}
+        <Link href="/terms" className="text-foreground underline underline-offset-3">
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="text-foreground underline underline-offset-3">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </div>
   );
 }
