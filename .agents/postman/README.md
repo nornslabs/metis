@@ -14,7 +14,7 @@ Workspace: `b3aaa4ee-afe7-46dd-bd1c-3f9fb3cd7cd3` (Norns Labs, team, public)
 
 ## Collection contents
 
-4 folders, 16 requests:
+6 folders, 28 requests:
 
 | Folder | Requests |
 |--------|----------|
@@ -22,6 +22,8 @@ Workspace: `b3aaa4ee-afe7-46dd-bd1c-3f9fb3cd7cd3` (Norns Labs, team, public)
 | Auth | `GET /v1/auth/providers`, `GET /v1/auth/me`, `GET /v1/auth/google/login`, `GET /v1/auth/google/callback`, `POST /v1/auth/logout`, `POST /v1/auth/logout-all` |
 | Workspaces | `GET /v1/workspaces`, `POST /v1/workspaces`, `GET /v1/workspaces/current` |
 | Settings | `GET /v1/settings`, `PATCH /v1/settings`, `PUT /v1/settings/keys/:kind`, `DELETE /v1/settings/keys/:kind`, `POST /v1/settings/keys/:kind/test` |
+| Ideas | `POST /v1/ideas`, `GET /v1/ideas`, `GET /v1/ideas/{idea_id}`, `PATCH /v1/ideas/{idea_id}`, `DELETE /v1/ideas/{idea_id}` |
+| Runs | `POST /v1/ideas/{idea_id}/runs`, `GET /v1/ideas/{idea_id}/runs`, `GET /v1/runs/{run_id}`, `POST /v1/runs/{run_id}/resume`, `POST /v1/runs/{run_id}/cancel`, `GET /v1/runs/{run_id}/events` |
 
 ## Variables
 
@@ -32,6 +34,8 @@ Workspace: `b3aaa4ee-afe7-46dd-bd1c-3f9fb3cd7cd3` (Norns Labs, team, public)
 | `sessionToken` | *(blank)* | Session cookie value (from `/v1/auth/google/callback`), without the `metis_session=` prefix. |
 | `SESSION_COOKIE_NAME` | `metis_session` | Cookie name. |
 | `keyKind` | `llm` | Provider kind: `llm` or `exa`. |
+| `ideaId` | *(blank)* | Idea UUID for path parameters. |
+| `runId` | *(blank)* | Run UUID for path parameters. |
 
 ## Prerequest script
 
