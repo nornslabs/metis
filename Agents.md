@@ -16,6 +16,7 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 │   │   ├── project-overview.md  # what Metis is, flow, features, scope, success criteria
 │   │   ├── architecture.md      # stack, boundaries, storage, auth, invariants
 │   │   ├── server-context.md    # server primitives: processes, ports, enums, modules, agent graph, API/job/error conventions
+│   │   ├── ui-context.md        # web UI: stack, design language, tokens, layout, components, live event mapping
 │   │   ├── code-standards.md    # coding rules for Python, LangGraph, TypeScript, data, tests
 │   │   └── ai-workflow-rules.md # AI workflow rules and conventions
 │   ├── prds/                  # one file per unit of work (see PRDs)
@@ -59,9 +60,20 @@ All agent-related files (context, PRDs, tracker, prompts for coding agents, scra
 | Any task                    | `project-overview.md`, `code-standards.md` |
 | Server, API, jobs, DB       | + `architecture.md`, `server-context.md`   |
 | Agent graph, tools, prompts | + `architecture.md`, `server-context.md`   |
-| Web UI                      | + `architecture.md`                        |
+| Web UI                      | + `architecture.md`, `ui-context.md`       |
 
 Always load the active PRD and `progress-tracker.md`. How PRDs are created and implemented: see "Workflow: Two Commands".
+
+## Web UI Design
+
+Any task that touches `web/` is designed and built from `.agents/ctx/ui-context.md`. Do not choose styles, tokens, components or layout on your own.
+
+- Reference designs are the source of truth for look and behavior: `design/samples/metis-chat-shadcn.html` (app shell, chat, account menu, settings sheet) and `design/samples/metis-auth-shadcn.html` (sign-in). Open the relevant sample in a browser before building a screen, and match it; do not restyle.
+- Follow the stack, folder structure, routes, tokens, spacing, components, states and accessibility rules in `ui-context.md`. In short: square everything (`--radius: 0`), 1px lines not shadows, theme tokens only (no hex, no arbitrary colors), shadcn/ui + Tailwind only, 13px compact density.
+- The web talks only to the server API (generated `openapi-fetch` client, SSE via `useRunEvents`). No LLM, DB, Exa or MCP calls from `web/`.
+- Validate every form and every SSE payload with Zod. Agent text is untrusted: sanitize markdown.
+- A UI PRD is not done until light and dark both match the samples.
+- If a screen or behavior is not in `ui-context.md` or the samples, treat it as a missing requirement (see "Handling Missing Requirements").
 
 ## PRDs
 
@@ -187,6 +199,7 @@ Update the matching file in `.agents/ctx/` in the same change when you alter:
 - Architecture, boundaries or invariants → `architecture.md`
 - Enums, ports, modules, API/job/error conventions → `server-context.md`
 - Coding conventions → `code-standards.md`
+- Web UI design, tokens, components, routes or run-event mapping → `ui-context.md`
 - Features or scope → `project-overview.md`
 
 ## Before Moving to the Next PRD
@@ -194,7 +207,7 @@ Update the matching file in `.agents/ctx/` in the same change when you alter:
 1. The PRD's acceptance checks pass end to end.
 2. No invariant in `architecture.md` is violated.
 3. Server: `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
-4. Web: `npm run lint`, `npm run typecheck`, `npm run build` pass.
+4. Web: `npm run lint`, `npm run typecheck`, `npm run build` pass, and the UI matches `design/samples/` in light and dark (see "Web UI Design").
 5. The PRD status and `progress-tracker.md` are updated.
 
 ## External Tools
