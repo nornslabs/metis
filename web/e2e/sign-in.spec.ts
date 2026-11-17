@@ -107,4 +107,28 @@ test.describe("signed in", () => {
     const me = await page.request.get("/v1/auth/me");
     expect(me.status()).toBe(401);
   });
+
+  test("useMe reads the user with only the session cookie", async ({ page }) => {
+    const authorization: string[] = [];
+    page.on("request", (request) => {
+      const value = request.headers()["authorization"];
+      if (value) authorization.push(value);
+    });
+    await page.goto("/");
+    await expect(page.getByText(`Signed in as ${USER_EMAIL}.`)).toBeVisible();
+    expect(authorization).toEqual([]);
+  });
+
+  test("a session that ends mid-visit sends the user to sign-in with a notice", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.getByText(`Signed in as ${USER_EMAIL}.`)).toBeVisible();
+    await page.request.post("/v1/auth/logout", { headers: { "X-Metis-Client": "web" } });
+    // Tab focus makes TanStack Query refetch `useMe()`, which now answers 401.
+    await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
+    await expect(page).toHaveURL(/\/sign-in/);
+    await expect(page.getByText("Signed out")).toBeVisible();
+  });
 });
+

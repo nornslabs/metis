@@ -115,4 +115,4 @@ Seam: the browser against the running local stack (`docker compose up`), driven 
 
 ## Status
 
-in progress
+done
