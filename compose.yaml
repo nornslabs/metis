@@ -143,6 +143,8 @@ services:
     build:
       context: web
       dockerfile: Dockerfile
+      args:
+        API_ORIGIN: http://api:8000
     container_name: metis-web
     ports:
       - "3000:3000"
@@ -152,7 +154,7 @@ services:
     networks:
       - metis-network
     environment:
-      NEXT_PUBLIC_API_URL: http://api:8000/v1
+      API_ORIGIN: http://api:8000
     depends_on:
       api:
         condition: service_started

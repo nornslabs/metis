@@ -116,6 +116,7 @@ Public before private: module docstring, imports, constants, then public functio
 ## Styling
 
 - Tailwind + shadcn/ui only; theme tokens, no hex values; light + dark.
+- No px/em/rem literals in class names (`text-[12.5px]`, `max-w-[480px]`, `max-[700px]:`). Use a named length from the `@theme` block in `web/app/globals.css`; add one there (and to `web/lib/cn.ts`) if none fits. ESLint enforces it outside `components/ui/`.
 
 ## Data
 

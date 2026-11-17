@@ -15,7 +15,7 @@ Open them in a browser before building a screen. Match them; do not restyle.
 | ------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Framework     | Next.js App Router, React Server Components, TypeScript `strict`                        | Server Components by default; `"use client"` only for interactivity     |
 | Styling       | Tailwind CSS v4 (CSS-first `@theme`), `tw-animate-css`                                  | Tokens only, no hex or arbitrary colors                                 |
-| Components    | shadcn/ui (`base-color: neutral`, `radius: 0`), Radix primitives                        | Generated into `components/ui/` (protected)                             |
+| Components    | shadcn/ui (`base-nova` style, `base-color: neutral`, `radius: 0`), Base UI primitives   | Generated into `components/ui/` (protected)                             |
 | AI components | shadcn.io chat parts: Message, Bubble, Prompt Input, Suggestion, Shimmer, Task, Sources | Pro blocks may be unavailable: build the same API in `components/chat/` |
 | Icons         | `lucide-react`, 15px in controls, stroke 2                                              | Icon-only buttons always have `aria-label` + tooltip                    |
 | Fonts         | Geist Sans + Geist Mono via `next/font` (`geist` package)                               | Mono for keys, URLs, kbd, eyebrows                                      |
@@ -58,13 +58,12 @@ web/
 | Route             | Access    | Screen                                                                                      |
 | ----------------- | --------- | ------------------------------------------------------------------------------------------- |
 | `/sign-in`        | public    | Split: pitch left, form right (form first on mobile)                                        |
+| `/terms`, `/privacy` | public | Terms of Use and Privacy Policy, in the sign-in frame; linked from the sign-in card |
 | `/`               | signed in | Empty chat: "What are you building?", suggestions, composer                                 |
 | `/ideas/[ideaId]` | signed in | Conversation for the idea's latest run                                                      |
 | `?settings=<tab>` | signed in | Opens the settings sheet on any app route. Tabs: `account`, `keys`, `integrations`, `prefs` |
 
-Auth: server-owned Google sign-in (`plans/server-auth-google.md`). "Continue with Google" is a plain link to `/v1/auth/google/login?redirect_to=<path>`. The web holds no auth SDK and no tokens; the session is an `HttpOnly` cookie. The `(app)` layout calls `GET /v1/me` on the server; `401` redirects to `/sign-in`. Mutations send `X-Metis-Client: web`. Render provider buttons from `GET /v1/auth/providers`; email shows as "Soon".
-
-> `architecture.md` still says Auth.js. If the auth plan is accepted, update `architecture.md` in the same change.
+Auth: server-owned Google sign-in (`server-context.md`, Auth and Request Scope). "Continue with Google" is a plain link to `/v1/auth/google/login?redirect_to=<path>`. The web holds no auth SDK and no tokens; the session is an `HttpOnly` cookie. `next.config.ts` rewrites `/v1/*` to `API_ORIGIN` (build-time, also read by server components), so the cookie is first-party and no CORS is needed; `GOOGLE_REDIRECT_URI` therefore points at the web origin. The `(app)` layout calls `GET /v1/auth/me` on the server; a `401` renders `RedirectToSignIn`, which sends the visitor to `/sign-in?redirect_to=<current path>` (a layout cannot read its own path, and there is no `proxy.ts`). Mutations send `X-Metis-Client: web`. Render provider buttons from `GET /v1/auth/providers`; email shows as "Soon". The sign-in page uses the same frame (rails, safe area, ticks) as the app.
 
 ## Design Language
 
@@ -108,6 +107,19 @@ Layout tokens:
 | `--footer-h` | `32px`                                                                      | App footer        |
 
 Score band colors (the only colored surfaces): `build` = success, `promising` = warning, `advise` = destructive. Badge fill is the color at 18% over transparent; text is the color mixed 70% with foreground.
+
+## Custom Lengths
+
+No px/em/rem literals in class names. Fixed sizes live once, in the `@theme` block of `app/globals.css`, and components use the names. A new length is added there and to the lists in `lib/cn.ts` (the class merger must know it, or `text-*` names are read as colors). `components/ui/` imports `cn` from the package; `next.config.ts` and `tsconfig.json` alias it to `lib/cn.ts`.
+
+| Group          | Names (value)                                                                                                                                                                                                         |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Breakpoints    | `compact` (700px), `stacked` (900px): `max-compact:`, `max-stacked:`                                                                                                                                                  |
+| Font size      | `text-micro` 10, `text-eyebrow` 10.5, `text-meta` 11, `text-note` 11.5, `text-control` 12.5, `text-body` 13, `text-title` 17, `text-score` 28, `text-display` (clamp 24-32, line-height 1.12, tracking -0.03em) |
+| Tracking       | `tracking-eyebrow` .12em, `tracking-divider` .08em, `tracking-label` .06em, `tracking-score` -.04em                                                                                                                   |
+| Fixed sizes    | `h-control` 30, `h-badge` 18, `h-track` 3, `size-tick` 9                                                                                                                                                              |
+| Max widths     | `max-w-pitch` 480, `max-w-headline` 460, `max-w-lead` 400, `max-w-card` 320                                                                                                                                           |
+| Grid utilities | `grid-cols-split` (1.1fr 1fr), `grid-cols-score-row` (100px 1fr)                                                                                                                                                      |
 
 ## Typography
 
@@ -228,7 +240,7 @@ Reconnect with `Last-Event-ID`; the server pings every 15 s.
 
 ## Rules
 
-- Tailwind + shadcn only. No inline styles except CSS variables, no CSS modules, no hex.
+- Tailwind + shadcn only. No inline styles except CSS variables, no CSS modules, no hex, no px/em/rem literals in class names (see Custom Lengths).
 - No `rounded-*` classes. If a shadcn component adds one, override via the `--radius` token, not by editing `components/ui/`.
 - Validate every form with Zod and every SSE payload with Zod before use.
 - API types come only from the generated client; regenerate on server schema change.
