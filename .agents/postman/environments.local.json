@@ -1,0 +1,12 @@
+{
+  "id": "env-local",
+  "name": "Local (host)",
+  "description": "Metis API running locally on localhost:8000. Copy the session cookie from /v1/auth/google/callback into 'sessionToken' before running authenticated tests.",
+  "values": [
+    { "key": "baseUrl", "value": "http://localhost:8000", "type": "string", "enabled": true, "description": "API root URL" },
+    { "key": "workspaceId", "value": "", "type": "string", "enabled": true, "description": "X-Workspace-Id header; blank uses personal workspace" },
+    { "key": "sessionToken", "value": "", "type": "string", "enabled": true, "description": "Session cookie value (from /v1/auth/google/callback)" },
+    { "key": "SESSION_COOKIE_NAME", "value": "metis_session", "type": "string", "enabled": true, "description": "Session cookie name" },
+    { "key": "keyKind", "value": "llm", "type": "string", "enabled": true, "description": "Provider kind: llm or exa" }
+  ]
+}

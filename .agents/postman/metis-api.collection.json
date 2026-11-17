@@ -1,0 +1,812 @@
+{
+  "info": {
+    "name": "Metis API",
+    "description": "Metis agentic planning app API.\n\nAuth: session-cookie only (no Bearer token). Mutations require `X-Metis-Client: web` (CSRF). Workspace-scoped routes need `X-Workspace-Id`. Errors are RFC 7807 `application/problem+json` with a stable `code` (e.g. `auth.not_signed_in`). See server-context.md.\n\nLocal stack: docker compose (Postgres, Redis, API port 8000).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": {
+      "major": 2,
+      "minor": 1,
+      "patch": 0
+    }
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Public health check endpoints.",
+      "item": [
+        {
+          "name": "GET /",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": [
+                "{{baseUrl}}"
+              ]
+            },
+            "description": "Root endpoint - service name and status."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET"
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\"service\":\"metis\",\"status\":\"ok\"}"
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/health",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "health"
+              ]
+            },
+            "description": "Health check with db and redis status."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"status\":\"ok\",\"db\":\"ok\",\"redis\":\"ok\",\"version\":\"unknown\"}"
+            },
+            {
+              "name": "503 Redis Down",
+              "code": 503,
+              "body": "{\"status\":\"degraded\",\"db\":\"ok\",\"redis\":\"error\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Session-based authentication: providers, me, logout.\n\nPrerequest script: X-Metis-Client: web on mutations, session cookie from {{sessionToken}}.",
+      "item": [
+        {
+          "name": "GET /v1/auth/providers",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/providers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "providers"
+              ]
+            },
+            "description": "List configured auth providers. Currently returns ['google'] if GOOGLE_CLIENT_ID is set."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "[]"
+            },
+            {
+              "name": "200 OK (Google)",
+              "code": 200,
+              "body": "[\"google\"]"
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/auth/me",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Get the signed-in user from the session cookie. Requires valid session."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"id\":\"9c8b7a65-4321-0fed-cba9-876543210fed\",\"email\":\"user@example.com\",\"name\":\"Test User\",\"image\":\"https://example.com/avatar.png\",\"created_at\":\"2024-01-15T10:00:00Z\"}"
+            },
+            {
+              "name": "401 Not Signed In",
+              "code": 401,
+              "body": "{\"type\":\"http://localhost:8000/errors/auth.not_signed_in\",\"title\":\"Not Signed In\",\"status\":401,\"code\":\"auth.not_signed_in\",\"detail\":\"Not signed in\"}"
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/auth/google/login",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/google/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "google",
+                "login"
+              ],
+              "query": [
+                {
+                  "key": "redirect_to",
+                  "value": "/",
+                  "raw": "redirect_to=/"
+                }
+              ]
+            },
+            "description": "Start Google OAuth flow. Redirects to Google consent screen. Optional ?redirect_to=path."
+          },
+          "response": [
+            {
+              "name": "302 Redirect to Google",
+              "code": 302,
+              "header": [
+                {
+                  "key": "Location",
+                  "value": "https://accounts.google.com/..."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/auth/google/callback",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/google/callback?code=...&state=...",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "google",
+                "callback"
+              ],
+              "query": [
+                {
+                  "key": "code",
+                  "value": "",
+                  "raw": "code="
+                },
+                {
+                  "key": "state",
+                  "value": "",
+                  "raw": "state="
+                }
+              ]
+            },
+            "description": "Google OAuth callback. Sets session cookie on success, redirects to WEB_BASE_URL."
+          },
+          "response": [
+            {
+              "name": "302 Redirect to Web App",
+              "code": 302,
+              "header": [
+                {
+                  "key": "Location",
+                  "value": "{{baseUrl}}/sign-in"
+                },
+                {
+                  "key": "Set-Cookie",
+                  "value": "metis_session=..."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/auth/logout",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "End this browser's session and clear the cookie. CSRF protected (X-Metis-Client: web).",
+            "body": {
+              "mode": "none"
+            }
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "code": 204,
+              "body": ""
+            },
+            {
+              "name": "403 CSRF Failed",
+              "code": 403,
+              "body": "{\"type\":\"http://localhost:8000/errors/auth.csrf_failed\",\"code\":\"auth.csrf_failed\"}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/auth/logout-all",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/logout-all",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "logout-all"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "End all sessions of the signed-in user. Requires valid session."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "code": 204,
+              "body": ""
+            },
+            {
+              "name": "401 Not Signed In",
+              "code": 401,
+              "body": "{\"type\":\"http://localhost:8000/errors/auth.not_signed_in\",\"code\":\"auth.not_signed_in\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Workspaces",
+      "description": "Workspace management. Workspace-scoped via X-Workspace-Id; defaults to personal workspace.",
+      "item": [
+        {
+          "name": "GET /v1/workspaces",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/workspaces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "workspaces"
+              ]
+            },
+            "description": "List all workspaces the caller is a member of."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"items\":[{\"workspace\":{\"id\":\"b3aaa4ee-afe7-46dd-bd1c-3f9fb3cd7cd3\",\"name\":\"Norns Labs\",\"is_personal\":false},\"role\":\"owner\"}],\"next_cursor\":null}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/workspaces",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/v1/workspaces",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "workspaces"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "Create a new owned workspace.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"name\":\"New Workspace\"}"
+            }
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "code": 201,
+              "body": "{\"workspace\":{\"id\":\"new-uuid\",\"name\":\"New Workspace\",\"is_personal\":false},\"role\":\"owner\"}"
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/workspaces/current",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/workspaces/current",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "workspaces",
+                "current"
+              ]
+            },
+            "description": "Get the current workspace (X-Workspace-Id header, or personal if absent)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"workspace\":{\"id\":\"b3aaa4ee-afe7-46dd-bd1c-3f9fb3cd7cd3\",\"name\":\"Norns Labs\",\"is_personal\":false},\"role\":\"owner\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Settings",
+      "description": "Workspace settings and provider keys (LLM, Exa). Runs are scoped to workspace.",
+      "item": [
+        {
+          "name": "GET /v1/settings",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/v1/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "settings"
+              ]
+            },
+            "description": "Get masked provider keys and run settings for the current workspace."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"keys\":{\"llm\":null,\"exa\":null},\"settings\":{\"run_budget_usd\":2.00,\"max_steps\":50,\"version\":0}}"
+            }
+          ]
+        },
+        {
+          "name": "PATCH /v1/settings",
+          "request": {
+            "method": "PATCH",
+            "url": {
+              "raw": "{{baseUrl}}/v1/settings",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "settings"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "Update run settings. Requires version from GET response.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"version\":0,\"run_budget_usd\":5.00}"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"run_budget_usd\":5.00,\"max_steps\":50,\"version\":1}"
+            },
+            {
+              "name": "409 Conflict",
+              "code": 409,
+              "body": "{\"type\":\"http://localhost:8000/errors/common.conflict\",\"code\":\"common.conflict\"}"
+            }
+          ]
+        },
+        {
+          "name": "PUT /v1/settings/keys/{kind}",
+          "request": {
+            "method": "PUT",
+            "url": {
+              "raw": "{{baseUrl}}/v1/settings/keys/{{keyKind}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "settings",
+                "keys",
+                ":kind"
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "Save or replace a provider key (kind is 'llm' or 'exa').",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"value\":\"{{\"sk-xxx\"}}\",\"base_url\":\"https://api.openai.com\",\"model\":\"gpt-4\"}"
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "code": 200,
+              "body": "{\"kind\":\"llm\",\"base_url\":\"https://api.openai.com\",\"model\":\"gpt-4\",\"masked\":\"sk-\u20261b2c\",\"version\":1}"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /v1/settings/keys/{kind}",
+          "request": {
+            "method": "DELETE",
+            "url": {
+              "raw": "{{baseUrl}}/v1/settings/keys/{{keyKind}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "settings",
+                "keys",
+                ":kind"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "Delete a provider key. Returns 204 even if key didn't exist."
+          },
+          "response": [
+            {
+              "name": "204 No Content",
+              "code": 204,
+              "body": ""
+            },
+            {
+              "name": "404 Key Not Found",
+              "code": 404,
+              "body": "{\"type\":\"http://localhost:8000/errors/provider.key_not_found\",\"code\":\"provider.key_not_found\"}"
+            }
+          ]
+        },
+        {
+          "name": "POST /v1/settings/keys/{kind}/test",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "{{baseUrl}}/v1/settings/keys/{{keyKind}}/test",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "settings",
+                "keys",
+                ":kind",
+                "test"
+              ]
+            },
+            "header": [
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "Test a saved key with a cheap provider call."
+          },
+          "response": [
+            {
+              "name": "200 OK (valid)",
+              "code": 200,
+              "body": "{\"kind\":\"llm\",\"masked\":\"sk-\u20261b2c\",\"last_tested_at\":\"2026-11-16T12:00:00Z\",\"last_test_ok\":true,\"version\":2}"
+            },
+            {
+              "name": "502 Upstream Error",
+              "code": 502,
+              "body": "{\"type\":\"http://localhost:8000/errors/provider.upstream_error\",\"code\":\"provider.upstream_error\"}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Ideas",
+      "description": "Create, read, update, archive ideas.",
+      "item": [
+        {
+          "name": "POST /v1/ideas",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/v1/ideas",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"New Idea\",\n  \"raw_text\": \"Description of the idea\",\n  \"kind\": \"software\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /v1/ideas",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/ideas"
+          }
+        },
+        {
+          "name": "GET /v1/ideas/{idea_id}",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/ideas/{{ideaId}}"
+          }
+        },
+        {
+          "name": "PATCH /v1/ideas/{idea_id}",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/v1/ideas/{{ideaId}}",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"version\": 1,\n  \"title\": \"Updated Idea\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /v1/ideas/{idea_id}",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/v1/ideas/{{ideaId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Runs",
+      "description": "Start, resume, cancel, and view workflow runs.",
+      "item": [
+        {
+          "name": "POST /v1/ideas/{idea_id}/runs",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/v1/ideas/{{ideaId}}/runs",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{runId}}-start"
+              }
+            ],
+            "description": "Start a run for an idea. Uses Idempotency-Key to prevent duplicate runs."
+          }
+        },
+        {
+          "name": "GET /v1/ideas/{idea_id}/runs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/ideas/{{ideaId}}/runs"
+          }
+        },
+        {
+          "name": "GET /v1/runs/{run_id}",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/runs/{{runId}}"
+          }
+        },
+        {
+          "name": "POST /v1/runs/{run_id}/resume",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/v1/runs/{{runId}}/resume",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"value\": \"yes\"\n}"
+            },
+            "description": "Resume a run after a pause (question or approval)."
+          }
+        },
+        {
+          "name": "POST /v1/runs/{run_id}/cancel",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/v1/runs/{{runId}}/cancel",
+            "header": [
+              {
+                "key": "X-Metis-Client",
+                "value": "web"
+              }
+            ],
+            "description": "Cancel a pending or running run."
+          }
+        },
+        {
+          "name": "GET /v1/runs/{run_id}/events",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/v1/runs/{{runId}}/events",
+            "description": "Stream run events as Server-Sent Events (SSE). Use Last-Event-ID header to resume.",
+            "header": []
+          },
+          "events": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status code is 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Content-Type is text/event-stream', function () {",
+                  "    pm.response.to.have.header('Content-Type', 'text/event-stream');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "workspaceId",
+      "value": "",
+      "type": "string",
+      "description": "X-Workspace-Id header; blank uses personal workspace."
+    },
+    {
+      "key": "sessionToken",
+      "value": "",
+      "type": "string",
+      "description": "Session cookie value (from /v1/auth/google/callback) without 'metis_session='. Copy the cookie value here before running authenticated tests."
+    },
+    {
+      "key": "SESSION_COOKIE_NAME",
+      "value": "metis_session",
+      "type": "string"
+    },
+    {
+      "key": "keyKind",
+      "value": "llm",
+      "type": "string",
+      "description": "Provider kind: 'llm' or 'exa'"
+    },
+    {
+      "key": "ideaId",
+      "value": "",
+      "description": "Idea UUID for path parameters"
+    },
+    {
+      "key": "runId",
+      "value": "",
+      "description": "Run UUID for path parameters"
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Metis API: auto-apply auth + CSRF headers",
+          "// Session token -> Cookie: sessionToken = <cookie value from /v1/auth/google/callback>",
+          "const method = (request.method || '').toUpperCase();",
+          "const isMutation = ['POST','PUT','PATCH','DELETE'].includes(method);",
+          "if (isMutation) pm.request.headers.upsert({key:'X-Metis-Client', value:'web'});",
+          "const token = pm.variables.get('sessionToken');",
+          "if (token) pm.request.headers.upsert({key:'Cookie', value: pm.variables.get('SESSION_COOKIE_NAME','metis_session') + '=' + token});",
+          "const ws = pm.variables.get('workspaceId');",
+          "if (ws) pm.request.headers.upsert({key:'X-Workspace-Id', value: ws});"
+        ]
+      }
+    }
+  ]
+}
