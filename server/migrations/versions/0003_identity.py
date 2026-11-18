@@ -24,6 +24,24 @@ CREATE POLICY member_self ON identity.members FOR SELECT
 USING (user_id = nullif(current_setting('app.user_id', true), '')::uuid)
 """
 
+# ``0001_initial`` may already have been applied by a database created with
+# the original helper body. Replacing it here lets that database continue
+# through this migration instead of relying on the already-recorded 0001.
+ENABLE_TENANT_RLS_SQL = """
+CREATE OR REPLACE FUNCTION enable_tenant_rls(table_name regclass)
+RETURNS void AS $$
+BEGIN
+    EXECUTE format('ALTER TABLE %s ENABLE ROW LEVEL SECURITY', table_name);
+    EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', table_name);
+    EXECUTE format(
+        'CREATE POLICY tenant_isolation ON %s FOR ALL '
+        || 'USING (workspace_id = nullif(current_setting(%L, true), %L)::uuid)',
+        table_name, 'app.workspace_id', ''
+    );
+END;
+$$ LANGUAGE plpgsql;
+"""
+
 
 def _created_at() -> sa.Column[datetime]:
     return sa.Column(
@@ -92,6 +110,7 @@ def upgrade() -> None:
         schema=SCHEMA,
     )
     op.create_index("ix_members_user_id", "members", ["user_id"], schema=SCHEMA)
+    op.execute(ENABLE_TENANT_RLS_SQL)
     op.execute("SELECT enable_tenant_rls('identity.members'::regclass)")
     op.execute(MEMBER_SELF_POLICY)
 
