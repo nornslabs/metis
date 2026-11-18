@@ -20,6 +20,7 @@ PROVIDER = "exa"
 EXA_MCP_URL = "https://mcp.exa.ai/mcp"
 API_KEY_HEADER = "x-api-key"
 SEARCH_TOOL = "web_search_exa"
+FETCH_TOOL = "web_fetch_exa"
 # Field names from the server's tool schema (``query`` and ``objective`` are required).
 CHECK_ARGUMENTS = {
     "query": "Metis API key check",

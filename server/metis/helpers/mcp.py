@@ -57,6 +57,16 @@ def _reason(exc: BaseException) -> FailureReason:
         for leaf in leaves
     ):
         return FailureReason.UNAUTHORIZED
+    if any(
+        isinstance(leaf, httpx.HTTPStatusError) and leaf.response.status_code == 429
+        for leaf in leaves
+    ):
+        return FailureReason.RATE_LIMITED
+    if any(
+        isinstance(leaf, httpx.HTTPStatusError) and leaf.response.status_code >= 500
+        for leaf in leaves
+    ):
+        return FailureReason.SERVER_ERROR
     if any(isinstance(leaf, (TimeoutError, httpx.TimeoutException)) for leaf in leaves):
         return FailureReason.TIMEOUT
     if any(isinstance(leaf, httpx.TransportError) for leaf in leaves):
