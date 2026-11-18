@@ -1,9 +1,14 @@
-"""The LLM gateway: the one way agent code gets a chat model.
+"""The LLM gateway: the one way agent code gets a chat model or embeddings.
 
 ``LLMGateway`` serves one run. It reads the workspace's saved credentials through
 ``identity.get_key_for_use`` only to build the model (it never stores or logs them),
 caches one model per ``purpose`` for the run, and records the tokens and cost of every
 completed call in ``ideas.llm_usage`` through ``ideas.record_llm_usage``.
+
+``embed`` turns texts into 1536-dimension vectors with ``LLM_EMBEDDING_MODEL`` on the same
+endpoint and key. A provider without embeddings (or with vectors of another size) gives
+``None``, and the gateway stops asking for the rest of the run, so callers fall back to
+search by name.
 
 Usage rows are written in their own short transaction, so a run that later fails
 keeps what it already spent. Failing to record usage is logged and never fails the
@@ -12,7 +17,7 @@ call whose reply the run already paid for. Budget enforcement is SHIP-237.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
@@ -21,16 +26,18 @@ from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
 from langchain_core.outputs import ChatGeneration, LLMResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from metis.adapters.llm import OpenAICompatibleChat, build_chat_model
+from metis.adapters.llm import OpenAICompatibleChat, build_chat_model, build_embedder
 from metis.agent.tracing import tracing_callbacks
 from metis.core.config import get_settings
 from metis.core.db import get_session_maker, set_workspace, transaction
-from metis.core.errors import ProviderNotConfiguredError
+from metis.core.errors import ProviderNotConfiguredError, UpstreamError
 from metis.core.logging import get_logger
-from metis.core.ports import LLMProvider
+from metis.core.ports import Embedder, LLMProvider
+from metis.helpers.http import FailureReason
 from metis.helpers.pricing import ModelPrice, cost_usd
 from metis.modules.ideas import NewLlmUsage, record_llm_usage
-from metis.modules.identity import ProviderKind, get_key_for_use
+from metis.modules.identity import ProviderCredentials, ProviderKind, get_key_for_use
+from metis.modules.research import EMBEDDING_DIMENSIONS
 
 logger = get_logger(__name__)
 
@@ -55,6 +62,9 @@ class LLMGateway:
         self._http_client = http_client
         self._tracing = tracing_callbacks(settings)
         self._models: dict[str, OpenAICompatibleChat] = {}
+        self._embedding_model = settings.llm_embedding_model
+        self._embedder: Embedder | None = None
+        self._embeddings_unavailable = False
 
     async def chat_model(self, session: AsyncSession, purpose: str) -> LLMProvider:
         """The run's chat model for ``purpose``.
@@ -65,25 +75,78 @@ class LLMGateway:
         cached = self._models.get(purpose)
         if cached is not None:
             return cached
-        credentials = await get_key_for_use(session, self._workspace_id, ProviderKind.LLM)
-        if credentials.base_url is None or credentials.model is None:
-            raise ProviderNotConfiguredError("No LLM key is saved for this workspace.")
+        credentials, base_url, chat_model = await self._credentials(session)
         model = build_chat_model(
-            base_url=credentials.base_url,
+            base_url=base_url,
             api_key=credentials.api_key,
-            model=credentials.model,
+            model=chat_model,
             purpose=purpose,
-            callbacks=[*self._tracing, self._usage_recorder(credentials.model)],
+            callbacks=[*self._tracing, self._usage_recorder(chat_model)],
             http_client=self._http_client,
         )
         self._models[purpose] = model
         return model
+
+    async def embed(self, session: AsyncSession, texts: Sequence[str]) -> list[list[float]] | None:
+        """One vector per text, or ``None`` when the provider has no usable embeddings.
+
+        ``session`` reads the saved key. Records usage like a chat call. Raises
+        ``ProviderNotConfiguredError`` without an LLM key and ``UpstreamError`` for other
+        provider failures.
+        """
+        if not texts:
+            return []
+        if self._embeddings_unavailable:
+            return None
+        embedder = await self._get_embedder(session)
+        try:
+            batch = await embedder.embed(texts)
+        except UpstreamError as exc:
+            if (exc.meta or {}).get("reason") != FailureReason.NOT_SUPPORTED.value:
+                raise
+            self._no_embeddings("not_supported")
+            return None
+        await self.record(embedder.model, batch.input_tokens, 0)
+        if any(len(vector) != EMBEDDING_DIMENSIONS for vector in batch.vectors):
+            self._no_embeddings("wrong_dimensions")
+            return None
+        return [list(vector) for vector in batch.vectors]
 
     async def aclose(self) -> None:
         """Release every model's HTTP client; call when the run ends."""
         models, self._models = list(self._models.values()), {}
         for model in models:
             await model.aclose()
+        embedder, self._embedder = self._embedder, None
+        if embedder is not None:
+            await embedder.aclose()
+
+    async def _credentials(self, session: AsyncSession) -> tuple[ProviderCredentials, str, str]:
+        """The workspace's LLM credentials with their ``base_url`` and chat ``model``."""
+        credentials = await get_key_for_use(session, self._workspace_id, ProviderKind.LLM)
+        if credentials.base_url is None or credentials.model is None:
+            raise ProviderNotConfiguredError("No LLM key is saved for this workspace.")
+        return credentials, credentials.base_url, credentials.model
+
+    async def _get_embedder(self, session: AsyncSession) -> Embedder:
+        if self._embedder is None:
+            credentials, base_url, _ = await self._credentials(session)
+            self._embedder = build_embedder(
+                base_url=base_url,
+                api_key=credentials.api_key,
+                model=self._embedding_model,
+                http_client=self._http_client,
+            )
+        return self._embedder
+
+    def _no_embeddings(self, reason: str) -> None:
+        self._embeddings_unavailable = True
+        logger.info(
+            "llm.embeddings_unavailable",
+            run_id=str(self._run_id),
+            model=self._embedding_model,
+            reason=reason,
+        )
 
     def _usage_recorder(self, model: str) -> BaseCallbackHandler:
         return _UsageRecorder(self, model)

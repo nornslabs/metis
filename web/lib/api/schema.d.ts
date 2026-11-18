@@ -219,6 +219,26 @@ export interface paths {
         patch: operations["update_idea_v1_ideas__idea_id__patch"];
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/research": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Latest Research
+         * @description The idea's latest closed research snapshot; 404 ``research.not_found`` before one exists.
+         */
+        get: operations["get_latest_research_v1_ideas__idea_id__research_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/runs": {
         parameters: {
             query?: never;
@@ -237,6 +257,26 @@ export interface paths {
          * @description Start a run; the same ``Idempotency-Key`` returns the same run.
          */
         post: operations["start_run_v1_ideas__idea_id__runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/research/snapshots/{snapshot_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Snapshot
+         * @description A research snapshot, open or closed, with its items and competitors.
+         */
+        get: operations["get_snapshot_v1_research_snapshots__snapshot_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -531,6 +571,34 @@ export interface components {
             version: number;
         };
         /**
+         * LinkedCompetitor
+         * @description A competitor as found by one snapshot, with its overlap.
+         */
+        LinkedCompetitor: {
+            /** Description */
+            description: string | null;
+            /** Domain */
+            domain: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Overlap */
+            overlap: number;
+            /** Pricing */
+            pricing: string | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Url */
+            url: string;
+        };
+        /**
          * MemberRole
          * @enum {string}
          */
@@ -603,6 +671,70 @@ export interface components {
             model?: string | null;
             /** Value */
             value: string;
+        };
+        /**
+         * ResearchItem
+         * @description A stored finding.
+         */
+        ResearchItem: {
+            /** Claim */
+            claim: string;
+            /** Confidence */
+            confidence: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["ResearchItemKind"];
+            /** Published At */
+            published_at: string | null;
+            /** Quote */
+            quote: string | null;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string | null;
+        };
+        /**
+         * ResearchItemKind
+         * @description What a research item is. ``competitor`` and ``market_fact`` must cite a URL.
+         * @enum {string}
+         */
+        ResearchItemKind: "competitor" | "market_fact" | "trend" | "risk";
+        /**
+         * ResearchView
+         * @description A snapshot with its items (oldest first) and competitors (most overlap first).
+         */
+        ResearchView: {
+            /** Closed At */
+            closed_at: string | null;
+            /** Competitors */
+            competitors: components["schemas"]["LinkedCompetitor"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Items */
+            items: components["schemas"]["ResearchItem"][];
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Summary */
+            summary: string | null;
         };
         /**
          * ResumeBody
@@ -1132,6 +1264,39 @@ export interface operations {
             };
         };
     };
+    get_latest_research_v1_ideas__idea_id__research_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_runs_v1_ideas__idea_id__runs_get: {
         parameters: {
             query?: {
@@ -1190,6 +1355,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_snapshot_v1_research_snapshots__snapshot_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                snapshot_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResearchView"];
                 };
             };
             /** @description Validation Error */
