@@ -5,4 +5,10 @@ export const queryKeys = {
   currentWorkspace: (workspaceId: string | null) =>
     ["workspaces", "current", workspaceId] as const,
   settings: (workspaceId: string | null) => ["settings", workspaceId] as const,
+  /** Prefix of every idea query (list, ideas, runs), for invalidation after a write. */
+  allIdeas: () => ["ideas"] as const,
+  ideas: (workspaceId: string | null) => ["ideas", workspaceId, "list"] as const,
+  idea: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId] as const,
+  latestRun: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "latest-run"] as const,
 };

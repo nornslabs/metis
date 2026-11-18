@@ -1,15 +1,17 @@
 "use client";
 
-import { ArrowUp } from "lucide-react";
-import { useId, useState } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
+import { toast } from "sonner";
 
-import { CrossTick } from "@/components/frame/cross-tick";
+import { Composer } from "@/components/chat/composer";
 import { Button } from "@/components/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
+import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
+import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
+import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
 
 const SUGGESTIONS = [
   "A habit tracker for remote teams",
@@ -17,29 +19,55 @@ const SUGGESTIONS = [
   "Marketplace for used lab equipment",
 ] as const;
 
-const COLUMN_LEFT = "left-[calc(50%-var(--col)/2)]";
-const COLUMN_RIGHT = "left-[calc(50%+var(--col)/2)]";
-const FRAME_LEFT = "left-[calc(50%-var(--frame)/2)]";
-const FRAME_RIGHT = "left-[calc(50%+var(--frame)/2)]";
-const BAND = "top-0";
+/** Creates the idea, then starts its first run; the idea page offers Start if the run did not start. */
+function useSubmitIdea() {
+  const router = useRouter();
+  const createIdea = useCreateIdea();
+  const startRun = useStartRun();
+  const [error, setError] = useState<unknown>(null);
 
-/**
- * The empty chat: title, suggestions and the composer. The composer is not wired yet (the idea
- * chat, SHIP-235, submits it); chips only fill the box and Send stays disabled.
- */
+  const submit = async (values: IdeaFormValues) => {
+    setError(null);
+    let ideaId: string;
+    try {
+      ideaId = (await createIdea.mutateAsync(toNewIdea(values))).id;
+    } catch (caught) {
+      setError(caught);
+      return;
+    }
+    try {
+      await startRun.mutateAsync({ ideaId, idempotencyKey: newIdempotencyKey() });
+    } catch (caught) {
+      // The idea exists, so go to it anyway (its page offers Start); the page changes under the
+      // reader, so the reason goes in a toast.
+      toast.error("Your idea was saved, but its run did not start.", { description: describeError(caught) });
+    }
+    router.push(`/ideas/${ideaId}`);
+  };
+
+  return { submit, pending: createIdea.isPending || startRun.isPending, error };
+}
+
+/** The empty chat on `/`: title, suggestions and the composer that submits a new idea. */
 export function EmptyChat() {
-  const [text, setText] = useState("");
-  const inputId = useId();
+  const { submit, pending, error } = useSubmitIdea();
+  const form = useForm<IdeaFormValues>({
+    resolver: zodResolver(ideaFormSchema),
+    defaultValues: { text: "" },
+  });
+  const text = useWatch({ control: form.control, name: "text" });
+  const fieldError = form.formState.errors.text?.message;
+  const serverFieldError =
+    error instanceof ApiError ? fieldErrors(error).find(({ name }) => name === "raw_text" || name === "title") : undefined;
+  const composerError = fieldError ?? serverFieldError?.error.message ?? (error ? describeError(error) : null);
 
   return (
     <>
       <section className="flex flex-1 flex-col items-center justify-center gap-1.5 px-5 py-8 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          What are you building?
-        </h1>
+        <h1 className="text-2xl font-semibold tracking-tight">What are you building?</h1>
         <p className="max-w-lead text-body text-muted-foreground">
-          Describe your idea in a sentence or two. Metis will ask a few
-          questions, research the market and score it.
+          Describe your idea in a sentence or two. Metis will ask a few questions, research the market and
+          score it.
         </p>
       </section>
       <div className="mx-auto flex w-(--col) shrink-0 flex-wrap justify-center gap-1.5 px-5 pb-3 max-guides:px-4">
@@ -49,59 +77,20 @@ export function EmptyChat() {
             type="button"
             variant="outline"
             className="h-6 px-2 text-xs"
-            onClick={() => setText(suggestion)}
+            onClick={() => form.setValue("text", suggestion, { shouldValidate: form.formState.isSubmitted })}
           >
             {suggestion}
           </Button>
         ))}
       </div>
-      <div className="relative shrink-0 border-t">
-        <span aria-hidden="true" className="max-guides:hidden">
-          <CrossTick className={`${COLUMN_LEFT} ${BAND}`} />
-          <CrossTick className={`${COLUMN_RIGHT} ${BAND}`} />
-        </span>
-        <span aria-hidden="true" className="max-compact:hidden">
-          <CrossTick className={`${FRAME_LEFT} ${BAND}`} />
-          <CrossTick className={`${FRAME_RIGHT} ${BAND}`} />
-        </span>
-        <form
-          onSubmit={(event) => event.preventDefault()}
-          className="mx-auto w-(--col) border-x bg-card px-5 pt-3 pb-2 max-guides:px-4"
-        >
-          <label htmlFor={inputId} className="sr-only">
-            Your idea
-          </label>
-          <textarea
-            id={inputId}
-            rows={1}
-            value={text}
-            onChange={(event) => setText(event.target.value)}
-            placeholder="Describe your idea…"
-            className="max-h-45 min-h-5.5 w-full resize-none bg-transparent py-0.5 text-body outline-none placeholder:text-muted-foreground"
-          />
-          <div className="flex items-center justify-end gap-2 pt-1">
-            <kbd className="font-mono text-eyebrow text-muted-foreground max-compact:hidden">
-              Enter to send
-            </kbd>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <Button
-                    type="submit"
-                    size="icon-xs"
-                    aria-label="Send"
-                    disabled
-                    className="size-6.5"
-                  />
-                }
-              >
-                <ArrowUp size={14} strokeWidth={2.5} />
-              </TooltipTrigger>
-              <TooltipContent>Send</TooltipContent>
-            </Tooltip>
-          </div>
-        </form>
-      </div>
+      <Composer
+        label="Your idea"
+        textarea={{ ...form.register("text"), placeholder: "Describe your idea…", readOnly: pending }}
+        action="send"
+        canSend={!pending && text.trim() !== ""}
+        onSubmit={form.handleSubmit(submit)}
+        error={composerError}
+      />
     </>
   );
 }

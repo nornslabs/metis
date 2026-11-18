@@ -6,7 +6,8 @@ export const USER_EMAIL = "e2e-ship221@example.com";
 
 const USER_ID = "00000000-0000-7000-8000-000000000221";
 
-function psql(sql: string): void {
+/** Runs SQL as the superuser in the compose Postgres (test setup only). */
+export function psql(sql: string): void {
   execFileSync(
     "docker",
     ["compose", "exec", "-T", "postgres", "psql", "-U", "postgres", "-d", "metis", "-q", "-c", sql],
