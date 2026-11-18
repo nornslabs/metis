@@ -19,7 +19,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import Receive, Scope, Send
 
-from metis.adapters.mcp.exa import API_KEY_HEADER, SEARCH_TOOL
+from metis.adapters.mcp.exa import API_KEY_HEADER, FETCH_TOOL, SEARCH_TOOL
 
 SLOW_TOOL_SECONDS = 1.0
 
@@ -45,6 +45,7 @@ class FakeExaMcp:
             transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
         self._server.add_tool(self._web_search, name=SEARCH_TOOL)
+        self._server.add_tool(self._web_fetch, name=FETCH_TOOL)
         self._app = self._server.streamable_http_app()
 
     async def _web_search(self, query: str, objective: str, numResults: int = 10) -> str:  # noqa: N803 - Exa's field name
@@ -56,6 +57,11 @@ class FakeExaMcp:
         if self.mode is ExaMode.SLOW:
             await asyncio.sleep(SLOW_TOOL_SECONDS)
         return "Title: Example\nURL: https://example.com"
+
+    async def _web_fetch(self, url: str) -> str:
+        if self.mode is ExaMode.BAD_KEY:
+            raise ValueError(f"{FETCH_TOOL} error (401): Invalid API key.")
+        return f"Fetched content from {url}: " + "x" * 5_000
 
     async def _asgi(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http" and self.mode is ExaMode.HTTP_401:

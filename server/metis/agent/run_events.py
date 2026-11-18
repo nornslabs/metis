@@ -26,6 +26,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, AIMessageChunk
 from redis.asyncio import Redis
 
+from metis.adapters.mcp.exa import FETCH_TOOL, SEARCH_TOOL
 from metis.agent.supervisor import SUPERVISOR_NODE
 from metis.core import events
 from metis.core.events import RunEventType
@@ -37,6 +38,7 @@ INTERRUPT_KEY = "__interrupt__"
 NODE_EVENT_TYPES = frozenset({RunEventType.NODE_FINISHED, RunEventType.TOOL_CALL})
 
 logger = get_logger(__name__)
+EXECUTION_REPORTED_TOOLS = frozenset({SEARCH_TOOL, FETCH_TOOL})
 
 
 class RunEventPublisher:
@@ -122,7 +124,10 @@ class RunEventPublisher:
             return
         node = str(metadata.get("langgraph_node", ""))
         for name in _tool_names(message):
-            await self.publish(RunEventType.TOOL_CALL, {"node": node, "name": name})
+            # Exa reports after execution with query and result count; publishing here
+            # as well would create a second event for the same call.
+            if name not in EXECUTION_REPORTED_TOOLS:
+                await self.publish(RunEventType.TOOL_CALL, {"node": node, "name": name})
         text = message.content if isinstance(message.content, str) else ""
         if text:
             async with self._lock:
