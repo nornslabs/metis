@@ -125,6 +125,11 @@ class Settings(BaseSettings):
     # Optional LLM prices, model id -> USD per million tokens (JSON). A model without
     # an entry has no cost recorded; there is no built-in price list.
     llm_prices: dict[str, ModelPrice] = Field(default_factory=dict, validation_alias="LLM_PRICES")
+    # Embedding model called with the workspace's LLM key and base_url. It must return
+    # 1536-dimension vectors (the competitor KB column); otherwise lookup falls back to names.
+    llm_embedding_model: str = Field(
+        default="text-embedding-3-small", min_length=1, validation_alias="LLM_EMBEDDING_MODEL"
+    )
 
     # Observability settings (optional)
     sentry_dsn: str | None = Field(default=None, validation_alias="SENTRY_DSN")

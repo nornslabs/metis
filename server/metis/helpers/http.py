@@ -36,6 +36,7 @@ class FailureReason(StrEnum):
     BAD_RESPONSE = "bad_response"
     RATE_LIMITED = "rate_limited"
     SERVER_ERROR = "server_error"
+    NOT_SUPPORTED = "not_supported"
 
 
 _DETAILS = {
@@ -45,6 +46,7 @@ _DETAILS = {
     FailureReason.BAD_RESPONSE: "The provider sent an unexpected response.",
     FailureReason.RATE_LIMITED: "The provider is rate limiting requests.",
     FailureReason.SERVER_ERROR: "The provider failed to handle the request.",
+    FailureReason.NOT_SUPPORTED: "The provider does not support this request.",
 }
 
 

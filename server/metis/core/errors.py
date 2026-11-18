@@ -94,6 +94,11 @@ class ErrorCode(StrEnum):
     RESEARCH_NO_RESULTS = "research.no_results"
     RESEARCH_UPSTREAM_ERROR = "research.upstream_error"
     RESEARCH_BUDGET_EXCEEDED = "research.budget_exceeded"
+    RESEARCH_NOT_FOUND = "research.not_found"
+    RESEARCH_SNAPSHOT_NOT_FOUND = "research.snapshot_not_found"
+    RESEARCH_SNAPSHOT_CLOSED = "research.snapshot_closed"
+    RESEARCH_SOURCE_MISSING = "research.source_missing"
+    RESEARCH_COMPETITOR_NOT_FOUND = "research.competitor_not_found"
 
     # ----------------------------------------------------------------------- scoring
     SCORE_INVALID_RUBRIC = "score.invalid_rubric"
@@ -364,6 +369,31 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         retryable=True,
     ),
     # research
+    ErrorCode.RESEARCH_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="No Research Yet",
+        retryable=False,
+    ),
+    ErrorCode.RESEARCH_SNAPSHOT_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Research Snapshot Not Found",
+        retryable=False,
+    ),
+    ErrorCode.RESEARCH_SNAPSHOT_CLOSED: ErrorSpec(
+        status=409,
+        title="Research Snapshot Closed",
+        retryable=False,
+    ),
+    ErrorCode.RESEARCH_SOURCE_MISSING: ErrorSpec(
+        status=422,
+        title="Research Source Missing",
+        retryable=False,
+    ),
+    ErrorCode.RESEARCH_COMPETITOR_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Competitor Not Found",
+        retryable=False,
+    ),
     ErrorCode.RESEARCH_NO_RESULTS: ErrorSpec(
         status=404,
         title="No Results Found",
@@ -676,6 +706,36 @@ class RunEnqueueError(MetisError):
     code: ErrorCode = ErrorCode.RUN_ENQUEUE_FAILED
 
 
+class ResearchNotFoundError(NotFoundError):
+    """404: the idea has no closed research snapshot yet."""
+
+    code: ErrorCode = ErrorCode.RESEARCH_NOT_FOUND
+
+
+class SnapshotNotFoundError(NotFoundError):
+    """404: no such research snapshot in the caller's workspace (or its idea is archived)."""
+
+    code: ErrorCode = ErrorCode.RESEARCH_SNAPSHOT_NOT_FOUND
+
+
+class SnapshotClosedError(ConflictError):
+    """409: a closed research snapshot is immutable."""
+
+    code: ErrorCode = ErrorCode.RESEARCH_SNAPSHOT_CLOSED
+
+
+class ResearchSourceMissingError(MetisError):
+    """422: competitors and market facts must cite a source URL."""
+
+    code: ErrorCode = ErrorCode.RESEARCH_SOURCE_MISSING
+
+
+class CompetitorNotFoundError(NotFoundError):
+    """404: no such competitor in the caller's workspace."""
+
+    code: ErrorCode = ErrorCode.RESEARCH_COMPETITOR_NOT_FOUND
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -706,6 +766,11 @@ __all__ = [
     "InterviewTurnNotFoundError",
     "QuestionAlreadyOpenError",
     "RunEnqueueError",
+    "ResearchNotFoundError",
+    "SnapshotNotFoundError",
+    "SnapshotClosedError",
+    "ResearchSourceMissingError",
+    "CompetitorNotFoundError",
 ]
 
 

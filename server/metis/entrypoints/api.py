@@ -27,6 +27,7 @@ from metis.modules.auth import router as auth_router
 from metis.modules.health import router as health_router
 from metis.modules.ideas import router as ideas_router
 from metis.modules.identity import router as identity_router
+from metis.modules.research import router as research_router
 
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_HEADERS = [
@@ -81,6 +82,7 @@ def _include_routers(app: FastAPI) -> None:
     # Every other /v1 route requires a session cookie via current_user / current_workspace.
     app.include_router(identity_router)
     app.include_router(ideas_router)
+    app.include_router(research_router)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
