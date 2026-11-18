@@ -144,8 +144,11 @@ def _cache_key(run_id: str, tool_name: str, args: Mapping[str, Any]) -> str:
 
 def _tool_failure_reason(exc: Exception) -> FailureReason:
     if isinstance(exc, UpstreamError):
+        reason = (exc.meta or {}).get("reason")
+        if not isinstance(reason, str):
+            return FailureReason.BAD_RESPONSE
         try:
-            return FailureReason(str(exc.meta.get("reason", "bad_response")))
+            return FailureReason(reason)
         except ValueError:
             return FailureReason.BAD_RESPONSE
     if isinstance(exc, TimeoutError | httpx.TimeoutException):
