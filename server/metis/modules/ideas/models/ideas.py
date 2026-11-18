@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from metis.core.models import Base
@@ -32,5 +34,6 @@ class IdeaRow(Base):
     current_score: Mapped[int | None] = mapped_column(Integer)
     version: Mapped[int] = mapped_column(Integer, default=1)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    interview_brief: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

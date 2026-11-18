@@ -120,13 +120,24 @@ class RunEventPublisher:
         message, metadata = chunk
         if not isinstance(message, AIMessage | AIMessageChunk):
             return
-        node = str(metadata.get("langgraph_node", ""))
+        node = _node_of(metadata)
         for name in _tool_names(message):
             await self.publish(RunEventType.TOOL_CALL, {"node": node, "name": name})
         text = message.content if isinstance(message.content, str) else ""
         if text:
             async with self._lock:
                 self._tokens.append((node, text))
+
+
+def _node_of(metadata: Mapping[str, Any]) -> str:
+    """The top-level graph node a message came from, also inside a specialist's subgraph.
+
+    ``langgraph_node`` names the innermost node (a subgraph's ``agent``); the checkpoint
+    namespace starts with the top-level node: ``interviewer:<task>|agent:<task>``.
+    """
+    namespace = str(metadata.get("langgraph_checkpoint_ns", ""))
+    top = namespace.split("|", 1)[0].split(":", 1)[0]
+    return top or str(metadata.get("langgraph_node", ""))
 
 
 def _tool_names(message: AIMessage | AIMessageChunk) -> list[str]:

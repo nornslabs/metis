@@ -14,10 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from metis.agent.checkpoint import open_checkpointer
 from metis.agent.graph import build_graph
 from metis.agent.runner import RunnerDeps
+from metis.agent.specialists.stubs import stub_specialists
 from metis.core.events import RunEvent, RunEventType, read
 from metis.jobs.run_graph import run_graph
 from tests.agent.graph_helpers import APP_DATABASE_URL
-from tests.agent.llm_helpers import make_run, workspace_without_key
+from tests.agent.interview_helpers import ScriptedLLM
+from tests.agent.llm_helpers import make_run, workspace_with_key, workspace_without_key
 
 
 @dataclass(frozen=True)
@@ -40,11 +42,32 @@ async def queued_run(engine: AsyncEngine, sub: str = "ada", stage: str = "intake
     return QueuedRun(await make_run(engine, workspace_id, stage), workspace_id)
 
 
+async def keyed_run(engine: AsyncEngine, sub: str = "ada", stage: str = "intake") -> QueuedRun:
+    """A queued run in a workspace with an LLM key saved."""
+    workspace_id = await workspace_with_key(engine, sub)
+    return QueuedRun(await make_run(engine, workspace_id, stage), workspace_id)
+
+
 def job_ctx(
-    redis: Redis, sessions: async_sessionmaker[AsyncSession], specialists: Any = None
+    redis: Redis,
+    sessions: async_sessionmaker[AsyncSession],
+    specialists: Any = None,
+    *,
+    llm: ScriptedLLM | None = None,
 ) -> dict[str, Any]:
-    """The Arq ``ctx`` a worker would pass, with the runner pointed at the test database."""
-    deps = RunnerDeps(sessions=sessions, database_url=APP_DATABASE_URL, specialists=specialists)
+    """The Arq ``ctx`` a worker would pass, with the runner pointed at the test database.
+
+    Without ``llm`` every specialist is a stub unless ``specialists`` replaces it. With
+    ``llm`` the real specialists run against that scripted model.
+    """
+    if llm is None:
+        specialists = {**stub_specialists(), **(specialists or {})}
+    deps = RunnerDeps(
+        sessions=sessions,
+        database_url=APP_DATABASE_URL,
+        specialists=specialists,
+        llm_http_client=llm.client if llm else None,
+    )
     return {"redis": redis, "run_deps": deps}
 
 

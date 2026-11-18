@@ -1,6 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
 
-// Runs against an already-running stack (`docker compose up`); set E2E_BASE_URL to point elsewhere.
+// Runs against an already-running stack (`AGENT_STUB_SPECIALISTS=true docker compose up`:
+// the e2e runs use stub specialists, as the stack has no LLM key); set E2E_BASE_URL to
+// point elsewhere.
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: false,
