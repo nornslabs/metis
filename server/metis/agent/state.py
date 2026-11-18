@@ -38,6 +38,10 @@ class MetisState(TypedDict):
     budget: Budget
     pending_approval: dict[str, Any] | None
     last_error: str | None
+    # Researcher → Interviewer round trip (SHIP-238). Read with ``.get``: checkpoints written
+    # before these fields existed do not have them.
+    clarification: list[str]
+    clarification_rounds: int
 
 
 def initial_state(
@@ -55,4 +59,6 @@ def initial_state(
         budget=Budget(max_steps=max_steps),
         pending_approval=None,
         last_error=None,
+        clarification=[],
+        clarification_rounds=0,
     )

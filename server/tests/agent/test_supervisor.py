@@ -52,3 +52,9 @@ def test_a_finished_run_is_not_reported_as_over_budget() -> None:
     state = {**start_state(Stage.EXPORTED, max_steps=3), "step_count": 3}
 
     assert supervise(state) == {}
+
+
+def test_pending_clarification_routes_to_the_interviewer_whatever_the_stage() -> None:
+    state = {**start_state(Stage.RESEARCHING), "clarification": ["Which country?"]}
+
+    assert route(state) == Specialist.INTERVIEWER.value

@@ -10,10 +10,10 @@ graph (``thread_id`` = run id), publishes its events and settles the run's statu
 
 It starts a new run from the idea's stage, resumes a paused one with ``Command(resume=...)``,
 and continues a crashed one from its last checkpoint. Each run gets its own ``LLMGateway``
-(closed when the stream ends); the Interviewer is real, the other specialists are stubs,
-and ``AGENT_STUB_SPECIALISTS`` makes every specialist a stub. No database transaction is open while
-the graph runs: every status change is its own short, committed transaction, and the
-terminal ``run_status`` event is published after its row is committed.
+(closed when the stream ends); the Interviewer and Researcher are real, the other specialists
+are stubs, and ``AGENT_STUB_SPECIALISTS`` makes every specialist a stub. No database
+transaction is open while the graph runs: every status change is its own short, committed
+transaction, and the terminal ``run_status`` event is published after its row is committed.
 """
 
 from __future__ import annotations
@@ -37,6 +37,7 @@ from metis.agent.llm import LLMGateway
 from metis.agent.run_events import RunEventPublisher
 from metis.agent.run_lock import RunLock, hold_run_lock
 from metis.agent.specialists.interviewer import build_interviewer
+from metis.agent.specialists.researcher import build_researcher
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import initial_state
 from metis.agent.supervisor import Specialist
@@ -46,6 +47,7 @@ from metis.core.errors import ERROR_CATALOG, ErrorCode, MetisError
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
 from metis.core.run_control import cancel_requested
+from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import ideas, identity
 from metis.modules.ideas import RunStatus, WorkflowRun
 from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES
@@ -64,13 +66,15 @@ class RunnerDeps:
     """What the runner talks to besides Redis; tests replace them (nodes, test database, LLM).
 
     ``specialists`` replaces nodes by specialist (over the real ones and the stubs);
-    ``llm_http_client`` makes the HTTP client each run's chat models use.
+    ``llm_http_client`` makes the HTTP client each run's chat models use; ``exa_http_client`` makes
+    the one the Researcher's Exa session uses (default: the shared provider client).
     """
 
     sessions: async_sessionmaker[AsyncSession]
     database_url: str
     specialists: Mapping[Specialist, SpecialistNode] | None = None
     llm_http_client: Callable[[], httpx.AsyncClient] | None = None
+    exa_http_client: ClientFactory | None = None
 
 
 def default_deps() -> RunnerDeps:
@@ -170,7 +174,7 @@ async def _stream_graph(
     gateway: LLMGateway,
 ) -> Outcome:
     async with open_checkpointer(deps.database_url) as saver:
-        graph = build_graph(saver, specialists=_specialists(deps, gateway))
+        graph = build_graph(saver, specialists=_specialists(deps, gateway, redis))
         config: RunnableConfig = {"configurable": {"thread_id": str(run.id)}}
         payload = await _input(graph, config, deps, run, resume)
         interrupt: dict[str, Any] | None = None
@@ -190,11 +194,19 @@ async def _stream_graph(
         return Outcome("done", last_error=final.get("last_error"))
 
 
-def _specialists(deps: RunnerDeps, gateway: LLMGateway) -> Mapping[Specialist, SpecialistNode]:
+def _specialists(
+    deps: RunnerDeps, gateway: LLMGateway, redis: Redis
+) -> Mapping[Specialist, SpecialistNode]:
     """The real specialists (none with ``AGENT_STUB_SPECIALISTS``), then ``deps`` overrides."""
     real: dict[Specialist, SpecialistNode] = {}
     if not get_settings().agent_stub_specialists:
         real[Specialist.INTERVIEWER] = build_interviewer(gateway, partial(_scoped, deps))
+        real[Specialist.RESEARCHER] = build_researcher(
+            gateway,
+            partial(_scoped, deps),
+            redis,
+            deps.exa_http_client or provider_http_factory(),
+        )
     return {**real, **(deps.specialists or {})}
 
 

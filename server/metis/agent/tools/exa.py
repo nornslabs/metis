@@ -5,7 +5,7 @@ import asyncio
 import hashlib
 import json
 import re
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -71,8 +71,20 @@ async def load_exa_tools(
 ) -> AsyncGenerator[dict[str, BaseTool]]:
     """Open the workspace's authenticated Exa MCP session for one run."""
     credentials = await get_key_for_use(session, workspace_id, ProviderKind.EXA)
+    async with open_exa_tools(credentials.api_key, run_id, redis, make_client) as tools:
+        yield tools
+
+
+@asynccontextmanager
+async def open_exa_tools(
+    api_key: str,
+    run_id: UUID,
+    redis: Redis,
+    make_client: ClientFactory,
+) -> AsyncGenerator[dict[str, BaseTool]]:
+    """Open an Exa MCP session with ``api_key``; no database session is held while it is open."""
     async with (
-        make_client({API_KEY_HEADER: credentials.api_key}) as http,
+        make_client({API_KEY_HEADER: api_key}) as http,
         open_mcp_session(http, EXA_MCP_URL, PROVIDER) as mcp_session,
     ):
         loaded = await load_mcp_tools(mcp_session, handle_tool_errors=False)
@@ -83,6 +95,46 @@ async def load_exa_tools(
             name: _wrap_tool(tool, name, str(run_id), redis)
             for name, tool in raw.items()
         }
+
+
+class ExaCallBudget:
+    """How many Exa calls a run may make, counted in Redis so a re-run cannot spend it again.
+
+    The count is per run (every pass and every re-run of a node share it); a call counts when
+    it is asked for, whether Exa or the cache answers and whether it succeeds.
+    """
+
+    def __init__(self, redis: Redis, run_id: UUID, limit: int) -> None:
+        self._redis = redis
+        self._key = f"agent:exa:{run_id}:calls"
+        self._limit = limit
+
+    async def take(self) -> bool:
+        """Spend one call; ``False`` once the limit is reached."""
+        used = await self._redis.incr(self._key)
+        await self._redis.expire(self._key, CACHE_TTL_SECONDS)
+        return int(used) <= self._limit
+
+
+def with_call_cap(
+    tools: Sequence[BaseTool], budget: ExaCallBudget, *, limit_message: str
+) -> list[BaseTool]:
+    """``tools`` that stop reaching Exa once ``budget`` is spent and answer ``limit_message``."""
+
+    def capped_tool(tool: BaseTool) -> BaseTool:
+        async def invoke(**arguments: Any) -> Any:
+            if not await budget.take():
+                return limit_message
+            return await tool.ainvoke(arguments)
+
+        return StructuredTool.from_function(
+            coroutine=invoke,
+            name=tool.name,
+            description=tool.description,
+            args_schema=tool.args_schema,
+        )
+
+    return [capped_tool(tool) for tool in tools]
 
 
 def _wrap_tool(tool: BaseTool, name: str, run_id: str, redis: Redis) -> BaseTool:

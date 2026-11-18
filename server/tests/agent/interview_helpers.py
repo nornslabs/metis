@@ -16,6 +16,8 @@ from typing import Any
 
 import httpx
 
+from metis.modules.research import EMBEDDING_DIMENSIONS
+
 USAGE = {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18}
 
 
@@ -54,6 +56,8 @@ class ScriptedLLM:
 
     script: list[Reply] = field(default_factory=list)
     bodies: list[dict[str, Any]] = field(default_factory=list)
+    embeddings: bool = False
+    embedding_inputs: list[int] = field(default_factory=list)
     _ids: Iterator[int] = field(default_factory=count)
 
     def add(self, *replies: Reply) -> None:
@@ -72,6 +76,8 @@ class ScriptedLLM:
 
     def _handle(self, request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
+        if request.url.path.endswith("/embeddings"):
+            return self._embeddings(body)
         self.bodies.append(body)
         if not self.script:
             return httpx.Response(500, json={"error": {"message": "script exhausted"}})
@@ -79,6 +85,21 @@ class ScriptedLLM:
         if body.get("stream"):
             return self._stream(reply)
         return httpx.Response(200, json=self._completion(reply))
+
+    def _embeddings(self, body: dict[str, Any]) -> httpx.Response:
+        """Vectors of the size the research module stores, or a 404 like a provider without any."""
+        if not self.embeddings:
+            return httpx.Response(404, json={"error": {"message": "no embeddings here"}})
+        texts = body["input"] if isinstance(body["input"], list) else [body["input"]]
+        self.embedding_inputs.append(len(texts))
+        data = [
+            {"object": "embedding", "index": i, "embedding": [0.01] * EMBEDDING_DIMENSIONS}
+            for i in range(len(texts))
+        ]
+        usage = {"prompt_tokens": 3, "total_tokens": 3}
+        return httpx.Response(
+            200, json={"object": "list", "data": data, "model": "test-embed", "usage": usage}
+        )
 
     def _tool_calls(self, reply: Reply) -> list[dict[str, Any]]:
         return [

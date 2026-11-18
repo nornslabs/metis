@@ -15,7 +15,9 @@ from metis.agent.checkpoint import open_checkpointer
 from metis.agent.graph import build_graph
 from metis.agent.runner import RunnerDeps
 from metis.agent.specialists.stubs import stub_specialists
+from metis.agent.supervisor import Specialist
 from metis.core.events import RunEvent, RunEventType, read
+from metis.helpers.http import ClientFactory
 from metis.jobs.run_graph import run_graph
 from tests.agent.graph_helpers import APP_DATABASE_URL
 from tests.agent.interview_helpers import ScriptedLLM
@@ -54,19 +56,25 @@ def job_ctx(
     specialists: Any = None,
     *,
     llm: ScriptedLLM | None = None,
+    exa: ClientFactory | None = None,
 ) -> dict[str, Any]:
     """The Arq ``ctx`` a worker would pass, with the runner pointed at the test database.
 
     Without ``llm`` every specialist is a stub unless ``specialists`` replaces it. With
-    ``llm`` the real specialists run against that scripted model.
+    ``llm`` the real specialists run against that scripted model; the Researcher stays a stub
+    unless ``exa`` (the Exa HTTP client factory, e.g. a ``FakeExaMcp`` transport) is given.
     """
     if llm is None:
         specialists = {**stub_specialists(), **(specialists or {})}
+    elif exa is None:
+        researcher = {Specialist.RESEARCHER: stub_specialists()[Specialist.RESEARCHER]}
+        specialists = {**researcher, **(specialists or {})}
     deps = RunnerDeps(
         sessions=sessions,
         database_url=APP_DATABASE_URL,
         specialists=specialists,
         llm_http_client=llm.client if llm else None,
+        exa_http_client=exa,
     )
     return {"redis": redis, "run_deps": deps}
 
