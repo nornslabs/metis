@@ -55,7 +55,7 @@ class _ToolCallingModel(BaseChatModel):
         **kwargs: Any,
     ) -> AsyncIterator[ChatGenerationChunk]:
         pieces = [
-            {"name": "web_search_exa", "args": '{"query": ', "id": "c1", "index": 0},
+            {"name": "fake_tool", "args": '{"query": ', "id": "c1", "index": 0},
             {"name": None, "args": '"private plan"}', "id": None, "index": 0},
         ]
         for piece in pieces:
@@ -131,5 +131,5 @@ async def test_a_tool_call_is_published_by_name_without_its_arguments(
 
     events = await events_of(redis, run)
     calls = _of(events, RunEventType.TOOL_CALL)
-    assert [e.data for e in calls] == [{"node": "interviewer", "name": "web_search_exa"}]
+    assert [e.data for e in calls] == [{"node": "interviewer", "name": "fake_tool"}]
     assert "private plan" not in repr(events)
