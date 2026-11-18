@@ -69,6 +69,8 @@ class Settings(BaseSettings):
     run_lock_heartbeat_seconds: int = Field(
         default=20, ge=1, validation_alias="RUN_LOCK_HEARTBEAT_SECONDS"
     )
+    # Every specialist a stub (no LLM calls): for the web e2e stack, which has no LLM key.
+    agent_stub_specialists: bool = Field(default=False, validation_alias="AGENT_STUB_SPECIALISTS")
 
     # Security settings
     encryption_master_key: str = Field(default="", validation_alias="ENCRYPTION_MASTER_KEY")

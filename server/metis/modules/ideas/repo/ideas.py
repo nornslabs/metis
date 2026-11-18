@@ -7,6 +7,7 @@ RLS context can never widen a read. Archived ideas are never returned.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select, tuple_, update
@@ -101,6 +102,27 @@ async def archive(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> b
             IdeaRow.archived_at.is_(None),
         )
         .values(archived_at=func.now(), version=IdeaRow.version + 1, updated_at=func.now())
+        .returning(IdeaRow.id)
+    )
+    return (await session.scalars(stmt)).one_or_none() is not None
+
+
+async def set_interview_brief(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, brief: dict[str, Any]
+) -> bool:
+    """Store the idea's interview brief; ``False`` when no such (unarchived) idea.
+
+    ``version`` is not bumped: the brief is the agent's output, and a user's edit of the
+    title or text must not conflict with it.
+    """
+    stmt = (
+        update(IdeaRow)
+        .where(
+            IdeaRow.id == idea_id,
+            IdeaRow.workspace_id == workspace_id,
+            IdeaRow.archived_at.is_(None),
+        )
+        .values(interview_brief=brief)
         .returning(IdeaRow.id)
     )
     return (await session.scalars(stmt)).one_or_none() is not None

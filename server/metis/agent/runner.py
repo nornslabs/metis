@@ -9,19 +9,23 @@ graph (``thread_id`` = run id), publishes its events and settles the run's statu
 - anything raises → ``failed`` with a stable error code (never the raw exception text).
 
 It starts a new run from the idea's stage, resumes a paused one with ``Command(resume=...)``,
-and continues a crashed one from its last checkpoint. No database transaction is open while
+and continues a crashed one from its last checkpoint. Each run gets its own ``LLMGateway``
+(closed when the stream ends); the Interviewer is real, the other specialists are stubs,
+and ``AGENT_STUB_SPECIALISTS`` makes every specialist a stub. No database transaction is open while
 the graph runs: every status change is its own short, committed transaction, and the
 terminal ``run_status`` event is published after its row is committed.
 """
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Mapping
+from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from functools import partial
 from typing import Any, Literal
 from uuid import UUID
 
+import httpx
 from langchain_core.runnables import RunnableConfig
 from langgraph.types import Command, StreamMode
 from redis.asyncio import Redis
@@ -29,8 +33,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from metis.agent.checkpoint import open_checkpointer
 from metis.agent.graph import CompiledGraph, build_graph
+from metis.agent.llm import LLMGateway
 from metis.agent.run_events import RunEventPublisher
 from metis.agent.run_lock import RunLock, hold_run_lock
+from metis.agent.specialists.interviewer import build_interviewer
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import initial_state
 from metis.agent.supervisor import Specialist
@@ -46,6 +52,8 @@ from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES
 
 # Each step's checkpoint is written before the next step starts, so a killed worker (or a
 # cancel) loses no completed step.
+# The stream includes subgraphs: LangGraph only streams the model output of a specialist's
+# own tool-calling loop (a subgraph) when asked to.
 STREAM_MODES: list[StreamMode] = ["updates", "messages", "custom", "tasks"]
 
 logger = get_logger(__name__)
@@ -53,11 +61,16 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True)
 class RunnerDeps:
-    """What the runner talks to besides Redis; tests replace them (stub nodes, test database)."""
+    """What the runner talks to besides Redis; tests replace them (nodes, test database, LLM).
+
+    ``specialists`` replaces nodes by specialist (over the real ones and the stubs);
+    ``llm_http_client`` makes the HTTP client each run's chat models use.
+    """
 
     sessions: async_sessionmaker[AsyncSession]
     database_url: str
     specialists: Mapping[Specialist, SpecialistNode] | None = None
+    llm_http_client: Callable[[], httpx.AsyncClient] | None = None
 
 
 def default_deps() -> RunnerDeps:
@@ -135,16 +148,39 @@ async def _stream(
     run: WorkflowRun,
     resume: Any,
 ) -> Outcome:
+    gateway = LLMGateway(
+        run.workspace_id,
+        run.id,
+        sessions=deps.sessions,
+        http_client=deps.llm_http_client() if deps.llm_http_client else None,
+    )
+    try:
+        return await _stream_graph(deps, redis, publisher, lock, run, resume, gateway)
+    finally:
+        await gateway.aclose()
+
+
+async def _stream_graph(
+    deps: RunnerDeps,
+    redis: Redis,
+    publisher: RunEventPublisher,
+    lock: RunLock,
+    run: WorkflowRun,
+    resume: Any,
+    gateway: LLMGateway,
+) -> Outcome:
     async with open_checkpointer(deps.database_url) as saver:
-        graph = build_graph(saver, specialists=deps.specialists)
+        graph = build_graph(saver, specialists=_specialists(deps, gateway))
         config: RunnableConfig = {"configurable": {"thread_id": str(run.id)}}
         payload = await _input(graph, config, deps, run, resume)
         interrupt: dict[str, Any] | None = None
-        async for mode, chunk in graph.astream(
-            payload, config, stream_mode=STREAM_MODES, durability="sync"
+        async for namespace, mode, chunk in graph.astream(
+            payload, config, stream_mode=STREAM_MODES, durability="sync", subgraphs=True
         ):
             if lock.lost:
                 return Outcome("lock_lost")
+            if namespace and mode != "messages":
+                continue  # a specialist's inner loop: only its model output is published
             interrupt = interrupt or await publisher.handle(mode, chunk)
             if mode == "updates" and await cancel_requested(redis, run.id):
                 return Outcome("cancelled")
@@ -152,6 +188,14 @@ async def _stream(
             return Outcome("interrupted", interrupt=interrupt)
         final = (await graph.aget_state(config)).values
         return Outcome("done", last_error=final.get("last_error"))
+
+
+def _specialists(deps: RunnerDeps, gateway: LLMGateway) -> Mapping[Specialist, SpecialistNode]:
+    """The real specialists (none with ``AGENT_STUB_SPECIALISTS``), then ``deps`` overrides."""
+    real: dict[Specialist, SpecialistNode] = {}
+    if not get_settings().agent_stub_specialists:
+        real[Specialist.INTERVIEWER] = build_interviewer(gateway, partial(_scoped, deps))
+    return {**real, **(deps.specialists or {})}
 
 
 async def _input(

@@ -86,6 +86,10 @@ class ErrorCode(StrEnum):
     RUN_IDEMPOTENCY_MISMATCH = "run.idempotency_mismatch"
     RUN_ENQUEUE_FAILED = "run.enqueue_failed"
 
+    # --------------------------------------------------------------------- interview
+    INTERVIEW_QUESTION_OPEN = "interview.question_open"
+    INTERVIEW_TURN_NOT_FOUND = "interview.turn_not_found"
+
     # ---------------------------------------------------------------------- research
     RESEARCH_NO_RESULTS = "research.no_results"
     RESEARCH_UPSTREAM_ERROR = "research.upstream_error"
@@ -342,6 +346,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.RUN_IDEMPOTENCY_MISMATCH: ErrorSpec(
         status=409,
         title="Idempotency Key Reused",
+        retryable=False,
+    ),
+    ErrorCode.INTERVIEW_QUESTION_OPEN: ErrorSpec(
+        status=409,
+        title="Interview Question Already Open",
+        retryable=False,
+    ),
+    ErrorCode.INTERVIEW_TURN_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Interview Turn Not Found",
         retryable=False,
     ),
     ErrorCode.RUN_ENQUEUE_FAILED: ErrorSpec(
@@ -644,6 +658,18 @@ class IdempotencyMismatchError(MetisError):
     code: ErrorCode = ErrorCode.RUN_IDEMPOTENCY_MISMATCH
 
 
+class QuestionAlreadyOpenError(ConflictError):
+    """409: the run already waits on a different interview question (ask one at a time)."""
+
+    code: ErrorCode = ErrorCode.INTERVIEW_QUESTION_OPEN
+
+
+class InterviewTurnNotFoundError(NotFoundError):
+    """404: no such interview turn in the caller's workspace."""
+
+    code: ErrorCode = ErrorCode.INTERVIEW_TURN_NOT_FOUND
+
+
 class RunEnqueueError(MetisError):
     """503: the run was saved but its job could not be queued; retry the same request."""
 
@@ -677,6 +703,8 @@ __all__ = [
     "IllegalRunTransition",
     "RunAlreadyRunningError",
     "IdempotencyMismatchError",
+    "InterviewTurnNotFoundError",
+    "QuestionAlreadyOpenError",
     "RunEnqueueError",
 ]
 

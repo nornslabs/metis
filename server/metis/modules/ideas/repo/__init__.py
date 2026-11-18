@@ -5,6 +5,6 @@ Call it domain-qualified: ``repo.ideas.create(...)``.
 
 from __future__ import annotations
 
-from metis.modules.ideas.repo import ideas, llm_usage, workflow_runs
+from metis.modules.ideas.repo import ideas, interview, llm_usage, workflow_runs
 
-__all__ = ["ideas", "llm_usage", "workflow_runs"]
+__all__ = ["ideas", "interview", "llm_usage", "workflow_runs"]

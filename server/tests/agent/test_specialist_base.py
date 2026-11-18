@@ -77,3 +77,14 @@ async def test_without_tools_the_model_answers_once() -> None:
     result = await agent.ainvoke({"messages": [HumanMessage(content="go")]})
 
     assert result["messages"][-1].content == "plain"
+
+
+async def test_a_finishing_tool_ends_the_loop_without_another_model_call() -> None:
+    model = FakeChat([_call_echo("final"), AIMessage(content="never sent")])
+    agent = build_react_specialist("p", [echo], model, finish_tools={"echo"})
+
+    result = await agent.ainvoke({"messages": [HumanMessage(content="go")]})
+
+    messages = result["messages"]
+    assert [type(m) for m in messages] == [HumanMessage, AIMessage, ToolMessage]
+    assert len(model.seen) == 1
