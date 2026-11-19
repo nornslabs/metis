@@ -1,6 +1,7 @@
 import { CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { KEY_GATE_NOTICE_ID } from "@/components/chat/key-gate-notice";
 import { Button } from "@/components/ui/button";
 import type { RunError } from "@/lib/events/schemas";
 
@@ -25,11 +26,20 @@ interface StartRunButtonProps {
   label: string;
   pending: boolean;
   onClick: () => void;
+  /** Blocked by the key gate: disabled, and described by the gate's line. */
+  blocked?: boolean;
 }
 
-export function StartRunButton({ label, pending, onClick }: StartRunButtonProps) {
+export function StartRunButton({ label, pending, onClick, blocked = false }: StartRunButtonProps) {
   return (
-    <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onClick}>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={pending || blocked}
+      aria-describedby={blocked ? KEY_GATE_NOTICE_ID : undefined}
+      onClick={onClick}
+    >
       {pending ? "Starting…" : label}
     </Button>
   );

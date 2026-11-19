@@ -9,12 +9,26 @@ import {
 } from "./schemas";
 
 /** One specialist step: a row in the step list, with the tool names it called. */
-export type RunStep = { readonly node: string; readonly done: boolean; readonly tools: readonly string[] };
+export type RunStep = {
+  readonly node: string;
+  readonly done: boolean;
+  /** Set by a `notice` that says the step did no work (research without an Exa key). */
+  readonly skipped?: boolean;
+  readonly tools: readonly string[];
+};
+
+/** A server note about the run (`notice` event), shown under the steps. */
+export type RunNotice = { readonly code: string; readonly text: string };
+
+/** Notice codes that mean a node was skipped, so its step is marked. */
+const SKIPPED_NODE_BY_CODE: Readonly<Record<string, string>> = { "research.skipped_no_exa": "researcher" };
 
 /** What the agent message shows for one run, rebuilt from the run view plus the event stream. */
 export type RunState = {
   readonly status: RunStatus;
   readonly steps: readonly RunStep[];
+  /** Notices in the order they arrived, one per code (a replay does not repeat them). */
+  readonly notices: readonly RunNotice[];
   readonly text: string;
   readonly error: RunError | null;
   readonly interrupt: RunInterrupt | null;
@@ -55,7 +69,7 @@ export function initialRunState(seed: RunSeed): RunState {
   const interrupt = seed.pending_interrupt
     ? (interruptSchema.safeParse(seed.pending_interrupt).data ?? null)
     : null;
-  return { status, steps: [], text: "", error, interrupt, interruptCount: 0 };
+  return { status, steps: [], notices: [], text: "", error, interrupt, interruptCount: 0 };
 }
 
 function lastIndexOfNode(steps: readonly RunStep[], node: string): number {
@@ -68,15 +82,38 @@ function replaceStep(steps: readonly RunStep[], index: number, step: RunStep): R
 
 function startStep(steps: readonly RunStep[], node: string): readonly RunStep[] {
   const last = steps[lastIndexOfNode(steps, node)];
-  if (last && !last.done) return steps;
+  // A running row, or one a notice already marked skipped, is not started again.
+  if (last && (!last.done || last.skipped)) return steps;
   return [...steps, { node, done: false, tools: [] }];
 }
 
 function finishStep(steps: readonly RunStep[], node: string): readonly RunStep[] {
   const index = lastIndexOfNode(steps, node);
   const last = steps[index];
+  if (last?.skipped) return steps;
   if (!last || last.done) return [...steps, { node, done: true, tools: [] }];
   return replaceStep(steps, index, { ...last, done: true });
+}
+
+function skipStep(steps: readonly RunStep[], node: string): readonly RunStep[] {
+  const index = lastIndexOfNode(steps, node);
+  const last = steps[index];
+  if (!last) return [...steps, { node, done: true, skipped: true, tools: [] }];
+  return replaceStep(steps, index, { ...last, done: true, skipped: true });
+}
+
+function closeRunningSteps(steps: readonly RunStep[]): readonly RunStep[] {
+  return steps.map((step) => (step.done ? step : { ...step, done: true }));
+}
+
+function addNotice(state: RunState, notice: RunNotice): RunState {
+  if (state.notices.some((known) => known.code === notice.code)) return state;
+  const node = SKIPPED_NODE_BY_CODE[notice.code];
+  return {
+    ...state,
+    notices: [...state.notices, notice],
+    steps: node ? skipStep(state.steps, node) : state.steps,
+  };
 }
 
 function addTool(steps: readonly RunStep[], node: string, name: string): readonly RunStep[] {
@@ -122,6 +159,8 @@ export function runReducer(state: RunState, event: RunAction): RunState {
         status: event.status,
         error: event.status === "failed" ? (event.error ?? FALLBACK_ERROR) : null,
         interrupt: event.status === "awaiting_user" ? state.interrupt : null,
+        // A finished run has no step left running (the skip path ends without a spinner).
+        steps: event.status === "succeeded" ? closeRunningSteps(state.steps) : state.steps,
       };
     case "node_started":
       return { ...state, steps: startStep(state.steps, event.node) };
@@ -131,6 +170,8 @@ export function runReducer(state: RunState, event: RunAction): RunState {
       return { ...state, steps: addTool(state.steps, event.node, event.name) };
     case "token":
       return { ...state, text: state.text + event.text };
+    case "notice":
+      return addNotice(state, { code: event.code, text: event.text });
     case "interrupt":
       return { ...state, interrupt: event.interrupt, interruptCount: state.interruptCount + 1 };
   }

@@ -4,7 +4,7 @@ import { createHash, randomUUID } from "node:crypto";
 export const SESSION_COOKIE = process.env.E2E_SESSION_COOKIE ?? "metis_session";
 export const USER_EMAIL = "e2e-ship221@example.com";
 
-const USER_ID = "00000000-0000-7000-8000-000000000221";
+export const USER_ID = "00000000-0000-7000-8000-000000000221";
 
 /** Runs SQL as the superuser in the compose Postgres (test setup only). */
 export function psql(sql: string): void {

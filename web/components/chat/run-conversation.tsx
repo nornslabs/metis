@@ -8,6 +8,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { ApprovalPrompt } from "@/components/chat/approval-prompt";
 import { Composer, type ComposerAction } from "@/components/chat/composer";
 import { ConversationLayout } from "@/components/chat/conversation-layout";
+import { KeyGateNotice } from "@/components/chat/key-gate-notice";
 import { InterviewMessages } from "@/components/chat/interview-messages";
 import { QuickReplies } from "@/components/chat/quick-replies";
 import { RunNote, StartRunButton } from "@/components/chat/run-notice";
@@ -17,6 +18,7 @@ import { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
 import { ResearchSection } from "@/components/research/research-section";
 import { queryKeys } from "@/lib/api/queries/keys";
+import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useInterview } from "@/lib/api/queries/use-interview";
 import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
@@ -57,6 +59,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const { start, pending: starting, error: startError } = useStartRunAction(idea.id);
   const answers = useAnswerActions(run.id, () => void refresh());
   const turns = useInterview(idea.id);
+  const gate = useKeyGate();
 
   // The stream is primary; this poll only catches a pause or finish it did not deliver.
   useRunSync(run.id, state.status === "queued" || state.status === "running", sync);
@@ -116,6 +119,9 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
             onStop={stop}
             stopping={stopping}
           />
+        ) : state.status === "failed" ? (
+          // Retry starts a new run, so the LLM-key block applies here too (not the Exa banner).
+          <KeyGateNotice gate={gate} includeExa={false} />
         ) : null
       }
     />
@@ -131,7 +137,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
         <RunMessageBody
           state={state}
           streamLost={streamLost}
-          retry={<StartRunButton label="Retry" pending={starting} onClick={start} />}
+          retry={<StartRunButton label="Retry" pending={starting} onClick={start} blocked={gate.llmBlock !== null} />}
           research={<ResearchSection ideaId={idea.id} researchStarted={state.steps.some((step) => step.node === RESEARCHER_NODE)} />}
           approval={
             <>
@@ -152,6 +158,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
 /** An idea with no run yet: Start begins the first one. */
 export function NoRunConversation({ idea }: { idea: Idea }) {
   const { start, pending, error } = useStartRunAction(idea.id);
+  const gate = useKeyGate();
   return (
     <ConversationLayout
       idea={idea}
@@ -164,12 +171,13 @@ export function NoRunConversation({ idea }: { idea: Idea }) {
           onSubmit={(event) => event.preventDefault()}
           onStop={NOOP}
           error={error}
+          above={<KeyGateNotice gate={gate} includeExa />}
         />
       }
       body={
         <div className="flex items-center gap-2">
           <RunNote>No run yet.</RunNote>
-          <StartRunButton label="Start" pending={pending} onClick={start} />
+          <StartRunButton label="Start" pending={pending} onClick={start} blocked={gate.llmBlock !== null} />
         </div>
       }
     />
