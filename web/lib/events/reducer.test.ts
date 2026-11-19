@@ -153,3 +153,42 @@ describe("interruptCount", () => {
   });
 });
 
+
+describe("runReducer sync", () => {
+  const question = { type: "question", question: "Who is it for?" } as const;
+  const sync = (state: RunState, seed: Parameters<typeof initialRunState>[0]) =>
+    runReducer(state, { type: "sync", seed });
+
+  test("picks up a pause the stream never delivered", () => {
+    const running = play([{ type: "run_status", status: "running" }]);
+    const next = sync(running, { status: "awaiting_user", error: null, pending_interrupt: question });
+    expect(next.status).toBe("awaiting_user");
+    expect(next.interrupt).toEqual({ kind: "question", text: "Who is it for?" });
+    expect(next.interruptCount).toBe(1);
+  });
+
+  test("returns the same state when the view shows nothing new", () => {
+    const running = play([{ type: "run_status", status: "running" }]);
+    expect(sync(running, { status: "running", error: null, pending_interrupt: null })).toBe(running);
+  });
+
+  test("does not count an interrupt the stream already delivered", () => {
+    const paused = play([
+      { type: "interrupt", interrupt: { kind: "question", text: "Who is it for?" } },
+      { type: "run_status", status: "awaiting_user" },
+    ]);
+    expect(sync(paused, { status: "awaiting_user", error: null, pending_interrupt: question })).toBe(paused);
+  });
+
+  test("never moves a finished run back", () => {
+    const done = play([{ type: "run_status", status: "succeeded" }]);
+    expect(sync(done, { status: "running", error: null, pending_interrupt: null })).toBe(done);
+  });
+
+  test("picks up a failure with its error", () => {
+    const running = play([{ type: "run_status", status: "running" }]);
+    const next = sync(running, { status: "failed", error: { code: "run.failed", message: "Boom" }, pending_interrupt: null });
+    expect(next.status).toBe("failed");
+    expect(next.error).toEqual({ code: "run.failed", message: "Boom" });
+  });
+});

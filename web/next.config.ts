@@ -5,6 +5,9 @@ const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8000";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Off: gzip buffers the proxied `/v1/runs/{id}/events` stream, so no event reaches the page
+  // until the run ends. The API and any front proxy handle compression for the rest.
+  compress: false,
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {

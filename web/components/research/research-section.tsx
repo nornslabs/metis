@@ -15,7 +15,7 @@ interface ResearchSectionProps {
 
 /** Sources chips and the research block for an idea: empty before research exists, with an error state. */
 export function ResearchSection({ ideaId, researchStarted }: ResearchSectionProps) {
-  const research = useResearch(ideaId);
+  const research = useResearch(ideaId, researchStarted);
 
   // Before the Researcher starts there is nothing to load: a failure then is not worth an alert.
   if (research.isError && !researchStarted) return null;

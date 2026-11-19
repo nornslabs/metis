@@ -32,6 +32,9 @@ export type RunSeed = {
   pending_interrupt: Readonly<Record<string, unknown>> | null;
 };
 
+/** An event from the stream, or a `sync` from the run view when the stream is silent. */
+export type RunAction = RunEvent | { readonly type: "sync"; readonly seed: RunSeed };
+
 const ACTIVE_STATUSES: readonly RunStatus[] = ["queued", "running", "awaiting_user"];
 const FALLBACK_ERROR: RunError = { code: "run.failed", message: "The run failed." };
 
@@ -84,9 +87,35 @@ function addTool(steps: readonly RunStep[], node: string, name: string): readonl
   return replaceStep(steps, index, { ...last, tools: [...last.tools, name] });
 }
 
+function sameInterrupt(a: RunInterrupt | null, b: RunInterrupt | null): boolean {
+  return a === b || (a !== null && b !== null && a.kind === b.kind && a.text === b.text);
+}
+
+/**
+ * Catches up with the run view: a status or pause the stream has not delivered. A finished run
+ * stays finished, and a view that shows nothing new returns the same state. Steps and text come
+ * only from the stream. A view read just before the user answered could show the old pause for
+ * one poll; the stream's next `run_status` corrects it.
+ */
+function syncWithView(state: RunState, seed: RunSeed): RunState {
+  if (isTerminalStatus(state.status)) return state;
+  const view = initialRunState(seed);
+  if (view.status === state.status && sameInterrupt(view.interrupt, state.interrupt)) return state;
+  const newPause = view.interrupt !== null && !sameInterrupt(view.interrupt, state.interrupt);
+  return {
+    ...state,
+    status: view.status,
+    error: view.error,
+    interrupt: view.interrupt,
+    interruptCount: newPause ? state.interruptCount + 1 : state.interruptCount,
+  };
+}
+
 /** Applies one event and returns a new state; the previous state is never changed. */
-export function runReducer(state: RunState, event: RunEvent): RunState {
+export function runReducer(state: RunState, event: RunAction): RunState {
   switch (event.type) {
+    case "sync":
+      return syncWithView(state, event.seed);
     case "run_status":
       return {
         ...state,
