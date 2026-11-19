@@ -97,6 +97,19 @@ async def run_row(engine: AsyncEngine, run: QueuedRun) -> RunRow:
     return RunRow(*row)
 
 
+async def idea_stage(engine: AsyncEngine, run: QueuedRun) -> str:
+    """The stage saved on the run's idea (``ideas.ideas.stage``)."""
+    async with engine.connect() as conn:
+        stage = await conn.scalar(
+            text(
+                "SELECT stage FROM ideas.ideas "
+                "WHERE id = (SELECT idea_id FROM ideas.workflow_runs WHERE id = :id)"
+            ),
+            {"id": run.run_id},
+        )
+    return str(stage)
+
+
 async def events_of(redis: Redis, run: QueuedRun) -> list[RunEvent]:
     return [event async for event in read(str(run.run_id), redis=redis)]
 

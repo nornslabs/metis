@@ -16,11 +16,13 @@ from metis.core.errors import (
     IdeaNotFoundError,
     IdempotencyMismatchError,
     IllegalRunTransition,
+    LlmNotReadyError,
     RunAlreadyRunningError,
     RunNotFoundError,
 )
 from metis.core.logging import get_logger
 from metis.helpers.time import utcnow
+from metis.modules import identity
 from metis.modules.ideas import repo
 from metis.modules.ideas.dto import (
     DEFAULT_PAGE_SIZE,
@@ -41,6 +43,12 @@ from metis.modules.ideas.helpers.run_transitions import (
 from metis.modules.ideas.models import WorkflowRunRow
 
 logger = get_logger(__name__)
+
+_LLM_NOT_READY_TEXT = {
+    identity.KeyReadiness.NOT_CONFIGURED: "Add your LLM key in Settings, then test it.",
+    identity.KeyReadiness.NOT_TESTED: "Test your LLM key in Settings before starting a run.",
+    identity.KeyReadiness.TEST_FAILED: "Your LLM key failed its test. Fix it in Settings.",
+}
 
 
 async def create_run(
@@ -72,11 +80,14 @@ async def start_run(
     The same key returns the run it started (``IdempotencyMismatchError`` when that run is on
     another idea). An idea with a ``queued``, ``running`` or ``awaiting_user`` run refuses a
     new one (``RunAlreadyRunningError``); a lost race on the unique index lands here too.
+    A new run needs an LLM key that passed its test (``LlmNotReadyError``); the check reads
+    the key row only, after the idempotency lookup so a repeated start still gets its run.
     """
     if await repo.ideas.get(session, workspace_id, idea_id) is None:
         raise IdeaNotFoundError()
     if (known := await _run_for_key(session, workspace_id, idea_id, idempotency_key)) is not None:
         return known
+    await _require_llm_ready(session, workspace_id)
     await _refuse_if_active(session, workspace_id, idea_id)
     row = await repo.workflow_runs.create_or_none(
         session,
@@ -219,6 +230,12 @@ async def _run_for_key(
     if row.idea_id != idea_id:
         raise IdempotencyMismatchError()
     return WorkflowRun.model_validate(row)
+
+
+async def _require_llm_ready(session: AsyncSession, workspace_id: UUID) -> None:
+    readiness = await identity.key_readiness(session, workspace_id, identity.ProviderKind.LLM)
+    if readiness is not identity.KeyReadiness.READY:
+        raise LlmNotReadyError(_LLM_NOT_READY_TEXT[readiness], meta={"reason": readiness.value})
 
 
 async def _refuse_if_active(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> None:

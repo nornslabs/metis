@@ -10,7 +10,7 @@ on ``ask_user``; the node re-runs
 from its start on resume and the subgraph continues from its checkpoint, so the node does
 nothing with side effects before it. When the loop ends the node stores the brief (the
 model's ``finish_interview`` findings + coverage from the saved turns) and moves the run to
-``researching``. It never writes ``ideas.stage``.
+``researching``. The runner copies the stage to ``ideas.stage``.
 """
 
 from __future__ import annotations

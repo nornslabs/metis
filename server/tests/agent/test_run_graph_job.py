@@ -15,6 +15,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from metis.agent import runner
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.agent.tools.ask_user import ask_user, request_approval
@@ -26,6 +27,7 @@ from tests.agent.run_job_helpers import (
     QueuedRun,
     checkpoint_values,
     events_of,
+    idea_stage,
     job_ctx,
     node_events,
     queued_run,
@@ -48,6 +50,19 @@ FULL_PATH = [
     "integrator",
 ]
 QUESTION = {"type": "question", "question": "Who pays for this?"}
+
+
+async def _save_nothing(*_args: Any) -> None:
+    return None
+
+
+async def _researcher_that_asks(state: MetisState) -> dict[str, Any]:
+    answer = await ask_user.ainvoke({"question": QUESTION["question"]})
+    return {"stage": Stage.SCORING, "summary": answer, "step_count": state["step_count"] + 1}
+
+
+async def _jumping_to_scoring(state: MetisState) -> dict[str, Any]:
+    return {"stage": Stage.SCORING, "step_count": state["step_count"] + 1}
 
 
 async def _interviewer_that_asks(state: MetisState) -> dict[str, Any]:
@@ -101,6 +116,7 @@ async def test_a_stub_run_succeeds_and_streams_every_node_in_order(
     ]
     assert 0 < await redis.ttl(stream_key(str(run.run_id))) <= STREAM_TTL_SECONDS
     assert not await redis.exists(lock_key(run.run_id))
+    assert await idea_stage(engine, run) == Stage.EXPORTED.value
 
 
 async def test_a_run_starts_from_its_ideas_stage(
@@ -114,6 +130,44 @@ async def test_a_run_starts_from_its_ideas_stage(
         ("node_started", "integrator"),
         ("node_finished", "integrator"),
     ]
+
+
+async def test_a_stage_the_transition_table_refuses_fails_the_run_and_is_not_saved(
+    engine: AsyncEngine,
+    redis: Redis,
+    app_sessions: async_sessionmaker[AsyncSession],
+    checkpointer: AsyncPostgresSaver,
+) -> None:
+    ctx = job_ctx(redis, app_sessions, {Specialist.INTERVIEWER: _jumping_to_scoring})
+    run = await queued_run(engine)
+
+    await run_job(ctx, run)
+
+    row = await run_row(engine, run)
+    assert row.status == "failed"
+    assert row.error is not None and row.error["code"] == "idea.invalid_transition"
+    assert await idea_stage(engine, run) == Stage.INTAKE.value
+
+
+async def test_a_stage_the_checkpoint_has_but_the_idea_lacks_is_saved_when_the_run_resumes(
+    engine: AsyncEngine,
+    redis: Redis,
+    app_sessions: async_sessionmaker[AsyncSession],
+    checkpointer: AsyncPostgresSaver,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # A crash between a node's checkpoint and the stage write: the first pass saves no stage.
+    ctx = job_ctx(redis, app_sessions, {Specialist.RESEARCHER: _researcher_that_asks})
+    run = await queued_run(engine, stage="interviewing")
+    with monkeypatch.context() as lost_writes:
+        lost_writes.setattr(runner, "_save_stages", _save_nothing)
+        await run_job(ctx, run)
+    assert await idea_stage(engine, run) == Stage.INTERVIEWING.value
+
+    await run_job(ctx, run, resume="developers")
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    assert await idea_stage(engine, run) == Stage.EXPORTED.value
 
 
 # ------------------------------------------------------------ interrupt, resume
@@ -145,7 +199,7 @@ async def test_a_resume_continues_from_the_same_checkpoint_to_the_end(
     checkpointer: AsyncPostgresSaver,
 ) -> None:
     ctx = job_ctx(redis, app_sessions, {Specialist.INTERVIEWER: _interviewer_that_asks})
-    run = await queued_run(engine)
+    run = await queued_run(engine, stage="interviewing")
     await run_job(ctx, run)
     seen = len(await events_of(redis, run))
 
@@ -202,7 +256,7 @@ async def test_a_run_that_waits_for_the_user_is_not_run_without_an_answer(
     checkpointer: AsyncPostgresSaver,
 ) -> None:
     ctx = job_ctx(redis, app_sessions, {Specialist.INTERVIEWER: _interviewer_that_asks})
-    run = await queued_run(engine)
+    run = await queued_run(engine, stage="interviewing")
     await run_job(ctx, run)
     seen = len(await events_of(redis, run))
 

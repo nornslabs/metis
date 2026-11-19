@@ -22,7 +22,8 @@ class Budget(TypedDict):
 
 
 class MetisState(TypedDict):
-    """State of one run. ``stage`` is the run's working copy; nodes do not write ``ideas.stage``.
+    """State of one run. ``stage`` is the run's working copy; the runner copies each change to
+    ``ideas.stage`` (``agent/stage_sync.py``), so nodes never write it themselves.
 
     A checkpoint restores ``stage`` as a plain string (``Stage`` is a ``StrEnum``), so nodes
     compare it with ``==``, never ``is``.
@@ -42,6 +43,8 @@ class MetisState(TypedDict):
     # before these fields existed do not have them.
     clarification: list[str]
     clarification_rounds: int
+    # Set by the Researcher when the workspace has no Exa key: the run ends (SHIP-272).
+    research_skipped: bool
 
 
 def initial_state(
@@ -61,4 +64,5 @@ def initial_state(
         last_error=None,
         clarification=[],
         clarification_rounds=0,
+        research_skipped=False,
     )

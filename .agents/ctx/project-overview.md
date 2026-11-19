@@ -13,10 +13,10 @@ Metis is an agentic planning app for solo hackers and startup founders. It turns
 
 ## Core User Flow
 
-1. User signs in and adds their OpenAI-compatible LLM key and Exa key.
+1. User signs in and adds their OpenAI-compatible LLM key (required, and it must pass its test before a run can start) and, optionally, an Exa key.
 2. User submits an idea.
 3. Metis runs an adaptive interview (why needed, why it works, who pays, feasibility).
-4. Metis researches competitors and market facts via Exa, with sources.
+4. Metis researches competitors and market facts via Exa, with sources. Without an Exa key, research is skipped, the user is told, and the run ends cleanly; a later run does the research once a key is added.
 5. Metis scores the idea out of 100 with reasons; below 55 it switches to adviser mode (gaps, pivots, revise and rescore).
 6. User edits and confirms the generated spec.
 7. For software ideas, Metis drafts an HLD and saves it to Notion.

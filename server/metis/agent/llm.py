@@ -30,7 +30,7 @@ from metis.adapters.llm import OpenAICompatibleChat, build_chat_model, build_emb
 from metis.agent.tracing import tracing_callbacks
 from metis.core.config import get_settings
 from metis.core.db import get_session_maker, set_workspace, transaction
-from metis.core.errors import ProviderNotConfiguredError, UpstreamError
+from metis.core.errors import UpstreamError, provider_not_configured
 from metis.core.logging import get_logger
 from metis.core.ports import Embedder, LLMProvider
 from metis.helpers.http import FailureReason
@@ -125,7 +125,7 @@ class LLMGateway:
         """The workspace's LLM credentials with their ``base_url`` and chat ``model``."""
         credentials = await get_key_for_use(session, self._workspace_id, ProviderKind.LLM)
         if credentials.base_url is None or credentials.model is None:
-            raise ProviderNotConfiguredError("No LLM key is saved for this workspace.")
+            raise provider_not_configured(ProviderKind.LLM)
         return credentials, credentials.base_url, credentials.model
 
     async def _get_embedder(self, session: AsyncSession) -> Embedder:

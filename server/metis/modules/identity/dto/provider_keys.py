@@ -25,6 +25,15 @@ class ProviderKind(StrEnum):
     EXA = "exa"
 
 
+class KeyReadiness(StrEnum):
+    """Whether a saved key can be used now: it exists, and its last test passed."""
+
+    READY = "ready"
+    NOT_CONFIGURED = "not_configured"
+    NOT_TESTED = "not_tested"
+    TEST_FAILED = "test_failed"
+
+
 def _check_base_url(value: str, allow_local_http: bool) -> str:
     """Accept an https URL (or local http in development); drop a trailing slash."""
     parts = urlsplit(value)

@@ -9,6 +9,7 @@ from metis.modules.identity.dto.provider_keys import (
     MAX_BASE_URL_LENGTH,
     MAX_KEY_LENGTH,
     MAX_MODEL_LENGTH,
+    KeyReadiness,
     NewProviderKey,
     ProviderCredentials,
     ProviderKeys,
@@ -38,6 +39,7 @@ from metis.modules.identity.dto.workspaces import (
 )
 
 __all__ = [
+    "KeyReadiness",
     "ALLOW_LOCAL_HTTP",
     "CreateWorkspaceRequest",
     "DEFAULT_MAX_STEPS",
