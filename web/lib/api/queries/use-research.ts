@@ -13,12 +13,14 @@ const NOT_FOUND = "research.not_found";
 
 /**
  * The idea's latest closed research (`GET /v1/ideas/{id}/research`), or `null` before the
- * Researcher has finished: `404 research.not_found` is an empty state, not an error.
+ * Researcher has finished: `404 research.not_found` is an empty state, not an error. It runs only
+ * when `enabled` (once the Researcher has started), so no request is sent before research can exist.
  */
-export function useResearch(ideaId: string) {
+export function useResearch(ideaId: string, enabled: boolean) {
   const workspaceId = useWorkspaceId();
   return useQuery({
     queryKey: queryKeys.research(workspaceId, ideaId),
+    enabled,
     queryFn: async () => {
       try {
         return bodyOf(await apiClient.GET("/v1/ideas/{idea_id}/research", { params: { path: { idea_id: ideaId } } }));

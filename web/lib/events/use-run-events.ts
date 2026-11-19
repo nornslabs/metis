@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 
@@ -10,7 +10,12 @@ import { RUN_EVENT_TYPES, parseRunEvent } from "./schemas";
 /** `live` while events flow, `reconnecting` while the browser retries, `ended` after a terminal status. */
 export type StreamState = "connecting" | "live" | "reconnecting" | "ended" | "failed";
 
-export type RunEventsResult = { state: RunState; stream: StreamState };
+export type RunEventsResult = {
+  state: RunState;
+  stream: StreamState;
+  /** Catches the state up with a fresh run view (the polling safety net, see `useRunSync`). */
+  sync: (view: RunSeed) => void;
+};
 
 /** The stream URL. `EventSource` sends no headers, so the workspace goes in the query. */
 export function runEventsUrl(runId: string, workspaceId: string | null): string {
@@ -31,6 +36,7 @@ export function useRunEvents(runId: string, seed: RunSeed, onEnd?: () => void): 
   const [stream, setStream] = useState<StreamState>("connecting");
   const workspaceId = useWorkspaceId();
   const onEndRef = useRef(onEnd);
+  const sync = useCallback((view: RunSeed) => dispatch({ type: "sync", seed: view }), []);
 
   useEffect(() => {
     onEndRef.current = onEnd;
@@ -68,5 +74,5 @@ export function useRunEvents(runId: string, seed: RunSeed, onEnd?: () => void): 
     return () => source.close();
   }, [runId, workspaceId]);
 
-  return { state, stream };
+  return { state, stream, sync };
 }

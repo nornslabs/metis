@@ -18,6 +18,7 @@ import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/component
 import { ResearchSection } from "@/components/research/research-section";
 import { queryKeys } from "@/lib/api/queries/keys";
 import { useInterview } from "@/lib/api/queries/use-interview";
+import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { RESEARCHER_NODE, finishedResearchSteps } from "@/lib/events/activity";
@@ -51,11 +52,14 @@ function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDo
 export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const refresh = useRefreshIdea(idea.id);
   // A refetch when the feed ends picks up the new stage, and a lost session redirects to sign-in.
-  const { state, stream } = useRunEvents(run.id, run, () => void refresh());
+  const { state, stream, sync } = useRunEvents(run.id, run, () => void refresh());
   const { stop, stopping, error: stopError } = useStopRunAction(run.id);
   const { start, pending: starting, error: startError } = useStartRunAction(idea.id);
   const answers = useAnswerActions(run.id, () => void refresh());
   const turns = useInterview(idea.id);
+
+  // The stream is primary; this poll only catches a pause or finish it did not deliver.
+  useRunSync(run.id, state.status === "queued" || state.status === "running", sync);
 
   const interrupt = state.interrupt;
   const seq = state.interruptCount;
