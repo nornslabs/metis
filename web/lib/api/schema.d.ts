@@ -219,6 +219,26 @@ export interface paths {
         patch: operations["update_idea_v1_ideas__idea_id__patch"];
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/interview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Interview
+         * @description The idea's interview turns across all its runs, oldest first (open ones have no answer).
+         */
+        get: operations["get_interview_v1_ideas__idea_id__interview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/research": {
         parameters: {
             query?: never;
@@ -571,6 +591,47 @@ export interface components {
             version: number;
         };
         /**
+         * InterviewTopic
+         * @description What a turn is about. The first five are the coverage checklist; ``other`` is not.
+         * @enum {string}
+         */
+        InterviewTopic: "problem" | "solution" | "customer" | "payment" | "feasibility" | "other";
+        /**
+         * InterviewTurn
+         * @description One turn. ``answer`` is ``None`` while an asked question waits for the user.
+         */
+        InterviewTurn: {
+            /** Answer */
+            answer: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Question */
+            question: string;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            source: components["schemas"]["TurnSource"];
+            topic: components["schemas"]["InterviewTopic"];
+        };
+        /**
+         * InterviewTurnList
+         * @description An idea's interview turns across all its runs, oldest first.
+         */
+        InterviewTurnList: {
+            /** Items */
+            items: components["schemas"]["InterviewTurn"][];
+        };
+        /**
          * LinkedCompetitor
          * @description A competitor as found by one snapshot, with its overlap.
          */
@@ -841,6 +902,12 @@ export interface components {
          * @enum {string}
          */
         Stage: "intake" | "interviewing" | "researching" | "scoring" | "advising" | "spec_draft" | "spec_confirmed" | "planning" | "exported";
+        /**
+         * TurnSource
+         * @description ``asked``: a question the user saw. ``noted``: taken from the idea or an earlier answer.
+         * @enum {string}
+         */
+        TurnSource: "asked" | "noted";
         /** User */
         User: {
             /**
@@ -1251,6 +1318,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Idea"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_interview_v1_ideas__idea_id__interview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InterviewTurnList"];
                 };
             };
             /** @description Validation Error */
