@@ -71,6 +71,15 @@ describe("parseRunEvent", () => {
     });
   });
 
+  test("reads a notice frame", () => {
+    const data = { code: "research.skipped_no_exa", text: "Research is skipped: Exa isn't set up." };
+    expect(parseRunEvent("notice", frame("notice", data))).toEqual({ type: "notice", ...data });
+  });
+
+  test("ignores a notice without text", () => {
+    expect(parseRunEvent("notice", frame("notice", { code: "x" }))).toBeNull();
+  });
+
   test("ignores unknown event names", () => {
     expect(parseRunEvent("score.param", frame("score.param", { name: "x" }))).toBeNull();
   });

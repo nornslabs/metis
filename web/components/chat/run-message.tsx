@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 import { AgentText } from "@/components/chat/agent-text";
 import { RunErrorRow, RunNote } from "@/components/chat/run-notice";
+import { RunNotices } from "@/components/chat/run-notices";
 import { Shimmer } from "@/components/chat/shimmer";
 import { StepList } from "@/components/chat/step-list";
 import { runActivity } from "@/lib/events/activity";
@@ -25,6 +26,7 @@ export function RunMessageBody({ state, streamLost, retry, research, approval }:
   return (
     <>
       <StepList steps={state.steps} live={working} />
+      <RunNotices notices={state.notices} />
       {research}
       <AgentText text={state.text} streaming={working && state.status === "running"} />
       {working && state.text === "" ? <Shimmer>{runActivity(state)}</Shimmer> : null}

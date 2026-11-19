@@ -30,6 +30,12 @@ export interface ComposerProps {
   above?: ReactNode;
 }
 
+/** Space-joined ids for `aria-describedby`; undefined when there are none. */
+function joinIds(...ids: readonly (string | undefined)[]): string | undefined {
+  const present = ids.filter((id): id is string => Boolean(id));
+  return present.length > 0 ? present.join(" ") : undefined;
+}
+
 /** Enter sends, Shift+Enter (or an IME composition) types a new line. */
 function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
   if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
@@ -94,7 +100,7 @@ export function Composer({ textarea, label, action, canSend, onSubmit, onStop, e
           {...textarea}
           id={inputId}
           aria-invalid={error ? true : undefined}
-          aria-describedby={error ? errorId : undefined}
+          aria-describedby={joinIds(textarea["aria-describedby"], error ? errorId : undefined)}
           onKeyDown={submitOnEnter}
           className="field-sizing-content max-h-45 min-h-5.5 w-full resize-none bg-transparent py-0.5 text-body outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
         />

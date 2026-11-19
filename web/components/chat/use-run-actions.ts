@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ApiError, describeError } from "@/lib/api/errors";
+import { llmNotReadyMessage } from "@/lib/keys/readiness";
 import { useCancelRun } from "@/lib/api/mutations/use-cancel-run";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { queryKeys } from "@/lib/api/queries/keys";
@@ -26,6 +27,7 @@ export function useRefreshIdea(ideaId: string): () => Promise<void> {
 export function useStartRunAction(ideaId: string) {
   const startRun = useStartRun();
   const refresh = useRefreshIdea(ideaId);
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
   const start = () => {
@@ -36,8 +38,11 @@ export function useStartRunAction(ideaId: string) {
         onSuccess: () => void refresh(),
         onError: (error) => {
           const alreadyRunning = error instanceof ApiError && error.code === ALREADY_RUNNING;
-          setError(alreadyRunning ? ALREADY_RUNNING_MESSAGE : describeError(error));
+          const notReady = llmNotReadyMessage(error);
+          setError(alreadyRunning ? ALREADY_RUNNING_MESSAGE : (notReady ?? describeError(error)));
           if (alreadyRunning) void refresh();
+          // The gate's line catches up with the server's answer.
+          if (notReady) void queryClient.invalidateQueries({ queryKey: ["settings"] });
         },
       },
     );

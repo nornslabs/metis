@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { SESSION_COOKIE, createSessionToken } from "./support/session";
+import { removeSeededLlmKey, seedTestedLlmKey } from "./support/keys";
 import { eventStreamBody, seedQueuedRun } from "./support/runs";
 
 const MUTATION_HEADERS = { "X-Metis-Client": "web" };
@@ -10,7 +11,12 @@ test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([
     { name: SESSION_COOKIE, value: createSessionToken(), url: baseURL!, httpOnly: true, sameSite: "Lax" },
   ]);
+  // A run can start only with a tested LLM key; the personal workspace is created by this call.
+  await context.request.get("/v1/workspaces/current");
+  seedTestedLlmKey();
 });
+
+test.afterAll(() => removeSeededLlmKey());
 
 function uniqueIdea(label: string): string {
   return `E2E ${label} ${Date.now()}\nA longer description of the idea for the test.`;

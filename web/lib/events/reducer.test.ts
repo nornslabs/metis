@@ -191,4 +191,60 @@ describe("runReducer sync", () => {
     expect(next.status).toBe("failed");
     expect(next.error).toEqual({ code: "run.failed", message: "Boom" });
   });
+
+  test("keeps a notice once, even when the stream replays it", () => {
+    const notice = { type: "notice", code: "research.skipped_no_exa", text: "Research is skipped." } as const;
+    expect(play([notice, notice]).notices).toEqual([{ code: notice.code, text: notice.text }]);
+  });
+
+  test("marks the Researcher step skipped on research.skipped_no_exa", () => {
+    const state = play([
+      { type: "node_started", node: "researcher" },
+      { type: "notice", code: "research.skipped_no_exa", text: "Research is skipped." },
+    ]);
+    expect(state.steps).toEqual([{ node: "researcher", done: true, skipped: true, tools: [] }]);
+  });
+
+  test("keeps one skipped row when node_finished follows the notice", () => {
+    const state = play([
+      { type: "node_started", node: "researcher" },
+      { type: "notice", code: "research.skipped_no_exa", text: "Research is skipped." },
+      { type: "node_finished", node: "researcher" },
+    ]);
+    expect(state.steps).toHaveLength(1);
+    expect(state.steps[0]?.skipped).toBe(true);
+  });
+
+  test("a node_started after the skip notice does not add a running row", () => {
+    const state = play([
+      { type: "notice", code: "research.skipped_no_exa", text: "Research is skipped." },
+      { type: "node_started", node: "researcher" },
+    ]);
+    expect(state.steps).toEqual([{ node: "researcher", done: true, skipped: true, tools: [] }]);
+  });
+
+  test("an unknown notice code leaves the steps alone", () => {
+    const state = play([
+      { type: "node_started", node: "researcher" },
+      { type: "notice", code: "other.thing", text: "Heads up." },
+    ]);
+    expect(state.steps).toEqual([{ node: "researcher", done: false, tools: [] }]);
+    expect(state.notices).toHaveLength(1);
+  });
+
+  test("closes a step still running when the run succeeds", () => {
+    const state = play([
+      { type: "node_started", node: "researcher" },
+      { type: "run_status", status: "succeeded" },
+    ]);
+    expect(state.steps).toEqual([{ node: "researcher", done: true, tools: [] }]);
+  });
+
+  test("leaves a running step open when the run fails", () => {
+    const state = play([
+      { type: "node_started", node: "researcher" },
+      { type: "run_status", status: "failed", error: { code: "run.failed", message: "Boom" } },
+    ]);
+    expect(state.steps[0]?.done).toBe(false);
+  });
 });

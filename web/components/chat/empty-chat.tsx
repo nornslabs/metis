@@ -1,16 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Composer } from "@/components/chat/composer";
+import { KEY_GATE_NOTICE_ID, KeyGateNotice } from "@/components/chat/key-gate-notice";
 import { Button } from "@/components/ui/button";
 import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
 import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
+import { useKeyGate } from "@/lib/api/queries/use-key-gate";
+import { llmNotReadyMessage } from "@/lib/keys/readiness";
 import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
 
 const SUGGESTIONS = [
@@ -24,6 +28,7 @@ function useSubmitIdea() {
   const router = useRouter();
   const createIdea = useCreateIdea();
   const startRun = useStartRun();
+  const queryClient = useQueryClient();
   const [error, setError] = useState<unknown>(null);
 
   const submit = async (values: IdeaFormValues) => {
@@ -40,7 +45,12 @@ function useSubmitIdea() {
     } catch (caught) {
       // The idea exists, so go to it anyway (its page offers Start); the page changes under the
       // reader, so the reason goes in a toast.
-      toast.error("Your idea was saved, but its run did not start.", { description: describeError(caught) });
+      const notReady = llmNotReadyMessage(caught);
+      if (notReady) void queryClient.invalidateQueries({ queryKey: ["settings"] });
+      toast.error("Your idea was saved, but its run did not start.", {
+        description: notReady ?? describeError(caught),
+        ...(notReady && { action: { label: "Open API keys", onClick: () => router.replace(`/ideas/${ideaId}?settings=keys`) } }),
+      });
     }
     router.push(`/ideas/${ideaId}`);
   };
@@ -51,6 +61,8 @@ function useSubmitIdea() {
 /** The empty chat on `/`: title, suggestions and the composer that submits a new idea. */
 export function EmptyChat() {
   const { submit, pending, error } = useSubmitIdea();
+  const gate = useKeyGate();
+  const blocked = gate.llmBlock !== null;
   const form = useForm<IdeaFormValues>({
     resolver: zodResolver(ideaFormSchema),
     defaultValues: { text: "" },
@@ -85,9 +97,15 @@ export function EmptyChat() {
       </div>
       <Composer
         label="Your idea"
-        textarea={{ ...form.register("text"), placeholder: "Describe your idea…", readOnly: pending }}
+        textarea={{
+          ...form.register("text"),
+          placeholder: "Describe your idea…",
+          readOnly: pending || blocked,
+          "aria-describedby": blocked ? KEY_GATE_NOTICE_ID : undefined,
+        }}
         action="send"
-        canSend={!pending && text.trim() !== ""}
+        canSend={!pending && !blocked && text.trim() !== ""}
+        above={<KeyGateNotice gate={gate} includeExa />}
         onSubmit={form.handleSubmit(submit)}
         error={composerError}
       />

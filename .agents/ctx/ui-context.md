@@ -41,12 +41,13 @@ web/
 ├── components/
 │   ├── ui/                        # shadcn/ui generated (do not edit)
 │   ├── frame/                     # AppFrame, SideRails, GridGuides, CrossTick, AppHeader, RecentIdeas
-│   ├── chat/                      # Thread, UserBubble, AgentMessage, StepList, AgentText, Composer, QuickReplies, ApprovalPrompt, InterviewMessages, Shimmer, run notices, EmptyChat, IdeaConversation, RunConversation
+│   ├── chat/                      # Thread, UserBubble, AgentMessage, StepList, AgentText, Composer, KeyGateNotice, QuickReplies, ApprovalPrompt, InterviewMessages, Shimmer, RunNotices, run notices, EmptyChat, IdeaConversation, RunConversation
 │   ├── research/                  # ResearchSection, ResearchPanel, CompetitorCard, MarketFactRow, Sources, SourceLink
 │   ├── score/                     # ScoreCard, ParamBar, BandBadge
 │   ├── account/                   # AccountMenu, WorkspaceSwitcher, NewWorkspaceDialog, UserAvatar (square), ThemeSegment
 │   └── settings/                  # SettingsSheet, SettingsShortcut (⌘,) + one panel per tab (keys: KeysPanel, key-fields, saved-key, run-limits-fields)
 ├── lib/
+│   ├── keys/                      # keyReadiness (LLM block reason, Exa missing), key-gate and 402 messages
 │   ├── api/                       # client.ts (browser), server-client.ts (server), create-client.ts, errors.ts, workspace.ts, schema.d.ts (generated), queries/, mutations/
 │   ├── events/                    # useRunEvents, event Zod schemas (schemas.ts), runReducer (reducer.ts), node/stage labels
 │   ├── interview/                 # buildInterviewThread: questions and answers for the thread
@@ -63,7 +64,7 @@ web/
 | ----------------- | --------- | ------------------------------------------------------------------------------------------- |
 | `/sign-in`        | public    | Split: pitch left, form right (form first on mobile)                                        |
 | `/terms`, `/privacy` | public | Terms of Use and Privacy Policy, in the sign-in frame; linked from the sign-in card |
-| `/`               | signed in | Empty chat: "What are you building?", suggestions, composer. Send creates the idea (`POST /v1/ideas`), starts a run (`POST /v1/ideas/{id}/runs`, fresh `Idempotency-Key`) and goes to the idea |
+| `/`               | signed in | Empty chat: "What are you building?", suggestions, composer. Send creates the idea (`POST /v1/ideas`), starts a run (`POST /v1/ideas/{id}/runs`, fresh `Idempotency-Key`) and goes to the idea. Above the composer: the key gate line or the Exa banner (see Key Gate) |
 | `/ideas/[ideaId]` | signed in | Conversation for the idea's latest run (`GET /v1/ideas/{id}` + `GET /v1/ideas/{id}/runs?limit=1`), the interview (`GET /v1/ideas/{id}/interview`) and the research (`GET /v1/ideas/{id}/research`); no run → Start; unknown or hidden idea → "Idea not found" |
 | `?settings=<tab>` | signed in | Opens the settings sheet on any app route. Tabs: `account`, `keys`, `integrations`, `prefs` |
 
@@ -190,12 +191,14 @@ Header and footer are transparent so rails show through. Under 820px: hide colum
 | `UserBubble`    | Bubble (filled)          | `bg-secondary`, px-10 py-6, max 80%, right aligned, `whitespace-pre-wrap`                                                                                                                                                                                  |
 | `AgentMessage`  | Message + Bubble `ghost` | 22px bordered mark + "Metis" label + the idea's stage badge; children: StepList, Sources, ScoreCard, text, run outcome (error row with Retry, "Run stopped.", "Run finished.", question placeholder). Message actions (copy, regenerate, thumbs up) come later |
 | `Shimmer`       | shadcn.io Shimmer        | Current step label while nothing has streamed                                                                                                                                                                                                              |
-| `StepList`      | shadcn.io Task           | Bordered box; one row per specialist run (a node that runs twice gets two rows); spinner → check when done; tool names under the row in mono                                                                                                              |
+| `StepList`      | shadcn.io Task           | Bordered box; one row per specialist run (a node that runs twice gets two rows); spinner → check when done, `–` and "(skipped)" when a `notice` says the node did no work; tool names under the row in mono                                                                                                              |
 | `Sources`       | shadcn.io Sources        | Square chips under the steps: favicon letter + domain, one per source domain, at most 5 then "+N more"; each is an external link built from the fetched research (the server emits no research events yet) |
 | `ResearchPanel` | native `<details>`       | Collapsible block (open by default) in the agent message: "Research · N competitors · M facts", the summary, competitor cards (favicon letter, name link, what it does, pricing, overlap %, source link), market-fact rows (claim, quote, source link, date, confidence High / Medium / Low) and trends / risks. Source links are http(s) only, `target="_blank" rel="noopener noreferrer nofollow"`; anything else shows "No source". Empty before research exists (`404 research.not_found`); a load error shows an alert with Retry once a Researcher step has started |
 | `QuickReplies`  | outline chips            | Above the textarea while a question is pending: "Skip" (sends `skip`) and "That's enough" (sends `that's enough`) send at once; "Stop run" on the right stops the run (it waits for an answer, so Stop is not the send button) |
 | `ApprovalPrompt`| bordered group           | An `approval` interrupt: action, details, Approve / Reject (resume with `true` / `false`); the choice shows as the user's message |
 | `InterviewMessages` | AgentMessage + UserBubble | Questions as agent messages and answers as user bubbles, between the idea and the run's message; only `asked` turns show |
+| `KeyGateNotice` | bordered row             | One `role="status"` row above the composer's textarea (inside the form padding): `TriangleAlert` (`--warning`) and the reason when the LLM key blocks a run, else an `Info` icon and the Exa banner; a plain "Open API keys" link (`?settings=keys`). Nothing when both keys are fine. See Key Gate |
+| `RunNotices`    | bordered rows            | Under the step list: one quiet row per server `notice` (`Info` icon, the text as plain text; no destructive color). `research.skipped_no_exa` adds an "Add an Exa key for a new run" link |
 | `ScoreCard`     | Card                     | Total, `BandBadge`, six `ParamBar`s (label, 4px track, value); bars animate width on mount; click a bar for reason + evidence + confidence                                                                                                                 |
 | `Suggestions`   | shadcn.io Suggestion     | Outline chips above the composer; click sends the label                                                                                                                                                                                                    |
 | `Composer`      | shadcn.io Prompt Input   | Auto-growing textarea (1 line → 180px, `field-sizing: content`). Right: "Enter to send" hint + 26px send. Send turns into Stop while a run is active, then "Stopping…" until the run reports `cancelled`. Enter sends, Shift+Enter new line. Inline error under the textarea. Tools (attach, web research, mention a past idea, model) are not shown until their server features exist. On the idea page it answers the run's pending question (placeholder "Type your answer", 1–10,000 characters, Zod); it is disabled while Metis works ("Metis is working…"), while an approval waits ("Approve or reject above") and when there is nothing to answer |
@@ -226,6 +229,7 @@ Server event names (`core.events.RunEventType`), kept as is:
 | `node_started` / `node_finished` | `{node}`                                                      | Add a step row (spinner) / mark the node's latest row done; a start while that row runs is a no-op           |
 | `tool_call`                      | `{node, name}`                                                | Tool name under the node's latest row (once per name)                                                      |
 | `token`                          | `{node, text}`                                                | Append to the agent text (sanitized markdown) with a caret while `running`                                 |
+| `notice`                         | `{code, text}`                                                | A `RunNotices` row (one per code; a replay shows it again). `research.skipped_no_exa` also marks the Researcher's step skipped. A step still running when the run `succeeded` closes as done |
 | `interrupt`                      | `{type: "question", question}` or `{type: "approval", action, details?}` | A question joins the interview thread and enables the composer; an approval shows `ApprovalPrompt`. Answers go to `POST /v1/runs/{id}/resume` |
 
 Not emitted yet, added with their features: step progress (`current/total`), research items (live source chips), score params and totals. Research arrives by refetch instead: `GET /v1/ideas/{id}/research` reloads when a `researcher` step finishes and when the run ends.
@@ -238,6 +242,16 @@ While a run works and no text has streamed, a `Shimmer` shows the running step (
 - **Interview source:** past turns come from `GET /v1/ideas/{id}/interview` (only `asked` turns show); the run's current question comes from the stream or `pending_interrupt`. An answer sent from the page shows at once (tied to the interrupt it answers, `RunState.interruptCount`, so a repeated question is asked again) and is taken back, with its text, if the call fails; the turns refetch on every new interrupt and when the run ends.
 - **Answering:** Enter sends, Shift+Enter adds a line; the composer stays disabled until `run_status: running`. `409 run.invalid_state` refetches the run and says "This run already moved on."
 - **Research:** shown inside the agent message under the steps (Sources chips, then the collapsible `ResearchPanel`); no side panel or tab. Mobile needs no extra layout because it sits in the single column.
+
+## Key Gate
+
+The server refuses a run unless the LLM key is saved and its last test passed (`402 provider.llm_not_ready`), and skips research without an Exa key (`notice`). The web mirrors both from `GET /v1/settings` (`lib/keys/readiness.ts`, `useKeyGate()`):
+
+- **LLM block:** reasons `not_configured`, `not_tested`, `test_failed` (the server's `meta.reason`). The `/` composer is read-only with Send disabled; Start (idea with no run) and Retry (failed run) are disabled and `aria-describedby` the `KeyGateNotice`. Text: "Add an LLM key to start." / "Test your LLM key to start." / "Your LLM key failed its last test."
+- **Exa banner:** with a ready LLM key and no Exa key, one row on `/` and on an idea with no run: "Metis will interview you but skip research: Exa isn't set up. Add a key in Settings to include it." Not on a run in progress; not dismissible.
+- **Fail open:** while settings load or fail, nothing is blocked and no banner shows; the server's `402` is the backstop. A `402` shows the same text (unknown reason → the server's `detail`), refetches settings, and on `/` goes in the "run did not start" toast with an "Open API keys" action.
+- **Live:** saving, testing or removing a key already invalidates the settings query, so the gate follows without a reload.
+- The Settings link is `<Link href="?settings=keys">`, not `useOpenSettings`: that hook reads `useSearchParams`, which cannot render on `/` without a Suspense boundary.
 
 ## Ideas
 

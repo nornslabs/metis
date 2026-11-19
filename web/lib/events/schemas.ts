@@ -12,6 +12,7 @@ export const RUN_EVENT_TYPES = [
   "tool_call",
   "token",
   "interrupt",
+  "notice",
 ] as const;
 
 export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
@@ -60,6 +61,9 @@ const payloadSchemas = {
     .object({ node: z.string(), text: z.string() })
     .transform(({ node, text }) => ({ type: "token" as const, node, text })),
   interrupt: interruptSchema.transform((interrupt) => ({ type: "interrupt" as const, interrupt })),
+  notice: z
+    .object({ code: z.string(), text: z.string() })
+    .transform(({ code, text }) => ({ type: "notice" as const, code, text })),
 } satisfies Record<RunEventType, z.ZodType>;
 
 export type RunEvent = {
