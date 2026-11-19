@@ -18,6 +18,11 @@ export type RunState = {
   readonly text: string;
   readonly error: RunError | null;
   readonly interrupt: RunInterrupt | null;
+  /**
+   * How many `interrupt` events this page has seen. A repeated question or a second approval is a
+   * new interrupt with a new count, so local answers can be tied to one interrupt, not to its text.
+   */
+  readonly interruptCount: number;
 };
 
 /** The parts of `RunView` the reducer starts from. */
@@ -47,7 +52,7 @@ export function initialRunState(seed: RunSeed): RunState {
   const interrupt = seed.pending_interrupt
     ? (interruptSchema.safeParse(seed.pending_interrupt).data ?? null)
     : null;
-  return { status, steps: [], text: "", error, interrupt };
+  return { status, steps: [], text: "", error, interrupt, interruptCount: 0 };
 }
 
 function lastIndexOfNode(steps: readonly RunStep[], node: string): number {
@@ -98,6 +103,6 @@ export function runReducer(state: RunState, event: RunEvent): RunState {
     case "token":
       return { ...state, text: state.text + event.text };
     case "interrupt":
-      return { ...state, interrupt: event.interrupt };
+      return { ...state, interrupt: event.interrupt, interruptCount: state.interruptCount + 1 };
   }
 }

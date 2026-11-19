@@ -36,6 +36,17 @@ describe("parseRunEvent", () => {
     expect(parsed).toEqual({ type: "interrupt", interrupt: { kind: "question", text: "Who pays?" } });
   });
 
+  test("keeps the details text of an approval interrupt", () => {
+    const parsed = parseRunEvent(
+      "interrupt",
+      frame("interrupt", { type: "approval", action: "Export to Linear", details: "12 issues" }),
+    );
+    expect(parsed).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "approval", text: "Export to Linear", details: "12 issues" },
+    });
+  });
+
   test("reads an approval interrupt as its action", () => {
     const parsed = parseRunEvent(
       "interrupt",
