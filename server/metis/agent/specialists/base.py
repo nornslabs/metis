@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Collection, Sequence
 from typing import Any
 
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -65,3 +65,19 @@ def _after_tools(finish_tools: frozenset[str]) -> Any:
         return AGENT_NODE
 
     return route
+
+
+def finished_call_args(messages: Sequence[AnyMessage], tool_name: str) -> dict[str, Any] | None:
+    """The arguments of the last ``tool_name`` call that ran successfully, or ``None``."""
+    finished = {
+        m.tool_call_id
+        for m in messages
+        if isinstance(m, ToolMessage) and m.name == tool_name and m.status == "success"
+    }
+    for message in reversed(messages):
+        if not isinstance(message, AIMessage):
+            continue
+        for call in reversed(message.tool_calls):
+            if call["name"] == tool_name and call["id"] in finished:
+                return dict(call["args"])
+    return None

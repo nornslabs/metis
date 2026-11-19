@@ -40,3 +40,9 @@ def test_unknown_prompt_fails(prompts: Path) -> None:
 @pytest.mark.parametrize("specialist", list(Specialist))
 def test_every_specialist_ships_a_first_prompt(specialist: Specialist) -> None:
     assert load_prompt(specialist.value, 1).strip()
+
+
+def test_the_researcher_prompt_names_the_tools_it_may_use() -> None:
+    prompt = load_prompt("researcher")
+
+    assert all(tool in prompt for tool in ("kb_lookup", "save_research_item", "finish_research"))

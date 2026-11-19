@@ -58,8 +58,14 @@ def supervise(state: MetisState) -> dict[str, Any]:
 
 
 def route(state: MetisState) -> str:
-    """The next node for ``state``: a specialist's name, or ``END``."""
+    """The next node for ``state``: a specialist's name, or ``END``.
+
+    Pending ``clarification`` questions (from the Researcher) go to the Interviewer whatever
+    the stage; once it has asked them the stage routes back to the Researcher.
+    """
     specialist = STAGE_ROUTES[state["stage"]]
     if state["last_error"] is not None or specialist is None:
         return END
+    if state.get("clarification"):
+        return Specialist.INTERVIEWER.value
     return specialist.value
