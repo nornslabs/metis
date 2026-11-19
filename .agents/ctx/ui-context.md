@@ -41,14 +41,17 @@ web/
 ├── components/
 │   ├── ui/                        # shadcn/ui generated (do not edit)
 │   ├── frame/                     # AppFrame, SideRails, GridGuides, CrossTick, AppHeader, RecentIdeas
-│   ├── chat/                      # Thread, UserBubble, AgentMessage, StepList, AgentText, Composer, Shimmer, run notices, EmptyChat, IdeaConversation
+│   ├── chat/                      # Thread, UserBubble, AgentMessage, StepList, AgentText, Composer, QuickReplies, ApprovalPrompt, InterviewMessages, Shimmer, run notices, EmptyChat, IdeaConversation, RunConversation
+│   ├── research/                  # ResearchSection, ResearchPanel, CompetitorCard, MarketFactRow, Sources, SourceLink
 │   ├── score/                     # ScoreCard, ParamBar, BandBadge
 │   ├── account/                   # AccountMenu, WorkspaceSwitcher, NewWorkspaceDialog, UserAvatar (square), ThemeSegment
 │   └── settings/                  # SettingsSheet, SettingsShortcut (⌘,) + one panel per tab (keys: KeysPanel, key-fields, saved-key, run-limits-fields)
 ├── lib/
 │   ├── api/                       # client.ts (browser), server-client.ts (server), create-client.ts, errors.ts, workspace.ts, schema.d.ts (generated), queries/, mutations/
 │   ├── events/                    # useRunEvents, event Zod schemas (schemas.ts), runReducer (reducer.ts), node/stage labels
-│   ├── schemas/                   # Zod form schemas (settings-forms.ts, idea-form.ts)
+│   ├── interview/                 # buildInterviewThread: questions and answers for the thread
+│   ├── research/                  # research view mapping: safe links, domains, overlap %, confidence, source chips
+│   ├── schemas/                   # Zod form schemas (settings-forms.ts, idea-form.ts, answer.ts)
 │   ├── settings/                  # tab parsing (`?settings=`), useOpenSettings, key-test failure messages
 │   └── utils.ts                   # cn()
 └── next.config.ts                 # rewrite /v1/* to the API so the session cookie is first-party
@@ -61,7 +64,7 @@ web/
 | `/sign-in`        | public    | Split: pitch left, form right (form first on mobile)                                        |
 | `/terms`, `/privacy` | public | Terms of Use and Privacy Policy, in the sign-in frame; linked from the sign-in card |
 | `/`               | signed in | Empty chat: "What are you building?", suggestions, composer. Send creates the idea (`POST /v1/ideas`), starts a run (`POST /v1/ideas/{id}/runs`, fresh `Idempotency-Key`) and goes to the idea |
-| `/ideas/[ideaId]` | signed in | Conversation for the idea's latest run (`GET /v1/ideas/{id}` + `GET /v1/ideas/{id}/runs?limit=1`); no run → Start; unknown or hidden idea → "Idea not found" |
+| `/ideas/[ideaId]` | signed in | Conversation for the idea's latest run (`GET /v1/ideas/{id}` + `GET /v1/ideas/{id}/runs?limit=1`), the interview (`GET /v1/ideas/{id}/interview`) and the research (`GET /v1/ideas/{id}/research`); no run → Start; unknown or hidden idea → "Idea not found" |
 | `?settings=<tab>` | signed in | Opens the settings sheet on any app route. Tabs: `account`, `keys`, `integrations`, `prefs` |
 
 Auth: server-owned Google sign-in (`server-context.md`, Auth and Request Scope). "Continue with Google" is a plain link to `/v1/auth/google/login?redirect_to=<path>`. The web holds no auth SDK and no tokens; the session is an `HttpOnly` cookie. `next.config.ts` rewrites `/v1/*` to `API_ORIGIN` (build-time, also read by server components), so the cookie is first-party and no CORS is needed; `GOOGLE_REDIRECT_URI` therefore points at the web origin. The `(app)` layout calls `GET /v1/auth/me` on the server; a `401` renders `RedirectToSignIn`, which sends the visitor to `/sign-in?redirect_to=<current path>` (a layout cannot read its own path, and there is no `proxy.ts`). Render provider buttons from `GET /v1/auth/providers`; email shows as "Soon". The sign-in page uses the same frame (rails, safe area, ticks) as the app.
@@ -188,10 +191,14 @@ Header and footer are transparent so rails show through. Under 820px: hide colum
 | `AgentMessage`  | Message + Bubble `ghost` | 22px bordered mark + "Metis" label + the idea's stage badge; children: StepList, Sources, ScoreCard, text, run outcome (error row with Retry, "Run stopped.", "Run finished.", question placeholder). Message actions (copy, regenerate, thumbs up) come later |
 | `Shimmer`       | shadcn.io Shimmer        | Current step label while nothing has streamed                                                                                                                                                                                                              |
 | `StepList`      | shadcn.io Task           | Bordered box; one row per specialist run (a node that runs twice gets two rows); spinner → check when done; tool names under the row in mono                                                                                                              |
-| `Sources`       | shadcn.io Sources        | Square chips: favicon letter + domain; "+N more"                                                                                                                                                                                                           |
+| `Sources`       | shadcn.io Sources        | Square chips under the steps: favicon letter + domain, one per source domain, at most 5 then "+N more"; each is an external link built from the fetched research (the server emits no research events yet) |
+| `ResearchPanel` | native `<details>`       | Collapsible block (open by default) in the agent message: "Research · N competitors · M facts", the summary, competitor cards (favicon letter, name link, what it does, pricing, overlap %, source link), market-fact rows (claim, quote, source link, date, confidence High / Medium / Low) and trends / risks. Source links are http(s) only, `target="_blank" rel="noopener noreferrer nofollow"`; anything else shows "No source". Empty before research exists (`404 research.not_found`); a load error shows an alert with Retry once a Researcher step has started |
+| `QuickReplies`  | outline chips            | Above the textarea while a question is pending: "Skip" (sends `skip`) and "That's enough" (sends `that's enough`) send at once; "Stop run" on the right stops the run (it waits for an answer, so Stop is not the send button) |
+| `ApprovalPrompt`| bordered group           | An `approval` interrupt: action, details, Approve / Reject (resume with `true` / `false`); the choice shows as the user's message |
+| `InterviewMessages` | AgentMessage + UserBubble | Questions as agent messages and answers as user bubbles, between the idea and the run's message; only `asked` turns show |
 | `ScoreCard`     | Card                     | Total, `BandBadge`, six `ParamBar`s (label, 4px track, value); bars animate width on mount; click a bar for reason + evidence + confidence                                                                                                                 |
 | `Suggestions`   | shadcn.io Suggestion     | Outline chips above the composer; click sends the label                                                                                                                                                                                                    |
-| `Composer`      | shadcn.io Prompt Input   | Auto-growing textarea (1 line → 180px, `field-sizing: content`). Right: "Enter to send" hint + 26px send. Send turns into Stop while a run is active, then "Stopping…" until the run reports `cancelled`. Enter sends, Shift+Enter new line. Inline error under the textarea. Tools (attach, web research, mention a past idea, model) are not shown until their server features exist. On the idea page the textarea is disabled until answering ships (SHIP-239) |
+| `Composer`      | shadcn.io Prompt Input   | Auto-growing textarea (1 line → 180px, `field-sizing: content`). Right: "Enter to send" hint + 26px send. Send turns into Stop while a run is active, then "Stopping…" until the run reports `cancelled`. Enter sends, Shift+Enter new line. Inline error under the textarea. Tools (attach, web research, mention a past idea, model) are not shown until their server features exist. On the idea page it answers the run's pending question (placeholder "Type your answer", 1–10,000 characters, Zod); it is disabled while Metis works ("Metis is working…"), while an approval waits ("Approve or reject above") and when there is nothing to answer |
 | `AccountMenu`   | DropdownMenu             | Head (square avatar, name, email), workspace switcher (a submenu: workspaces, New workspace), Settings (⌘,), API keys (saved count `n/2`), Integrations, Theme segment, Sign out. No Docs item until a docs URL exists                                      |
 | `SettingsSheet` | Sheet `side="right"`     | Open while `?settings=<tab>` is on the URL (unknown tab → `account`); tabs: Account, API keys, Integrations, Preferences. Sticky footer Cancel / Save changes only on API keys (owners). Esc and scrim close it; focus lands on the open tab and returns to the trigger. |
 | `Tooltip`       | Tooltip                  | Inverted (foreground bg), 11px, square, above the trigger                                                                                                                                                                                                  |
@@ -219,11 +226,18 @@ Server event names (`core.events.RunEventType`), kept as is:
 | `node_started` / `node_finished` | `{node}`                                                      | Add a step row (spinner) / mark the node's latest row done; a start while that row runs is a no-op           |
 | `tool_call`                      | `{node, name}`                                                | Tool name under the node's latest row (once per name)                                                      |
 | `token`                          | `{node, text}`                                                | Append to the agent text (sanitized markdown) with a caret while `running`                                 |
-| `interrupt`                      | `{type: "question", question}` or `{type: "approval", action}` | Placeholder with the question (or action); answering comes with SHIP-239                                   |
+| `interrupt`                      | `{type: "question", question}` or `{type: "approval", action, details?}` | A question joins the interview thread and enables the composer; an approval shows `ApprovalPrompt`. Answers go to `POST /v1/runs/{id}/resume` |
 
-Not emitted yet, added with their features: step progress (`current/total`), research items (source chips), score params and totals.
+Not emitted yet, added with their features: step progress (`current/total`), research items (live source chips), score params and totals. Research arrives by refetch instead: `GET /v1/ideas/{id}/research` reloads when a `researcher` step finishes and when the run ends.
 
-While a run works and no text has streamed, a `Shimmer` shows the running step ("Researcher…"), else "Starting…" / "Thinking…". The server sends `retry: 3000` and a `: ping` every 15 s; a finished run whose stream expired gets one synthetic `run_status` frame.
+While a run works and no text has streamed, a `Shimmer` shows the running step ("Interviewer…"; "Researching… <tool name>" for the Researcher), else "Starting…" / "Thinking…". The server sends `retry: 3000` and a `: ping` every 15 s; a finished run whose stream expired gets one synthetic `run_status` frame.
+
+## Interview and Research
+
+- **Thread order:** the idea (user bubble), then the interview (each question an agent message, each answer a user bubble), then the run's agent message (steps, research, text, outcome).
+- **Interview source:** past turns come from `GET /v1/ideas/{id}/interview` (only `asked` turns show); the run's current question comes from the stream or `pending_interrupt`. An answer sent from the page shows at once and is taken back if the call fails; the turns refetch when a new question arrives and when the run ends.
+- **Answering:** Enter sends, Shift+Enter adds a line; the composer stays disabled until `run_status: running`. `409 run.invalid_state` refetches the run and says "This run already moved on."
+- **Research:** shown inside the agent message under the steps (Sources chips, then the collapsible `ResearchPanel`); no side panel or tab. Mobile needs no extra layout because it sits in the single column.
 
 ## Ideas
 

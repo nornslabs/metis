@@ -32,19 +32,18 @@ export const runErrorSchema = z.object({ code: z.string(), message: z.string() }
 export type RunError = z.infer<typeof runErrorSchema>;
 
 /** A question or approval the run waits on, reduced to the text the page shows. */
-export type RunInterrupt = { kind: "question" | "approval"; text: string };
+export type RunInterrupt = { kind: "question" | "approval"; text: string; details?: string };
 
 export const interruptSchema = z
   .union([
     z.object({ type: z.literal("question"), question: z.string() }),
-    z.object({ type: z.literal("approval"), action: z.string() }),
+    z.object({ type: z.literal("approval"), action: z.string(), details: z.unknown().optional() }),
   ])
-  .transform(
-    (value): RunInterrupt =>
-      value.type === "question"
-        ? { kind: "question", text: value.question }
-        : { kind: "approval", text: value.action },
-  );
+  .transform((value): RunInterrupt => {
+    if (value.type === "question") return { kind: "question", text: value.question };
+    const details = typeof value.details === "string" && value.details.trim() !== "" ? value.details : undefined;
+    return { kind: "approval", text: value.action, ...(details && { details }) };
+  });
 
 const nodeSchema = z.object({ node: z.string() });
 

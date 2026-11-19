@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, Square } from "lucide-react";
-import { useId, type FormEvent, type KeyboardEvent, type Ref, type TextareaHTMLAttributes } from "react";
+import { useId, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type TextareaHTMLAttributes } from "react";
 
 import { CrossTick } from "@/components/frame/cross-tick";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ export interface ComposerProps {
   onStop?: () => void;
   /** Inline error under the textarea (validation or API). */
   error?: string | null;
+  /** A row above the textarea inside the band, e.g. quick replies. */
+  above?: ReactNode;
 }
 
 /** Enter sends, Shift+Enter (or an IME composition) types a new line. */
@@ -63,7 +65,7 @@ function ActionButton({ action, canSend, onStop }: Pick<ComposerProps, "action" 
  * The prompt input in the band at the bottom of the chat column: auto-growing textarea, hint and
  * a send button that becomes Stop while a run is active (ui-context.md, Composer).
  */
-export function Composer({ textarea, label, action, canSend, onSubmit, onStop, error }: ComposerProps) {
+export function Composer({ textarea, label, action, canSend, onSubmit, onStop, error, above }: ComposerProps) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const hint = action === "stopping" ? "Stopping…" : "Enter to send";
@@ -83,6 +85,7 @@ export function Composer({ textarea, label, action, canSend, onSubmit, onStop, e
         onSubmit={onSubmit}
         className="mx-auto w-(--col) border-x bg-card px-5 pt-3 pb-2 focus-within:ring-1 focus-within:ring-ring focus-within:ring-inset max-guides:px-4"
       >
+        {above}
         <label htmlFor={inputId} className="sr-only">
           {label}
         </label>
