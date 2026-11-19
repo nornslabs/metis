@@ -61,6 +61,7 @@ class ErrorCode(StrEnum):
 
     # -------------------------------------------------------------------- provider
     PROVIDER_NOT_CONFIGURED = "provider.not_configured"
+    PROVIDER_LLM_NOT_READY = "provider.llm_not_ready"
     PROVIDER_KEY_NOT_FOUND = "provider.key_not_found"
     UPSTREAM_ERROR = "provider.upstream_error"
     BUDGET_EXCEEDED = "provider.budget_exceeded"
@@ -264,6 +265,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.PROVIDER_NOT_CONFIGURED: ErrorSpec(
         status=402,
         title="Provider Not Configured",
+        retryable=False,
+    ),
+    ErrorCode.PROVIDER_LLM_NOT_READY: ErrorSpec(
+        status=402,
+        title="LLM Key Not Ready",
         retryable=False,
     ),
     ErrorCode.PROVIDER_KEY_NOT_FOUND: ErrorSpec(
@@ -658,6 +664,22 @@ class ProviderNotConfiguredError(MetisError):
     code: ErrorCode = ErrorCode.PROVIDER_NOT_CONFIGURED
 
 
+def provider_not_configured(provider: str) -> ProviderNotConfiguredError:
+    """The error for a missing key: its detail and ``meta`` name the provider."""
+    name = str(provider)
+    label = "LLM" if name == "llm" else name.capitalize()
+    return ProviderNotConfiguredError(f"Add your {label} key in Settings.", meta={"provider": name})
+
+
+class LlmNotReadyError(MetisError):
+    """The workspace has no LLM key that passed its test, so a run cannot start.
+
+    ``meta["reason"]`` is ``not_configured``, ``not_tested`` or ``test_failed``.
+    """
+
+    code: ErrorCode = ErrorCode.PROVIDER_LLM_NOT_READY
+
+
 class ProviderKeyNotFoundError(NotFoundError):
     """The workspace has no key of that kind to delete."""
 
@@ -754,7 +776,9 @@ __all__ = [
     "RateLimitError",
     "MalformedEventError",
     "SecretDecryptError",
+    "LlmNotReadyError",
     "ProviderNotConfiguredError",
+    "provider_not_configured",
     "ProviderKeyNotFoundError",
     "MemberUserNotFoundError",
     "AlreadyMemberError",

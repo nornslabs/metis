@@ -3,6 +3,8 @@
 Under the run's Redis lock the runner loads the run, moves it to ``running``, drives the
 graph (``thread_id`` = run id), publishes its events and settles the run's status:
 
+- every stage a node sets is copied to ``ideas.stage`` (``agent/stage_sync.py``), so a later
+  run starts where this one stopped;
 - the graph ends → ``succeeded``, or ``failed`` when it set ``last_error`` (the step limit);
 - the graph pauses on ``interrupt()`` → ``awaiting_user`` with the question stored;
 - the API set ``cancel:{run_id}`` → ``cancelled`` at the next step boundary;
@@ -39,6 +41,7 @@ from metis.agent.run_lock import RunLock, hold_run_lock
 from metis.agent.specialists.interviewer import build_interviewer
 from metis.agent.specialists.researcher import build_researcher
 from metis.agent.specialists.stubs import SpecialistNode
+from metis.agent.stage_sync import save_stage, stages_in
 from metis.agent.state import initial_state
 from metis.agent.supervisor import Specialist
 from metis.core.config import get_settings
@@ -49,7 +52,7 @@ from metis.core.logging import get_logger
 from metis.core.run_control import cancel_requested
 from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import ideas, identity
-from metis.modules.ideas import RunStatus, WorkflowRun
+from metis.modules.ideas import RunStatus, Stage, WorkflowRun
 from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES
 
 # Each step's checkpoint is written before the next step starts, so a killed worker (or a
@@ -176,6 +179,7 @@ async def _stream_graph(
     async with open_checkpointer(deps.database_url) as saver:
         graph = build_graph(saver, specialists=_specialists(deps, gateway, redis))
         config: RunnableConfig = {"configurable": {"thread_id": str(run.id)}}
+        await _sync_checkpoint_stage(graph, config, deps, run)
         payload = await _input(graph, config, deps, run, resume)
         interrupt: dict[str, Any] | None = None
         async for namespace, mode, chunk in graph.astream(
@@ -185,6 +189,8 @@ async def _stream_graph(
                 return Outcome("lock_lost")
             if namespace and mode != "messages":
                 continue  # a specialist's inner loop: only its model output is published
+            if mode == "updates" and isinstance(chunk, Mapping):
+                await _save_stages(deps, run, chunk)
             interrupt = interrupt or await publisher.handle(mode, chunk)
             if mode == "updates" and await cancel_requested(redis, run.id):
                 return Outcome("cancelled")
@@ -192,6 +198,28 @@ async def _stream_graph(
             return Outcome("interrupted", interrupt=interrupt)
         final = (await graph.aget_state(config)).values
         return Outcome("done", last_error=final.get("last_error"))
+
+
+async def _sync_checkpoint_stage(
+    graph: CompiledGraph, config: RunnableConfig, deps: RunnerDeps, run: WorkflowRun
+) -> None:
+    """Save the checkpoint's stage on the idea before (re)starting a run.
+
+    The checkpoint is written before the runner sees a node's ``updates`` chunk, so a crash
+    in between leaves ``ideas.stage`` one step behind; this catches it up.
+    """
+    stage = (await graph.aget_state(config)).values.get("stage")
+    if stage is None:
+        return
+    async with _scoped(deps, run.workspace_id) as session:
+        await save_stage(session, run.workspace_id, run.idea_id, Stage(stage))
+
+
+async def _save_stages(deps: RunnerDeps, run: WorkflowRun, update: Mapping[str, Any]) -> None:
+    """Copy the stage a node just set to ``ideas.stage``, in its own short transaction."""
+    for stage in stages_in(update):
+        async with _scoped(deps, run.workspace_id) as session:
+            await save_stage(session, run.workspace_id, run.idea_id, stage)
 
 
 def _specialists(

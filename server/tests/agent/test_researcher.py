@@ -32,10 +32,13 @@ from tests.agent.interview_helpers import Call, Reply, ScriptedLLM
 from tests.agent.run_job_helpers import (
     QueuedRun,
     events_of,
+    idea_stage,
     job_ctx,
     keyed_run,
+    node_events,
     run_job,
     run_row,
+    statuses,
 )
 from tests.modules.identity.fake_exa_mcp import FakeExaMcp
 
@@ -99,6 +102,20 @@ async def _researching_run(engine: AsyncEngine, *, exa_key: bool = True) -> Queu
     if exa_key:
         await _save_exa_key(engine, run.workspace_id)
     return run
+
+
+async def _new_run_on_same_idea(engine: AsyncEngine, run: QueuedRun) -> QueuedRun:
+    """A new queued run on ``run``'s idea (the first one has finished)."""
+    new_id = uuid7()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO ideas.workflow_runs (id, workspace_id, idea_id) "
+                "SELECT :new, workspace_id, idea_id FROM ideas.workflow_runs WHERE id = :old"
+            ),
+            {"new": new_id, "old": run.run_id},
+        )
+    return QueuedRun(new_id, run.workspace_id)
 
 
 async def _save_exa_key(engine: AsyncEngine, workspace_id: UUID) -> None:
@@ -191,6 +208,7 @@ async def test_research_saves_sourced_findings_and_hands_over_to_scoring(
     ]
     assert [c["query"] for c in exa_calls] == ["freelancer crm tools", "https://acme.example.com"]
     assert set(exa.api_keys) == {"exa-test-key"}
+    assert await idea_stage(engine, run) == "exported"  # the stubs after the Researcher finish
 
 
 async def test_an_item_without_a_source_url_is_refused_and_research_goes_on(
@@ -350,14 +368,42 @@ async def test_the_exa_cap_is_per_run_not_per_pass_or_rerun(redis: Redis) -> Non
     assert taken == [True] * 12 + [False] * 4
 
 
-async def test_a_workspace_without_an_exa_key_fails_the_run(
-    engine: AsyncEngine, ctx: dict[str, Any]
+async def test_a_workspace_without_an_exa_key_skips_research_and_the_run_succeeds(
+    engine: AsyncEngine,
+    redis: Redis,
+    ctx: dict[str, Any],
+    llm: ScriptedLLM,
+    exa: FakeExaMcp,
 ) -> None:
     run = await _researching_run(engine, exa_key=False)
 
     await run_job(ctx, run)
 
-    row = await run_row(engine, run)
-    assert row.status == "failed"
-    assert row.error is not None and row.error["code"] == "provider.not_configured"
+    events = await events_of(redis, run)
+    notices = [e.data for e in events if e.type is RunEventType.NOTICE]
+    assert (await run_row(engine, run)).status == "succeeded"
+    assert notices == [
+        {"code": "research.skipped_no_exa", "text": "Research is skipped: Exa isn't set up."}
+    ]
+    assert node_events(events) == [("node_started", "researcher"), ("node_finished", "researcher")]
+    assert statuses(events) == ["running", "succeeded"]
+    assert (llm.calls, exa.api_keys, exa.tool_calls) == (0, [], [])
     assert await _snapshots(engine, run) == []
+    assert await idea_stage(engine, run) == "researching"
+
+
+async def test_a_later_run_with_an_exa_key_does_the_research(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    skipped = await _researching_run(engine, exa_key=False)
+    await run_job(ctx, skipped)
+    await _save_exa_key(engine, skipped.workspace_id)
+    later = await _new_run_on_same_idea(engine, skipped)
+    llm.add(finish())
+
+    await run_job(ctx, later)
+
+    assert (await run_row(engine, later)).status == "succeeded"
+    [(summary, closed)] = await _snapshots(engine, later)
+    assert closed and summary.startswith("Acme CRM is the main competitor.")
+    assert await idea_stage(engine, later) == "exported"  # the stubs after the Researcher finish

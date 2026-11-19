@@ -86,7 +86,7 @@ async def test_streamed_text_arrives_as_batched_token_events_in_order(
 ) -> None:
     reply = AIMessage(content=" ".join(WORDS))
     ctx = job_ctx(redis, app_sessions, {Specialist.INTERVIEWER: _talking_interviewer(reply)})
-    run = await queued_run(engine)
+    run = await queued_run(engine, stage="interviewing")
 
     await run_job(ctx, run)
 
@@ -109,7 +109,7 @@ async def test_tokens_are_published_before_the_event_that_follows_them(
         app_sessions,
         {Specialist.INTERVIEWER: _talking_interviewer(AIMessage(content="one two three"))},
     )
-    run = await queued_run(engine)
+    run = await queued_run(engine, stage="interviewing")
 
     await run_job(ctx, run)
 
@@ -125,7 +125,7 @@ async def test_a_tool_call_is_published_by_name_without_its_arguments(
     checkpointer: AsyncPostgresSaver,
 ) -> None:
     ctx = job_ctx(redis, app_sessions, {Specialist.INTERVIEWER: _tool_calling_interviewer()})
-    run = await queued_run(engine)
+    run = await queued_run(engine, stage="interviewing")
 
     await run_job(ctx, run)
 

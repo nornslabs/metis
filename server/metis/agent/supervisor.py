@@ -60,11 +60,14 @@ def supervise(state: MetisState) -> dict[str, Any]:
 def route(state: MetisState) -> str:
     """The next node for ``state``: a specialist's name, or ``END``.
 
+    A run whose Researcher skipped research (``research_skipped``) ends here too, with the
+    stage left at ``researching`` so a later run picks the research up.
+
     Pending ``clarification`` questions (from the Researcher) go to the Interviewer whatever
     the stage; once it has asked them the stage routes back to the Researcher.
     """
     specialist = STAGE_ROUTES[state["stage"]]
-    if state["last_error"] is not None or specialist is None:
+    if state["last_error"] is not None or specialist is None or state.get("research_skipped"):
         return END
     if state.get("clarification"):
         return Specialist.INTERVIEWER.value

@@ -40,6 +40,7 @@ class RunEventType(StrEnum):
     NODE_FINISHED = "node_finished"
     TOKEN = "token"
     TOOL_CALL = "tool_call"
+    NOTICE = "notice"
     INTERRUPT = "interrupt"
     RUN_STATUS = "run_status"
 

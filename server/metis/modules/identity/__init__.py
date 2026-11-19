@@ -11,6 +11,7 @@ from metis.modules.identity.deps import (
     current_workspace,
 )
 from metis.modules.identity.dto import (
+    KeyReadiness,
     MemberRole,
     Membership,
     ProviderCredentials,
@@ -18,7 +19,7 @@ from metis.modules.identity.dto import (
     Workspace,
 )
 from metis.modules.identity.service.members import add_member
-from metis.modules.identity.service.provider_keys import get_key_for_use
+from metis.modules.identity.service.provider_keys import get_key_for_use, key_readiness
 from metis.modules.identity.service.settings import get_settings_overview
 from metis.modules.identity.service.workspaces import (
     create_workspace,
@@ -31,6 +32,7 @@ __all__ = [
     "StreamWorkspaceDep",
     "current_workspace",
     "router",
+    "KeyReadiness",
     "MemberRole",
     "Membership",
     "ProviderCredentials",
@@ -41,5 +43,6 @@ __all__ = [
     "ensure_personal_workspace",
     "get_key_for_use",
     "get_settings_overview",
+    "key_readiness",
     "list_workspaces",
 ]

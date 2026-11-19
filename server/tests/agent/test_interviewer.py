@@ -97,6 +97,14 @@ async def _rerun_same_idea(engine: AsyncEngine, run: QueuedRun) -> QueuedRun:
     """A new queued run on ``run``'s idea (the first one must be finished)."""
     new_id = uuid7()
     async with engine.begin() as conn:
+        # The first run left the idea at ``researching``; a revise-and-restart starts over.
+        await conn.execute(
+            text(
+                "UPDATE ideas.ideas SET stage = 'intake' WHERE id = "
+                "(SELECT idea_id FROM ideas.workflow_runs WHERE id = :old)"
+            ),
+            {"old": run.run_id},
+        )
         await conn.execute(
             text(
                 "INSERT INTO ideas.workflow_runs (id, workspace_id, idea_id) "

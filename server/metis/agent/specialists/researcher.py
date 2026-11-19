@@ -6,7 +6,11 @@ KB and item tools, and the run's ``research`` chat model, seeded with the idea, 
 interview brief and what earlier passes saved. ``finish_research`` ends the loop. The node then
 either asks for one clarification round (the questions go in state; the supervisor sends the
 run to the Interviewer and back) or closes the snapshot with the summary and moves the run to
-``scoring``. It never writes ``ideas.stage``.
+``scoring``. The runner copies the stage to ``ideas.stage``; the node does not.
+
+Without an Exa key the node does no research: it publishes a ``notice`` event, sets
+``research_skipped`` (the supervisor then ends the run) and leaves the stage at
+``researching``, so a later run, once a key is saved, starts there.
 
 The loop never pauses for the user, so the node runs from start to end; after a crash it
 re-runs, reusing the run's open snapshot and the cached Exa calls. No database transaction is
@@ -48,7 +52,7 @@ from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory
 from metis.modules import ideas, research
 from metis.modules.ideas import Stage
-from metis.modules.identity import ProviderKind, get_key_for_use
+from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
 
 PROMPT = "researcher"
 PURPOSE = "research"
@@ -57,6 +61,8 @@ MAX_EXA_CALLS = 12
 # tool step. The Exa cap, not this, is what bounds the research.
 STEP_LIMIT = 80
 SUMMARY_LIMIT = 4_000
+NOTICE_SKIPPED_NO_EXA = "research.skipped_no_exa"
+NOTICE_SKIPPED_NO_EXA_TEXT = "Research is skipped: Exa isn't set up."
 NO_COMPETITORS_NOTE = "No direct competitors found."
 NO_SUMMARY = "Research ended without a summary."
 CAP_MESSAGE = (
@@ -83,6 +89,16 @@ def build_researcher(
             open_session=open_session,
             gateway=gateway,
         )
+        if await _exa_key_missing(scope):
+            logger.info("research.skipped_no_exa")
+            get_stream_writer()(
+                {
+                    "type": RunEventType.NOTICE.value,
+                    "code": NOTICE_SKIPPED_NO_EXA,
+                    "text": NOTICE_SKIPPED_NO_EXA_TEXT,
+                }
+            )
+            return _finish_node(state, {"research_skipped": True})
         if await _already_closed(scope):
             # A crash after the snapshot closed but before the checkpoint: do not research again.
             logger.info("research.already_closed")
@@ -137,6 +153,13 @@ async def _research(
         )
         result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
     return list(result["messages"])
+
+
+async def _exa_key_missing(scope: ResearchScope) -> bool:
+    """Whether the workspace has no Exa key saved (presence only; no decryption)."""
+    async with scope.session() as session:
+        readiness = await key_readiness(session, scope.workspace_id, ProviderKind.EXA)
+    return readiness is KeyReadiness.NOT_CONFIGURED
 
 
 async def _already_closed(scope: ResearchScope) -> bool:

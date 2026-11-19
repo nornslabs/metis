@@ -18,13 +18,19 @@ from metis.adapters.mcp.exa import ExaMcpClient
 from metis.core import crypto
 from metis.core.config import get_settings
 from metis.core.db import WORKSPACE_SETTING
-from metis.core.errors import ProviderKeyNotFoundError, ProviderNotConfiguredError, UpstreamError
+from metis.core.errors import (
+    ProviderKeyNotFoundError,
+    ProviderNotConfiguredError,
+    UpstreamError,
+    provider_not_configured,
+)
 from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory
 from metis.helpers.validation import validate_input
 from metis.modules.identity import repo
 from metis.modules.identity.dto import (
     ALLOW_LOCAL_HTTP,
+    KeyReadiness,
     Membership,
     NewProviderKey,
     ProviderCredentials,
@@ -96,6 +102,22 @@ async def get_key_for_use(
     return _credentials(row, workspace_id)
 
 
+async def key_readiness(
+    session: AsyncSession, workspace_id: UUID, kind: ProviderKind
+) -> KeyReadiness:
+    """Whether the workspace's key of ``kind`` is saved and passed its last test.
+
+    Reads the row only: no decryption and no provider call.
+    """
+    async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
+        row = await repo.provider_keys.get(session, workspace_id, kind)
+    if row is None:
+        return KeyReadiness.NOT_CONFIGURED
+    if row.last_test_ok is None:
+        return KeyReadiness.NOT_TESTED
+    return KeyReadiness.READY if row.last_test_ok else KeyReadiness.TEST_FAILED
+
+
 async def test_key(
     session: AsyncSession, workspace_id: UUID, kind: ProviderKind, make_client: ClientFactory
 ) -> KeyTestResult:
@@ -132,7 +154,7 @@ async def _saved_key(
     """The saved key row; ``ProviderNotConfiguredError`` if there is none."""
     row = await repo.provider_keys.get(session, workspace_id, kind)
     if row is None:
-        raise ProviderNotConfiguredError(f"Add your {kind.value} key in settings first")
+        raise provider_not_configured(kind)
     return row
 
 
@@ -149,5 +171,7 @@ async def _check_provider(make_client: ClientFactory, creds: ProviderCredentials
         await ExaMcpClient(make_client, creds.api_key).check()
         return
     if creds.base_url is None:  # unreachable: llm keys are saved with a base_url
-        raise ProviderNotConfiguredError("The llm key has no base_url; save it again")
+        raise ProviderNotConfiguredError(
+            "The llm key has no base_url; save it again", meta={"provider": ProviderKind.LLM.value}
+        )
     await OpenAICompatibleClient(make_client, creds.base_url, creds.api_key).list_models()

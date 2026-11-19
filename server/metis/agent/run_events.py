@@ -5,7 +5,7 @@ pairs; :meth:`RunEventPublisher.handle` maps each to ``core.events`` events:
 
 - ``tasks`` start of a specialist → ``node_started {node}`` (the supervisor only routes, so
   it publishes nothing);
-- ``custom`` ``node_finished`` / ``tool_call`` from a node → passed through;
+- ``custom`` ``node_finished`` / ``tool_call`` / ``notice`` from a node → passed through;
 - ``messages`` model output → ``token {node, text}`` (buffered, see below) and
   ``tool_call {node, name}`` (the arguments are never published);
 - ``updates`` ``__interrupt__`` → returned to the caller, which stores it and publishes
@@ -35,7 +35,9 @@ from metis.core.logging import get_logger
 TOKEN_FLUSH_SECONDS = 0.1
 INTERRUPT_KEY = "__interrupt__"
 # Event types a node may emit itself through the stream writer.
-NODE_EVENT_TYPES = frozenset({RunEventType.NODE_FINISHED, RunEventType.TOOL_CALL})
+NODE_EVENT_TYPES = frozenset(
+    {RunEventType.NODE_FINISHED, RunEventType.TOOL_CALL, RunEventType.NOTICE}
+)
 
 logger = get_logger(__name__)
 EXECUTION_REPORTED_TOOLS = frozenset({SEARCH_TOOL, FETCH_TOOL})

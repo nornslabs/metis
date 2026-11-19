@@ -114,10 +114,11 @@ Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never i
 4. **Read context**: `progress-tracker.md` and the context files for the task (see "Which Context to Load").
 5. **Update the tracker, then build.** Set the PRD Status to `in progress`, update `progress-tracker.md` (Status block + PRD Board row with branch), then implement within the PRD's scope only.
 6. **Verify**: acceptance criteria plus the checks in "Before Moving to the Next PRD".
-7. **Finish**: set Status to `done`, update `progress-tracker.md` and sync docs (see Keeping Docs in Sync).
-8. **Ask before committing.** Never commit or push without human approval. When coding is done, ask: "Should I commit and push to PR?" and wait for the answer.
-9. **Commit only after approval**: commit all changes (code, tests, PRD, tracker, docs) on the branch with conventional commits, e.g. `chore(core-infra): add global settings`. Reference the Linear id from the PRD's Source line in the commit body. If asked to open a PR, follow "Pull Requests".
-10. **Do not merge or push to `main`.**
+7. **Code review (automatic).** Once the build passes verification, run the `code-review` skill (`/code-review`) on the changes since `main` without being asked. It reviews on two axes in parallel: Standards (`.agents/ctx/code-standards.md` and the other context files) and Spec (the PRD's Requirements and Acceptance criteria). Fix every real finding inside the PRD's scope, then re-run Verify (step 6). Report any finding you did not fix, with the reason, instead of hiding it. Do not skip this step, even for small changes.
+8. **Finish**: set Status to `done`, update `progress-tracker.md` and sync docs (see Keeping Docs in Sync).
+9. **Ask before committing.** Never commit or push without human approval. When coding and review are done, ask: "Should I commit and push to PR?" and wait for the answer. Include a short summary of the code review result in that message.
+10. **Commit only after approval**: commit all changes (code, tests, PRD, tracker, docs) on the branch with conventional commits, e.g. `chore(core-infra): add global settings`. Reference the Linear id from the PRD's Source line in the commit body. If asked to open a PR, follow "Pull Requests".
+11. **Do not merge or push to `main`.**
 
 ## Pull Requests
 
