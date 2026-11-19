@@ -20,6 +20,7 @@ from metis.modules.ideas.dto import (
     Idea,
     IdeaPage,
     IdeaPatch,
+    InterviewTurnList,
     NewIdea,
 )
 from metis.modules.identity import CurrentWorkspaceDep
@@ -49,6 +50,14 @@ async def list_ideas(
 @router.get("/{idea_id}", response_model=Idea)
 async def get_idea(session: SessionDep, workspace: CurrentWorkspaceDep, idea_id: UUID) -> Idea:
     return await service.ideas.get_idea(session, workspace.workspace.id, idea_id)
+
+
+@router.get("/{idea_id}/interview", response_model=InterviewTurnList)
+async def get_interview(
+    session: SessionDep, workspace: CurrentWorkspaceDep, idea_id: UUID
+) -> InterviewTurnList:
+    """The idea's interview turns across all its runs, oldest first (open ones have no answer)."""
+    return await service.interview.list_interview(session, workspace.workspace.id, idea_id)
 
 
 @router.patch("/{idea_id}", response_model=Idea)

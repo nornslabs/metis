@@ -28,6 +28,7 @@ from metis.modules.ideas.dto.interview import (
     InterviewFindings,
     InterviewTopic,
     InterviewTurn,
+    InterviewTurnList,
     QuestionRefusal,
     TurnSource,
 )
@@ -56,6 +57,7 @@ __all__ = [
     "InterviewFindings",
     "InterviewTopic",
     "InterviewTurn",
+    "InterviewTurnList",
     "QuestionRefusal",
     "TurnSource",
     "DEFAULT_PAGE_SIZE",

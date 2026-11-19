@@ -77,6 +77,12 @@ class InterviewTurn(FrozenModel):
     answer: str | None
 
 
+class InterviewTurnList(FrozenModel):
+    """An idea's interview turns across all its runs, oldest first."""
+
+    items: tuple[InterviewTurn, ...]
+
+
 class InterviewCoverage(FrozenModel):
     """Where an idea's interview stands for one run.
 

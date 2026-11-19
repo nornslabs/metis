@@ -26,3 +26,12 @@ export function eventStreamBody(runId: string, events: readonly (FakeEvent | str
   });
   return ["retry: 3000\n\n", ...frames].join("");
 }
+
+/** Marks a seeded run as waiting for the user, with the interrupt payload a reload restores. */
+export function seedAwaitingRun(runId: string, interrupt: Record<string, unknown>): void {
+  const payload = JSON.stringify(interrupt).replaceAll("'", "''");
+  psql(`
+    update ideas.workflow_runs set status = 'awaiting_user', pending_interrupt = '${payload}'::jsonb
+      where id = '${runId}';
+  `);
+}

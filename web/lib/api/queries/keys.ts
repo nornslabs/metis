@@ -11,4 +11,10 @@ export const queryKeys = {
   idea: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId] as const,
   latestRun: (workspaceId: string | null, ideaId: string) =>
     ["ideas", workspaceId, ideaId, "latest-run"] as const,
+  /** The idea's interview turns (under the idea key, so a refresh of the idea refetches them). */
+  interview: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "interview"] as const,
+  /** The idea's latest research snapshot (also under the idea key). */
+  research: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "research"] as const,
 };

@@ -32,6 +32,7 @@ from metis.modules.ideas.dto import (
     InterviewFindings,
     InterviewTopic,
     InterviewTurn,
+    InterviewTurnList,
     QuestionRefusal,
     TurnSource,
 )
@@ -125,6 +126,15 @@ async def list_turns(
     """The idea's turns across all its runs, oldest first."""
     rows = await repo.interview.list_for_idea(session, workspace_id, idea_id)
     return [InterviewTurn.model_validate(row) for row in rows]
+
+
+async def list_interview(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID
+) -> InterviewTurnList:
+    """The idea's turns, oldest first; an unknown, archived or foreign idea is not found."""
+    if await repo.ideas.get(session, workspace_id, idea_id) is None:
+        raise IdeaNotFoundError()
+    return InterviewTurnList(items=tuple(await list_turns(session, workspace_id, idea_id)))
 
 
 async def interview_coverage(

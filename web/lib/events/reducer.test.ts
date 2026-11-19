@@ -128,3 +128,28 @@ describe("isActiveStatus", () => {
     expect(["succeeded", "failed", "cancelled"].some(isActiveStatus)).toBe(false);
   });
 });
+
+describe("interruptCount", () => {
+  const ask = (text: string): RunEvent => ({ type: "interrupt", interrupt: { kind: "question", text } });
+
+  test("starts at zero, even with a seeded question", () => {
+    expect(initialRunState(RUN_VIEW).interruptCount).toBe(0);
+    const seeded = initialRunState({
+      status: "awaiting_user",
+      error: null,
+      pending_interrupt: { type: "question", question: "Who?" },
+    });
+    expect(seeded.interruptCount).toBe(0);
+  });
+
+  test("counts every interrupt, so an identical question or a second approval is a new one", () => {
+    const state = play([ask("Who?"), ask("Who?"), { type: "interrupt", interrupt: { kind: "approval", text: "Export" } }]);
+    expect(state.interruptCount).toBe(3);
+  });
+
+  test("is not changed by other events", () => {
+    const state = play([ask("Who?"), { type: "token", node: "interviewer", text: "hi" }, { type: "run_status", status: "running" }]);
+    expect(state.interruptCount).toBe(1);
+  });
+});
+

@@ -1,8 +1,8 @@
-import { CircleAlert, MessageCircleQuestion } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { RunError, RunInterrupt } from "@/lib/events/schemas";
+import type { RunError } from "@/lib/events/schemas";
 
 interface RunErrorRowProps {
   error: RunError;
@@ -32,20 +32,6 @@ export function StartRunButton({ label, pending, onClick }: StartRunButtonProps)
     <Button type="button" variant="outline" size="sm" disabled={pending} onClick={onClick}>
       {pending ? "Starting…" : label}
     </Button>
-  );
-}
-
-/** A question or approval the run waits on. Answering comes with the interview chat (SHIP-239). */
-export function InterruptPlaceholder({ interrupt }: { interrupt: RunInterrupt }) {
-  return (
-    <div className="flex flex-col gap-1 border px-2.5 py-2">
-      <span className="flex items-center gap-1.5 text-meta font-medium text-muted-foreground uppercase tracking-label">
-        <MessageCircleQuestion size={13} aria-hidden="true" />
-        {interrupt.kind === "question" ? "Metis asks" : "Needs your approval"}
-      </span>
-      <p className="text-body whitespace-pre-wrap">{interrupt.text}</p>
-      <p className="text-meta text-muted-foreground">Answering in the chat is coming soon.</p>
-    </div>
   );
 }
 
