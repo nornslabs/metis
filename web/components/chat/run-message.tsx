@@ -15,7 +15,7 @@ interface RunMessageBodyProps {
   retry: ReactNode;
   /** Sources chips and the research block, shown under the steps. */
   research?: ReactNode;
-  /** The approval prompt, shown while the run waits for an approval. */
+  /** The approval prompt and the user's earlier choices; always rendered, the caller decides what shows. */
   approval?: ReactNode;
 }
 
@@ -31,7 +31,7 @@ export function RunMessageBody({ state, streamLost, retry, research, approval }:
       {streamLost ? (
         <RunNote>Live updates stopped. Reload the page to see the latest progress.</RunNote>
       ) : null}
-      {state.status === "awaiting_user" ? approval : null}
+      {approval}
       {state.status === "failed" && state.error ? <RunErrorRow error={state.error} action={retry} /> : null}
       {state.status === "cancelled" ? <RunNote>Run stopped.</RunNote> : null}
       {state.status === "succeeded" ? <RunNote>Run finished.</RunNote> : null}

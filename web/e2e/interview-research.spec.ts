@@ -28,29 +28,44 @@ function fulfillJson(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
 }
 
-function fulfillProblem(route: Route, status: number, code: string, title: string) {
+function fulfillProblem(
+  route: Route,
+  status: number,
+  code: string,
+  title: string,
+  errors: { field: string; message: string }[] = [],
+) {
   return route.fulfill({
     status,
     contentType: "application/problem+json",
-    body: JSON.stringify({ title, code, status, detail: title, retryable: false, errors: [] }),
+    body: JSON.stringify({ title, code, status, detail: title, retryable: false, errors }),
   });
 }
 
 /** An idea with a seeded run whose event stream and interview turns are faked. */
 async function fakeRun(
   page: Page,
-  options: { events: Parameters<typeof eventStreamBody>[1]; turns?: Turn[]; awaiting?: Record<string, unknown> },
+  options: {
+    events: Parameters<typeof eventStreamBody>[1];
+    /** What a reconnect after the first stream gets (the server resumes after `Last-Event-ID`). */
+    laterEvents?: Parameters<typeof eventStreamBody>[1];
+    turns?: Turn[];
+    awaiting?: Record<string, unknown>;
+  },
 ) {
   const idea = await createIdea(page, "interview");
   const runId = seedQueuedRun(idea.id, idea.workspace_id);
   if (options.awaiting) seedAwaitingRun(runId, options.awaiting);
-  await page.route(`**/v1/runs/${runId}/events**`, (route) =>
-    route.fulfill({
+  let streamCalls = 0;
+  await page.route(`**/v1/runs/${runId}/events**`, (route) => {
+    streamCalls += 1;
+    const events = streamCalls > 1 && options.laterEvents ? options.laterEvents : options.events;
+    return route.fulfill({
       status: 200,
       headers: { "Content-Type": "text/event-stream" },
-      body: eventStreamBody(runId, options.events),
-    }),
-  );
+      body: eventStreamBody(runId, events),
+    });
+  });
   const items = (options.turns ?? []).map((turn) => ({
     ...turn,
     idea_id: idea.id,
@@ -149,20 +164,24 @@ test.describe("interview in the chat", () => {
 
     await expect(page.getByText("This run already moved on.")).toBeVisible();
     await expect(page.getByText("Freelancers", { exact: true })).toHaveCount(0);
+    await expect(composer(page)).toHaveValue("Freelancers");
   });
 
   test("a failed resume removes the optimistic answer and shows the error", async ({ page }) => {
     const { idea, runId } = await fakeRun(page, { events: ASK });
     await page.route(`**/v1/runs/${runId}/resume`, (route) =>
-      fulfillProblem(route, 422, "common.validation_failed", "Invalid resume value"),
+      fulfillProblem(route, 422, "common.validation_failed", "Invalid resume value", [
+        { field: "body.value", message: "That answer is not valid." },
+      ]),
     );
     await page.goto(`/ideas/${idea.id}`);
 
     await composer(page).fill("Freelancers");
     await composer(page).press("Enter");
 
-    await expect(page.getByRole("alert").filter({ hasText: "Invalid resume value" })).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "That answer is not valid." })).toBeVisible();
     await expect(page.getByText("Freelancers", { exact: true })).toHaveCount(0);
+    await expect(composer(page)).toHaveValue("Freelancers");
   });
 
   test("a reload restores earlier answers and the pending question", async ({ page }) => {
@@ -183,6 +202,47 @@ test.describe("interview in the chat", () => {
     await expect(page.getByText("Freelancers", { exact: true })).toBeVisible();
     await expect(page.getByText(QUESTION)).toHaveCount(1);
     await expect(composer(page)).toBeEnabled();
+  });
+
+  test("a repeated question is asked again, not shown as answered", async ({ page }) => {
+    const turns: Turn[] = [
+      { id: "t1", question: QUESTION, answer: "Agencies" },
+      { id: "t2", question: QUESTION, answer: null },
+    ];
+    const { idea, runId } = await fakeRun(page, {
+      events: ASK,
+      turns,
+      awaiting: { type: "question", question: QUESTION },
+    });
+    const bodies = await captureResume(page, runId);
+    await page.goto(`/ideas/${idea.id}`);
+
+    await expect(page.getByText(QUESTION)).toHaveCount(2);
+    await expect(page.getByText("Agencies", { exact: true })).toBeVisible();
+    await expect(composer(page)).toBeEnabled();
+    await composer(page).fill("Freelancers");
+    await composer(page).press("Enter");
+    await expect.poll(() => bodies).toEqual([{ value: "Freelancers" }]);
+    await expect(page.getByText("Freelancers", { exact: true })).toBeVisible();
+  });
+
+  test("a second approval in the same run shows its own prompt", async ({ page }) => {
+    const approval = (action: string) => [
+      { type: "interrupt", data: { type: "approval", action, details: "" } },
+      { type: "run_status", data: { status: "awaiting_user" } },
+    ];
+    const { idea, runId } = await fakeRun(page, {
+      events: approval("Export to Linear"),
+      laterEvents: approval("Export to Notion"),
+    });
+    const bodies = await captureResume(page, runId);
+    await page.goto(`/ideas/${idea.id}`);
+
+    await page.getByRole("button", { name: "Approve" }).click();
+    await expect.poll(() => bodies).toEqual([{ value: true }]);
+    await expect(page.getByText("Export to Notion")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByRole("button", { name: "Approve" })).toBeEnabled();
+    await expect(page.getByText("Approved", { exact: true })).toBeVisible();
   });
 
   test("noted turns are not shown", async ({ page }) => {
@@ -254,6 +314,22 @@ test.describe("research view", () => {
     await page.goto(`/ideas/${idea.id}`);
     await expect(page.getByText("Researching… web_search_exa")).toBeVisible();
     await expect(page.getByText("Research", { exact: true })).toHaveCount(0);
+  });
+
+  test("the research reloads when the run ends, even without a finished Researcher step", async ({ page }) => {
+    const { idea } = await fakeRun(page, {
+      events: [
+        { type: "node_started", data: { node: "researcher" } },
+        { type: "run_status", data: { status: "succeeded" } },
+      ],
+    });
+    let calls = 0;
+    await page.route(`**/v1/ideas/${idea.id}/research`, (route) => {
+      calls += 1;
+      return calls === 1 ? fulfillProblem(route, 404, "research.not_found", "No research yet") : fulfillJson(route, RESEARCH);
+    });
+    await page.goto(`/ideas/${idea.id}`);
+    await expect(page.getByText("2 competitors · 1 fact")).toBeVisible();
   });
 
   test("lists competitors and facts with safe, clickable sources and source chips", async ({ page }) => {

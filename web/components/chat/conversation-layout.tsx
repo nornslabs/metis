@@ -35,7 +35,8 @@ interface ConversationLayoutProps {
   body: ReactNode;
   /** The composer band at the bottom. */
   composer: ReactNode;
-  scrollKey?: unknown;
+  /** Changes when the content grows; a new value follows the newest content (compared by value). */
+  scrollKey?: string;
 }
 
 /** The idea page: the idea, the interview, Metis's message for the run, and the composer. */

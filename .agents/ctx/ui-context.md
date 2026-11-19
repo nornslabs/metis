@@ -235,7 +235,7 @@ While a run works and no text has streamed, a `Shimmer` shows the running step (
 ## Interview and Research
 
 - **Thread order:** the idea (user bubble), then the interview (each question an agent message, each answer a user bubble), then the run's agent message (steps, research, text, outcome).
-- **Interview source:** past turns come from `GET /v1/ideas/{id}/interview` (only `asked` turns show); the run's current question comes from the stream or `pending_interrupt`. An answer sent from the page shows at once and is taken back if the call fails; the turns refetch when a new question arrives and when the run ends.
+- **Interview source:** past turns come from `GET /v1/ideas/{id}/interview` (only `asked` turns show); the run's current question comes from the stream or `pending_interrupt`. An answer sent from the page shows at once (tied to the interrupt it answers, `RunState.interruptCount`, so a repeated question is asked again) and is taken back, with its text, if the call fails; the turns refetch on every new interrupt and when the run ends.
 - **Answering:** Enter sends, Shift+Enter adds a line; the composer stays disabled until `run_status: running`. `409 run.invalid_state` refetches the run and says "This run already moved on."
 - **Research:** shown inside the agent message under the steps (Sources chips, then the collapsible `ResearchPanel`); no side panel or tab. Mobile needs no extra layout because it sits in the single column.
 

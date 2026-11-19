@@ -36,12 +36,12 @@ const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
 /** Refetches the interview turns and the research when the run produces something new for them. */
-function useRefetchOnProgress(ideaId: string, newQuestion: string | null, researchDone: number) {
+function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number) {
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.interview(workspaceId, ideaId) });
-  }, [queryClient, workspaceId, ideaId, newQuestion]);
+  }, [queryClient, workspaceId, ideaId, interruptCount]);
   useEffect(() => {
     if (researchDone > 0) void queryClient.invalidateQueries({ queryKey: queryKeys.research(workspaceId, ideaId) });
   }, [queryClient, workspaceId, ideaId, researchDone]);
@@ -58,12 +58,13 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const turns = useInterview(idea.id);
 
   const interrupt = state.interrupt;
+  const seq = state.interruptCount;
   const thread = useMemo(
-    () => buildInterviewThread({ turns: turns.data ?? [], interrupt, sent: answers.sent }),
-    [turns.data, interrupt, answers.sent],
+    () => buildInterviewThread({ turns: turns.data ?? [], interrupt, interruptSeq: seq, sent: answers.sent }),
+    [turns.data, interrupt, seq, answers.sent],
   );
   const researchDone = finishedResearchSteps(state);
-  useRefetchOnProgress(idea.id, interrupt?.kind === "question" ? interrupt.text : null, researchDone);
+  useRefetchOnProgress(idea.id, seq, researchDone);
 
   const form = useForm<AnswerFormValues>({ resolver: zodResolver(answerSchema), defaultValues: { text: "" } });
   const text = useWatch({ control: form.control, name: "text" });
@@ -73,7 +74,8 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const awaiting = state.status === "awaiting_user" && !streamLost;
   // Wait for the turns: a replayed old question must not look pending before they say it is answered.
   const question = awaiting && !turns.isPending ? thread.pendingQuestion : null;
-  const approval = awaiting && interrupt?.kind === "approval" && answers.choice === null ? interrupt : null;
+  const decided = answers.decisions.some((decision) => decision.seq === seq);
+  const approval = awaiting && interrupt?.kind === "approval" && !decided ? interrupt : null;
   const canAnswer = question !== null && !answers.pending;
   const action: ComposerAction = question !== null || !active ? "send" : stopping ? "stopping" : "stop";
 
@@ -87,7 +89,9 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
 
   const submit = form.handleSubmit((values) => {
     if (question === null) return;
-    answers.answer(question, toAnswer(values));
+    const answerText = toAnswer(values);
+    // The text goes back into the box if the call fails, so nothing typed is lost.
+    answers.answer(seq, question, answerText, () => form.setValue("text", answerText));
     form.reset();
   });
 
@@ -104,7 +108,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
         question !== null ? (
           <QuickReplies
             disabled={answers.pending}
-            onReply={(value) => answers.answer(question, value)}
+            onReply={(value) => answers.answer(seq, question, value)}
             onStop={stop}
             stopping={stopping}
           />
@@ -116,7 +120,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   return (
     <ConversationLayout
       idea={idea}
-      scrollKey={[state, thread.messages.length]}
+      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}`}
       interview={<InterviewMessages messages={thread.messages} />}
       composer={composer}
       body={
@@ -127,8 +131,12 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           research={<ResearchSection ideaId={idea.id} researchStarted={state.steps.some((step) => step.node === RESEARCHER_NODE)} />}
           approval={
             <>
-              {approval ? <ApprovalPrompt interrupt={approval} disabled={answers.pending} onDecide={answers.decide} /> : null}
-              {answers.choice ? <UserBubble text={answers.choice} /> : null}
+              {approval ? (
+                <ApprovalPrompt interrupt={approval} disabled={answers.pending} onDecide={(approved) => answers.decide(seq, approved)} />
+              ) : null}
+              {answers.decisions.map((decision) => (
+                <UserBubble key={decision.seq} text={decision.approved ? "Approved" : "Rejected"} />
+              ))}
             </>
           }
         />
