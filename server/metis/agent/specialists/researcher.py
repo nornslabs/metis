@@ -51,7 +51,7 @@ from metis.core.events import RunEventType
 from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory
 from metis.modules import ideas, research
-from metis.modules.ideas import Stage
+from metis.modules.ideas import RunKind, Stage
 from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
 
 PROMPT = "researcher"
@@ -110,7 +110,11 @@ def build_researcher(
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
         finish = _finish_args(messages)
         rounds = state.get("clarification_rounds", 0)
-        if finish.needs_clarification and rounds == 0:
+        if (
+            finish.needs_clarification
+            and rounds == 0
+            and state.get("run_kind", RunKind.PIPELINE) == RunKind.PIPELINE
+        ):
             logger.info(
                 "research.clarification_requested", questions=len(finish.needs_clarification)
             )

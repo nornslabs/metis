@@ -19,6 +19,7 @@ from metis.modules.research.dto import (
     ResearchView,
 )
 from metis.modules.research.service.competitors import kb_lookup, upsert_competitor
+from metis.modules.research.service.refresh import start_market_recheck, start_rescore
 from metis.modules.research.service.snapshots import (
     add_item,
     close_snapshot,
@@ -48,5 +49,7 @@ __all__ = [
     "link_competitor",
     "open_snapshot",
     "router",
+    "start_market_recheck",
+    "start_rescore",
     "upsert_competitor",
 ]

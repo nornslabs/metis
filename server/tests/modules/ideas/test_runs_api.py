@@ -587,7 +587,8 @@ async def test_get_shows_status_stage_interrupt_and_no_internals(
     assert body["stage"] == "intake"
     assert body["pending_interrupt"] == QUESTION
     assert body["error"] is None
-    assert not {"workspace_id", "kind", "idempotency_key"} & body.keys()
+    assert "kind" in body  # RunView now includes kind
+    assert not {"workspace_id", "idempotency_key"} & body.keys()
 
 
 async def test_get_shows_the_ideas_live_stage_and_the_error_of_a_failed_run(

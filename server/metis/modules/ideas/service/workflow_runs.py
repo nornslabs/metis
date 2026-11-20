@@ -82,18 +82,60 @@ async def start_run(
     idempotency_key: str,
     user_prompt: str | None = None,
 ) -> WorkflowRun:
-    """Start a run on the idea, once per ``idempotency_key``.
+    return await _start_run(
+        session,
+        workspace_id,
+        idea_id,
+        idempotency_key,
+        kind=RunKind.PIPELINE,
+        user_prompt=user_prompt,
+    )
 
-    The same key returns the run it started (``IdempotencyMismatchError`` when that run is on
-    another idea). An idea with a ``queued``, ``running`` or ``awaiting_user`` run refuses a
-    new one (``RunAlreadyRunningError``); a lost race on the unique index lands here too.
-    A new run needs an LLM key that passed its test (``LlmNotReadyError``); the check reads
-    the key row only, after the idempotency lookup so a repeated start still gets its run.
-    """
+
+async def start_refresh_run(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    idempotency_key: str,
+    kind: RunKind,
+) -> WorkflowRun:
+    if kind not in {RunKind.RESCORE, RunKind.MARKET_RECHECK}:
+        raise ValueError("A refresh run must be rescore or market_recheck")
+    return await _start_run(
+        session, workspace_id, idea_id, idempotency_key, kind=kind, user_prompt=None
+    )
+
+
+async def get_refresh_run_by_key(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    idempotency_key: str,
+    kind: RunKind,
+) -> WorkflowRun | None:
+    """Resolve a refresh retry before checking prerequisites that may have changed."""
+    if await repo.ideas.get(session, workspace_id, idea_id) is None:
+        raise IdeaNotFoundError()
+    if kind not in {RunKind.RESCORE, RunKind.MARKET_RECHECK}:
+        raise ValueError("A refresh run must be rescore or market_recheck")
+    return await _run_for_key(session, workspace_id, idea_id, idempotency_key, None, kind)
+
+
+async def _start_run(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    idempotency_key: str,
+    *,
+    kind: RunKind,
+    user_prompt: str | None,
+) -> WorkflowRun:
     if await repo.ideas.get(session, workspace_id, idea_id) is None:
         raise IdeaNotFoundError()
     if (
-        known := await _run_for_key(session, workspace_id, idea_id, idempotency_key, user_prompt)
+        known := await _run_for_key(
+            session, workspace_id, idea_id, idempotency_key, user_prompt, kind
+        )
     ) is not None:
         return known
     await _require_llm_ready(session, workspace_id)
@@ -102,16 +144,18 @@ async def start_run(
         session,
         workspace_id,
         idea_id,
-        kind=RunKind.PIPELINE.value,
+        kind=kind.value,
         idempotency_key=idempotency_key,
         user_prompt=user_prompt,
     )
-    if row is None:  # lost a race: the winner holds the key or the idea's active slot
-        known = await _run_for_key(session, workspace_id, idea_id, idempotency_key, user_prompt)
+    if row is None:
+        known = await _run_for_key(
+            session, workspace_id, idea_id, idempotency_key, user_prompt, kind
+        )
         if known is not None:
             return known
         raise RunAlreadyRunningError()
-    logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id))
+    logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id), kind=kind.value)
     return WorkflowRun.model_validate(row)
 
 
@@ -237,11 +281,12 @@ async def _run_for_key(
     idea_id: UUID,
     idempotency_key: str,
     user_prompt: str | None,
+    kind: RunKind,
 ) -> WorkflowRun | None:
     row = await repo.workflow_runs.get_by_key(session, workspace_id, idempotency_key)
     if row is None:
         return None
-    if row.idea_id != idea_id or row.user_prompt != user_prompt:
+    if row.idea_id != idea_id or row.user_prompt != user_prompt or row.kind != kind.value:
         raise IdempotencyMismatchError()
     return WorkflowRun.model_validate(row)
 

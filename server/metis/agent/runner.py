@@ -54,7 +54,7 @@ from metis.core.logging import get_logger
 from metis.core.run_control import cancel_requested
 from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import ideas, identity
-from metis.modules.ideas import RunStatus, Stage, WorkflowRun
+from metis.modules.ideas import RunKind, RunStatus, Stage, WorkflowRun
 from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES
 
 # Each step's checkpoint is written before the next step starts, so a killed worker (or a
@@ -210,6 +210,8 @@ async def _sync_checkpoint_stage(
     The checkpoint is written before the runner sees a node's ``updates`` chunk, so a crash
     in between leaves ``ideas.stage`` one step behind; this catches it up.
     """
+    if run.kind is not RunKind.PIPELINE:
+        return
     stage = (await graph.aget_state(config)).values.get("stage")
     if stage is None:
         return
@@ -219,6 +221,8 @@ async def _sync_checkpoint_stage(
 
 async def _save_stages(deps: RunnerDeps, run: WorkflowRun, update: Mapping[str, Any]) -> None:
     """Copy the stage a node just set to ``ideas.stage``, in its own short transaction."""
+    if run.kind is not RunKind.PIPELINE:
+        return
     for stage in stages_in(update):
         async with _scoped(deps, run.workspace_id) as session:
             await save_stage(session, run.workspace_id, run.idea_id, stage)
@@ -263,11 +267,17 @@ async def _input(
     async with _scoped(deps, run.workspace_id) as session:
         idea = await ideas.get_idea(session, run.workspace_id, run.idea_id)
         overview = await identity.get_settings_overview(session, run.workspace_id)
+    stage = idea.stage
+    if run.kind is RunKind.RESCORE:
+        stage = Stage.SCORING
+    elif run.kind is RunKind.MARKET_RECHECK:
+        stage = Stage.RESEARCHING
     return initial_state(
         run_id=run.id,
         workspace_id=run.workspace_id,
         idea_id=idea.id,
-        stage=idea.stage,
+        stage=stage,
+        run_kind=run.kind,
         max_steps=overview.settings.max_steps,
         continuation_prompt=run.user_prompt,
     )

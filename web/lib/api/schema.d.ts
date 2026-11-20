@@ -239,6 +239,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/recheck-market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recheck Market
+         * @description Collect a fresh market snapshot and score the idea again.
+         */
+        post: operations["recheck_market_v1_ideas__idea_id__recheck_market_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/rescore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rescore Latest Research
+         * @description Score the idea again using its latest completed market research.
+         */
+        post: operations["rescore_latest_research_v1_ideas__idea_id__rescore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/research": {
         parameters: {
             query?: never;
@@ -954,6 +994,11 @@ export interface components {
             status: components["schemas"]["RunStatus"];
         };
         /**
+         * RunKind
+         * @enum {string}
+         */
+        RunKind: "pipeline" | "rescore" | "market_recheck";
+        /**
          * RunPage
          * @description One page of an idea's runs, newest first; ``next_cursor`` is ``None`` on the last page.
          */
@@ -1004,6 +1049,7 @@ export interface components {
              * Format: uuid
              */
             idea_id: string;
+            kind: components["schemas"]["RunKind"];
             /** Pending Interrupt */
             pending_interrupt: {
                 [key: string]: unknown;
@@ -1679,6 +1725,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InterviewTurnList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recheck_market_v1_ideas__idea_id__recheck_market_post: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Printable ASCII, one per start; a retry sends the same key. */
+                "Idempotency-Key": string;
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rescore_latest_research_v1_ideas__idea_id__rescore_post: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Printable ASCII, one per start; a retry sends the same key. */
+                "Idempotency-Key": string;
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunStarted"];
                 };
             };
             /** @description Validation Error */

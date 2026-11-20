@@ -43,6 +43,8 @@ class RunStatus(StrEnum):
 
 class RunKind(StrEnum):
     PIPELINE = "pipeline"
+    RESCORE = "rescore"
+    MARKET_RECHECK = "market_recheck"
 
 
 class WorkflowRun(FrozenModel):
@@ -80,6 +82,7 @@ class RunView(FrozenModel):
 
     id: UUID
     idea_id: UUID
+    kind: RunKind
     status: RunStatus
     stage: Stage
     pending_interrupt: dict[str, Any] | None
