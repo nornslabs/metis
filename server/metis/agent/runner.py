@@ -38,6 +38,7 @@ from metis.agent.graph import CompiledGraph, build_graph
 from metis.agent.llm import LLMGateway
 from metis.agent.run_events import RunEventPublisher
 from metis.agent.run_lock import RunLock, hold_run_lock
+from metis.agent.specialists.advisor import build_advisor
 from metis.agent.specialists.interviewer import build_interviewer
 from metis.agent.specialists.researcher import build_researcher
 from metis.agent.specialists.scorer import build_scorer
@@ -237,6 +238,12 @@ def _specialists(
             deps.exa_http_client or provider_http_factory(),
         )
         real[Specialist.SCORER] = build_scorer(
+            gateway,
+            partial(_scoped, deps),
+            redis,
+            deps.exa_http_client or provider_http_factory(),
+        )
+        real[Specialist.ADVISOR] = build_advisor(
             gateway,
             partial(_scoped, deps),
             redis,

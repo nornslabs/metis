@@ -14,8 +14,9 @@ from __future__ import annotations
 from collections.abc import Collection, Sequence
 from typing import Any
 
-from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.prebuilt.tool_node import ToolInvocationError
@@ -59,6 +60,20 @@ def build_react_specialist(
     else:
         graph.add_edge(AGENT_NODE, END)
     return graph.compile().with_config({"recursion_limit": step_limit})
+
+
+async def invoke_loop(loop: Any, seed: str) -> bool:
+    """Run ``loop`` on ``seed``; ``False`` when it hit its step limit.
+
+    The limit is caught here so a caller can call this inside an Exa session:
+    ``open_mcp_session`` turns any exception that leaves its block into ``UpstreamError``,
+    which would hide ``GraphRecursionError``.
+    """
+    try:
+        await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
+    except GraphRecursionError:
+        return False
+    return True
 
 
 def _after_tools(finish_tools: frozenset[str]) -> Any:

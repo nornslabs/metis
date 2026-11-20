@@ -58,3 +58,9 @@ def test_pending_clarification_routes_to_the_interviewer_whatever_the_stage() ->
     state = {**start_state(Stage.RESEARCHING), "clarification": ["Which country?"]}
 
     assert route(state) == Specialist.INTERVIEWER.value
+
+
+def test_a_run_the_user_stopped_at_the_advice_ends_with_the_stage_left_at_advising() -> None:
+    state = {**start_state(Stage.ADVISING), "advice_stopped": True}
+
+    assert route(state) == END

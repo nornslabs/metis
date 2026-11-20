@@ -28,7 +28,7 @@ class ErrorCode(StrEnum):
     """Stable error codes for every failure type.
 
     Codes are organized by domain: common.*, auth.*, workspace.*, provider.*,
-    idea.*, run.*, research.*, score.*, spec.*, plan.*, mcp.*, export.*
+    idea.*, run.*, research.*, score.*, advice.*, spec.*, plan.*, mcp.*, export.*
     """
 
     # ------------------------------------------------------------------ common
@@ -108,6 +108,8 @@ class ErrorCode(StrEnum):
     SCORE_UPSTREAM_ERROR = "score.upstream_error"
     SCORE_BUDGET_EXCEEDED = "score.budget_exceeded"
     SCORE_INVALID_SUBMISSION = "score.invalid_submission"
+    SCORE_SUGGESTION_NOT_FOUND = "score.suggestion_not_found"
+    ADVICE_INVALID_SUBMISSION = "advice.invalid_submission"
 
     # ------------------------------------------------------------------------- spec
     SPEC_NOT_FOUND = "spec.not_found"
@@ -449,6 +451,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Scorer Gave No Valid Score",
         retryable=False,
     ),
+    ErrorCode.SCORE_SUGGESTION_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Suggestion Not Found",
+        retryable=False,
+    ),
+    ErrorCode.ADVICE_INVALID_SUBMISSION: ErrorSpec(
+        status=422,
+        title="Advisor Gave Too Few Sourced Suggestions",
+        retryable=False,
+    ),
     # spec
     ErrorCode.SPEC_NOT_FOUND: ErrorSpec(
         status=404,
@@ -788,6 +800,12 @@ class ScoreRunNotFoundError(NotFoundError):
     code: ErrorCode = ErrorCode.SCORE_RUN_NOT_FOUND
 
 
+class SuggestionNotFoundError(NotFoundError):
+    """404: no such suggestion in the caller's workspace (or its idea is archived)."""
+
+    code: ErrorCode = ErrorCode.SCORE_SUGGESTION_NOT_FOUND
+
+
 class InvalidRubricError(MetisError):
     """400: the stored rubric does not hold the six parameters weighing 100."""
 
@@ -834,6 +852,7 @@ __all__ = [
     "ScoreNotFoundError",
     "InvalidRubricError",
     "ScoreRunNotFoundError",
+    "SuggestionNotFoundError",
 ]
 
 

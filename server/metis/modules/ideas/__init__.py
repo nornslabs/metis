@@ -10,7 +10,10 @@ from metis.modules.ideas.controller import router
 from metis.modules.ideas.dto import (
     CHECKLIST,
     MAX_INTERVIEW_QUESTIONS,
+    MAX_RAW_TEXT_LENGTH,
     TOPIC_MEANING,
+    AdviceDecision,
+    AdviceResume,
     Idea,
     IdeaKind,
     InterviewBrief,
@@ -27,7 +30,12 @@ from metis.modules.ideas.dto import (
     Stage,
     WorkflowRun,
 )
-from metis.modules.ideas.service.ideas import get_idea, set_current_score, transition
+from metis.modules.ideas.service.ideas import (
+    apply_revision,
+    get_idea,
+    set_current_score,
+    transition,
+)
 from metis.modules.ideas.service.interview import (
     answer_question,
     finish_interview,
@@ -51,8 +59,12 @@ from metis.modules.ideas.service.workflow_runs import (
 )
 
 __all__ = [
+    "AdviceDecision",
+    "AdviceResume",
+    "apply_revision",
     "CHECKLIST",
     "MAX_INTERVIEW_QUESTIONS",
+    "MAX_RAW_TEXT_LENGTH",
     "TOPIC_MEANING",
     "Idea",
     "IdeaKind",

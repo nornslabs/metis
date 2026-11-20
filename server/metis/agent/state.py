@@ -48,6 +48,10 @@ class MetisState(TypedDict):
     continuation_done: bool
     # Set by the Researcher when the workspace has no Exa key: the run ends (SHIP-272).
     research_skipped: bool
+    # Advisor (SHIP-241). ``rescore_after`` is the score run the user chose to revise and
+    # rescore; the Scorer scores again once, then clears it. ``advice_stopped`` ends the run.
+    rescore_after: str | None
+    advice_stopped: bool
 
 
 def initial_state(
@@ -74,6 +78,8 @@ def initial_state(
         clarification=[],
         clarification_rounds=0,
         research_skipped=False,
+        rescore_after=None,
+        advice_stopped=False,
         continuation_prompt=continuation_prompt,
         continuation_done=False,
     )

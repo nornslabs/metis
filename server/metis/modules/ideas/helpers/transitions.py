@@ -14,7 +14,10 @@ ALLOWED_TRANSITIONS: MappingProxyType[Stage, frozenset[Stage]] = MappingProxyTyp
         Stage.RESEARCHING: frozenset({Stage.SCORING}),
         Stage.SCORING: frozenset({Stage.ADVISING, Stage.SPEC_DRAFT}),
         # Revise and rescore: the user adds detail, the idea is researched or scored again.
-        Stage.ADVISING: frozenset({Stage.INTERVIEWING, Stage.RESEARCHING, Stage.SCORING}),
+        # Or the user goes on to the spec anyway (or the idea was only promising).
+        Stage.ADVISING: frozenset(
+            {Stage.INTERVIEWING, Stage.RESEARCHING, Stage.SCORING, Stage.SPEC_DRAFT}
+        ),
         Stage.SPEC_DRAFT: frozenset({Stage.SPEC_CONFIRMED}),
         # Back to the draft to edit the spec, or on to the plan.
         Stage.SPEC_CONFIRMED: frozenset({Stage.SPEC_DRAFT, Stage.PLANNING}),

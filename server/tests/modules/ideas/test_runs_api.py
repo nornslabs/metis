@@ -29,6 +29,7 @@ ACTIVE = ["queued", "running", "awaiting_user"]
 TERMINAL = ["succeeded", "failed", "cancelled"]
 QUESTION = {"type": "question", "question": "Who is it for?"}
 APPROVAL = {"type": "approval", "action": "create_issue", "details": "Create SHIP-1"}
+ADVICE = {"type": "advice_decision", "score_run_id": str(uuid4()), "total": 40, "band": "advise"}
 
 
 @pytest.fixture
@@ -322,6 +323,89 @@ async def test_resume_answers_a_question_and_enqueues_the_job_with_the_value(
     assert call["run_id"] == run_id
     assert call["workspace_id"] == ada.workspace_id
     assert call["job_id"].startswith(f"{run_id}:resume:")
+
+
+async def test_resume_carries_an_advice_decision_with_its_revision(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, ADVICE)
+    queue.clear()
+    suggestion_id = "0197d4a2-3b1c-7f00-8a00-000000000001"
+    value = {
+        "decision": "revise",
+        "revised_text": "  A CRM for freelancers that also sends invoices.  ",
+        "accepted_suggestion_ids": [suggestion_id],
+    }
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"] == {
+        "decision": "revise",
+        "revised_text": "  A CRM for freelancers that also sends invoices.  ",
+        "accepted_suggestion_ids": [suggestion_id],
+    }
+
+
+@pytest.mark.parametrize("decision", ["continue", "stop"])
+async def test_resume_carries_a_continue_or_stop_decision(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    decision: str,
+) -> None:
+    ada, run_id = await _waiting(client, engine, ADVICE)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"decision": decision})
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"]["decision"] == decision
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"decision": "revise"},
+        {"decision": "revise", "revised_text": "short"},
+        {"decision": "revise", "revised_text": "x" * 10_001},
+        {"decision": "maybe"},
+        {"decision": "continue", "accepted_suggestion_ids": ["not-a-uuid"]},
+        {"decision": "continue", "accepted_suggestion_ids": [str(uuid4()) for _ in range(6)]},
+        {"decision": "continue", "extra": 1},
+        "continue",
+        True,
+    ],
+)
+async def test_an_advice_value_that_does_not_fit_is_422(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    value: Any,
+) -> None:
+    ada, run_id = await _waiting(client, engine, ADVICE)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert response.status_code == 422, response.text
+    assert queue == []
+
+
+@pytest.mark.parametrize("interrupt", [QUESTION, APPROVAL])
+async def test_an_advice_decision_does_not_answer_a_question_or_approval(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    interrupt: dict[str, Any],
+) -> None:
+    ada, run_id = await _waiting(client, engine, interrupt)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"decision": "continue"})
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
 
 
 async def test_resume_carries_an_approval_decision(

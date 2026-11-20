@@ -34,6 +34,8 @@ from metis.modules.ideas.dto.interview import (
 )
 from metis.modules.ideas.dto.llm_usage import NewLlmUsage
 from metis.modules.ideas.dto.workflow_runs import (
+    AdviceDecision,
+    AdviceResume,
     ResumeBody,
     RunCancelResult,
     RunKind,
@@ -47,6 +49,8 @@ from metis.modules.ideas.dto.workflow_runs import (
 )
 
 __all__ = [
+    "AdviceDecision",
+    "AdviceResume",
     "CHECKLIST",
     "MAX_INTERVIEW_QUESTIONS",
     "SKIP_ANSWER",

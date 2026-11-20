@@ -9,6 +9,7 @@ from metis.modules.scoring.dto import (
     NO_EVIDENCE_MAX_CONFIDENCE,
     NewEvidence,
     NewParamScore,
+    NewSuggestion,
     ParamDiff,
     Rubric,
     ScoreBand,
@@ -19,6 +20,10 @@ from metis.modules.scoring.dto import (
     ScoreRun,
     ScoreRunSummary,
     ScoreTrigger,
+    Suggestion,
+    SuggestionKind,
+    SuggestionList,
+    SuggestionStatus,
 )
 from metis.modules.scoring.service.rubric import get_rubric
 from metis.modules.scoring.service.scores import (
@@ -28,11 +33,17 @@ from metis.modules.scoring.service.scores import (
     record_score,
     score_history,
 )
+from metis.modules.scoring.service.suggestions import (
+    list_suggestions,
+    save_suggestion,
+    set_suggestion_status,
+)
 
 __all__ = [
     "NO_EVIDENCE_MAX_CONFIDENCE",
     "NewEvidence",
     "NewParamScore",
+    "NewSuggestion",
     "ParamDiff",
     "Rubric",
     "ScoreBand",
@@ -43,11 +54,18 @@ __all__ = [
     "ScoreRun",
     "ScoreRunSummary",
     "ScoreTrigger",
+    "Suggestion",
+    "SuggestionKind",
+    "SuggestionList",
+    "SuggestionStatus",
     "diff",
     "get_rubric",
     "get_score_run",
     "latest_score",
+    "list_suggestions",
     "record_score",
     "router",
+    "save_suggestion",
     "score_history",
+    "set_suggestion_status",
 ]
