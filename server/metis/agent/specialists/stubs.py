@@ -16,7 +16,7 @@ from langgraph.config import get_stream_writer
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.core.events import RunEventType
-from metis.modules.ideas import Stage
+from metis.modules.ideas import RunKind, Stage
 
 ADVISED_MARKER = "advisor:done"
 
@@ -31,6 +31,8 @@ def stub_specialists() -> Mapping[Specialist, SpecialistNode]:
 def _stub(specialist: Specialist) -> SpecialistNode:
     async def node(state: MetisState) -> dict[str, Any]:
         update = _ADVANCE[specialist](state)
+        if specialist is Specialist.SCORER and state.get("run_kind") != RunKind.PIPELINE:
+            update["refresh_complete"] = True
         get_stream_writer()({"type": RunEventType.NODE_FINISHED.value, "node": specialist.value})
         return {**update, "step_count": state["step_count"] + 1}
 

@@ -7,7 +7,7 @@ from langgraph.graph import END
 
 from metis.agent.supervisor import STAGE_ROUTES, Specialist, route, supervise
 from metis.core.errors import ErrorCode
-from metis.modules.ideas import Stage
+from metis.modules.ideas import RunKind, Stage
 from tests.agent.graph_helpers import start_state
 
 EXPECTED_ROUTES = {
@@ -63,4 +63,22 @@ def test_pending_clarification_routes_to_the_interviewer_whatever_the_stage() ->
 def test_a_run_the_user_stopped_at_the_advice_ends_with_the_stage_left_at_advising() -> None:
     state = {**start_state(Stage.ADVISING), "advice_stopped": True}
 
+    assert route(state) == END
+
+
+def test_a_market_refresh_with_research_skipped_still_runs_the_scorer() -> None:
+    state = {
+        **start_state(Stage.RESEARCHING),
+        "run_kind": RunKind.MARKET_RECHECK,
+        "research_skipped": True,
+    }
+    assert route(state) == Specialist.SCORER.value
+
+
+def test_a_refresh_ends_after_scoring() -> None:
+    state = {
+        **start_state(Stage.ADVISING),
+        "run_kind": RunKind.RESCORE,
+        "refresh_complete": True,
+    }
     assert route(state) == END

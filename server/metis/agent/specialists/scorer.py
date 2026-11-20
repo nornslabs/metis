@@ -29,7 +29,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_prompt
 from metis.agent.specialists.base import build_react_specialist, invoke_loop
-from metis.agent.specialists.idea_context import idea_seed_parts
 from metis.agent.specialists.stubs import ADVISED_MARKER, SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -54,8 +53,8 @@ from metis.core.events import RunEventType
 from metis.core.logging import get_logger
 from metis.core.ports import LLMProvider
 from metis.helpers.http import ClientFactory
-from metis.modules import scoring
-from metis.modules.ideas import Stage
+from metis.modules import ideas, research, scoring
+from metis.modules.ideas import RunKind, Stage
 from metis.modules.scoring import ScoreBand, ScoreRun
 
 PROMPT = "scorer"
@@ -98,8 +97,19 @@ def build_scorer(
                 state, {"stage": _next_stage(existing, state), "rescore_after": None}
             )
         ledger = SubmissionLedger()
+        omit_previous_research = (
+            state.get("run_kind") == RunKind.MARKET_RECHECK
+            and state.get("research_skipped", False)
+        )
         counter = RESCORE_SEARCH_COUNTER if rescore else SEARCH_COUNTER
-        if not await _score(scope, redis, make_exa_client, ledger, counter):
+        if not await _score(
+            scope,
+            redis,
+            make_exa_client,
+            ledger,
+            counter,
+            omit_previous_research=omit_previous_research,
+        ):
             logger.warning("score.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
         if ledger.recorded is None:
@@ -125,13 +135,21 @@ async def _score(
     make_exa_client: ClientFactory,
     ledger: SubmissionLedger,
     counter: str,
+    *,
+    omit_previous_research: bool = False,
 ) -> bool:
     """Run the loop; ``False`` when it hit its step limit."""
     book = SourceBook()
     async with scope.session() as session:
         api_key = await ready_exa_key(session, scope.workspace_id)
         model = await scope.gateway.chat_model(session, PURPOSE)
-        seed = await _seed(session, scope, book, searching=api_key is not None)
+        seed = await _seed(
+            session,
+            scope,
+            book,
+            searching=api_key is not None,
+            omit_previous_research=omit_previous_research,
+        )
     own_tools = [kb_lookup_tool(scope), *scoring_tools(scope, book, ledger)]
     if api_key is None:
         return await _loop(model, own_tools, seed)
@@ -168,10 +186,32 @@ async def _score_of_this_run(scope: ResearchScope) -> ScoreRun | None:
 
 
 async def _seed(
-    session: AsyncSession, scope: ResearchScope, book: SourceBook, *, searching: bool
+    session: AsyncSession,
+    scope: ResearchScope,
+    book: SourceBook,
+    *,
+    searching: bool,
+    omit_previous_research: bool = False,
 ) -> str:
     """What the model starts from; also fills ``book`` with the research's own URLs."""
-    parts = await idea_seed_parts(session, scope, book)
+    idea = await ideas.get_idea(session, scope.workspace_id, scope.idea_id)
+    brief = await ideas.get_interview_brief(session, scope.workspace_id, scope.idea_id)
+    turns = await ideas.list_turns(session, scope.workspace_id, scope.idea_id)
+    parts = [f"Idea title: {idea.title}\n\nIdea text:\n{idea.raw_text}"]
+    parts.append("Interview brief:\n" + (brief.model_dump_json() if brief is not None else "none"))
+    answered = [t for t in turns if t.answer]
+    if answered:
+        parts.append(
+            "What the user said:\n" + "\n".join(f"- {t.question} {t.answer}" for t in answered)
+        )
+    if omit_previous_research:
+        parts.append(
+            "Fresh market research is unavailable because Exa is not configured. "
+            "Older research was intentionally omitted; do not cite it. Mark unsupported "
+            "parameters as no_evidence with appropriately low confidence."
+        )
+    else:
+        parts.append(await _research_text(session, scope, book))
     if not searching:
         parts.append(NO_SEARCH_NOTE)
     return "\n\n".join(parts)
@@ -183,6 +223,26 @@ def _rescore_wanted(existing: ScoreRun | None, state: MetisState) -> bool:
     return existing is not None and advised is not None and str(existing.id) == advised
 
 
+async def _research_text(session: AsyncSession, scope: ResearchScope, book: SourceBook) -> str:
+    snapshot = await research.latest_snapshot(session, scope.workspace_id, scope.idea_id)
+    if snapshot is None:
+        return "Research: none was done for this idea."
+    book.add(c.url for c in snapshot.competitors)
+    book.add(i.url for i in snapshot.items if i.url)
+    lines = [f"Research summary: {snapshot.summary or 'none'}"]
+    lines += [
+        f"- competitor {c.name} ({c.url}), overlap {c.overlap}, pricing {c.pricing or 'unknown'}: "
+        f"{c.description or ''}"
+        for c in snapshot.competitors
+    ]
+    lines += [
+        f'- {i.kind.value} "{i.title}" ({i.url or "no url"}), confidence {i.confidence}: '
+        f"{i.claim} Quote: {i.quote or 'none'}"
+        for i in snapshot.items
+    ]
+    return "Research:\n" + "\n".join(lines)
+
+
 def _next_stage(score: ScoreRun, state: MetisState) -> Stage:
     """``advising`` below 75 unless the Advisor has already been; else the spec."""
     advised = ADVISED_MARKER in state["summary"]
@@ -191,4 +251,6 @@ def _next_stage(score: ScoreRun, state: MetisState) -> Stage:
 
 def _finish_node(state: MetisState, update: dict[str, Any]) -> dict[str, Any]:
     get_stream_writer()({"type": RunEventType.NODE_FINISHED.value, "node": Specialist.SCORER.value})
+    if state.get("run_kind") in {RunKind.RESCORE, RunKind.MARKET_RECHECK}:
+        update = {**update, "refresh_complete": True}
     return {**update, "step_count": state["step_count"] + 1}

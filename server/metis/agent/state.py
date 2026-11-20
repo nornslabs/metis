@@ -12,7 +12,7 @@ from uuid import UUID
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
-from metis.modules.ideas import Stage
+from metis.modules.ideas import RunKind, Stage
 
 
 class Budget(TypedDict):
@@ -32,6 +32,7 @@ class MetisState(TypedDict):
     run_id: str
     workspace_id: str
     idea_id: str
+    run_kind: RunKind
     stage: Stage
     messages: Annotated[list[AnyMessage], add_messages]
     summary: str
@@ -52,6 +53,8 @@ class MetisState(TypedDict):
     # rescore; the Scorer scores again once, then clears it. ``advice_stopped`` ends the run.
     rescore_after: str | None
     advice_stopped: bool
+    # Manual rescore (SHIP-242). True after the Scorer finishes a refresh run.
+    refresh_complete: bool
 
 
 def initial_state(
@@ -61,6 +64,7 @@ def initial_state(
     idea_id: UUID,
     stage: Stage,
     max_steps: int,
+    run_kind: RunKind = RunKind.PIPELINE,
     continuation_prompt: str | None = None,
 ) -> MetisState:
     """The state a new run starts with."""
@@ -68,6 +72,7 @@ def initial_state(
         run_id=str(run_id),
         workspace_id=str(workspace_id),
         idea_id=str(idea_id),
+        run_kind=run_kind,
         stage=stage,
         messages=[],
         summary="",
@@ -80,6 +85,7 @@ def initial_state(
         research_skipped=False,
         rescore_after=None,
         advice_stopped=False,
+        refresh_complete=False,
         continuation_prompt=continuation_prompt,
         continuation_done=False,
     )

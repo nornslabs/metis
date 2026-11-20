@@ -20,3 +20,4 @@ out/
 .DS_Store
 *.log
 .serena
+.agents/prds/feat-manual-rescore.md

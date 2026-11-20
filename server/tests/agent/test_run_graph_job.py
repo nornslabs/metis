@@ -22,7 +22,7 @@ from metis.agent.tools.ask_user import ask_user, request_approval
 from metis.core.errors import UpstreamError
 from metis.core.events import STREAM_TTL_SECONDS, RunEventType, stream_key
 from metis.core.run_control import cancel_key, lock_key
-from metis.modules.ideas import Stage
+from metis.modules.ideas import RunKind, Stage
 from tests.agent.run_job_helpers import (
     QueuedRun,
     checkpoint_values,
@@ -117,6 +117,48 @@ async def test_a_stub_run_succeeds_and_streams_every_node_in_order(
     assert 0 < await redis.ttl(stream_key(str(run.run_id))) <= STREAM_TTL_SECONDS
     assert not await redis.exists(lock_key(run.run_id))
     assert await idea_stage(engine, run) == Stage.EXPORTED.value
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected_nodes", "working_stage"),
+    [
+        (RunKind.RESCORE.value, ["scorer"], Stage.ADVISING.value),
+        (
+            RunKind.MARKET_RECHECK.value,
+            ["researcher", "scorer"],
+            Stage.SPEC_DRAFT.value,
+        ),
+    ],
+)
+async def test_a_refresh_run_stops_after_scoring_and_preserves_the_idea_stage(
+    engine: AsyncEngine,
+    redis: Redis,
+    app_sessions: async_sessionmaker[AsyncSession],
+    kind: str,
+    expected_nodes: list[str],
+    working_stage: str,
+) -> None:
+    run = await queued_run(engine, stage=Stage.EXPORTED.value)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE ideas.workflow_runs SET kind = :kind WHERE id = :id"),
+            {"kind": kind, "id": run.run_id},
+        )
+
+    await run_job(job_ctx(redis, app_sessions), run)
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    started_nodes = [
+        node
+        for event, node in node_events(await events_of(redis, run))
+        if event == "node_started"
+    ]
+    assert started_nodes == expected_nodes
+    assert await idea_stage(engine, run) == Stage.EXPORTED.value
+    checkpoint = await checkpoint_values(run)
+    assert checkpoint["run_kind"] == kind
+    assert checkpoint["stage"] == working_stage
+    assert checkpoint["refresh_complete"] is True
 
 
 async def test_a_run_starts_from_its_ideas_stage(

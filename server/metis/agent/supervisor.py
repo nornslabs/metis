@@ -16,7 +16,7 @@ from langgraph.graph import END
 
 from metis.agent.state import MetisState
 from metis.core.errors import ErrorCode
-from metis.modules.ideas import Stage
+from metis.modules.ideas import RunKind, Stage
 
 SUPERVISOR_NODE = "supervisor"
 
@@ -69,11 +69,16 @@ def route(state: MetisState) -> str:
     """
     if state.get("continuation_prompt") and not state.get("continuation_done"):
         return Specialist.INTERVIEWER.value
+    if state.get("refresh_complete"):
+        return END
+    if state.get("research_skipped"):
+        if state.get("run_kind") == RunKind.MARKET_RECHECK:
+            return Specialist.SCORER.value
+        return END
     specialist = STAGE_ROUTES[state["stage"]]
     if (
         state["last_error"] is not None
         or specialist is None
-        or state.get("research_skipped")
         or state.get("advice_stopped")
     ):
         return END
