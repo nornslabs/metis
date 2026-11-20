@@ -120,6 +120,17 @@ async def transition(
     return Idea.model_validate(updated)
 
 
+async def set_current_score(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, score: int
+) -> None:
+    """Record the idea's latest total (0–100); it is the scoring module's write.
+
+    Does not bump ``version`` or move the stage. Unknown or archived idea → ``IdeaNotFoundError``.
+    """
+    if not await repo.ideas.set_current_score(session, workspace_id, idea_id, score):
+        raise IdeaNotFoundError("Idea not found")
+
+
 async def _get_row(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> IdeaRow:
     row = await repo.ideas.get(session, workspace_id, idea_id)
     if row is None:

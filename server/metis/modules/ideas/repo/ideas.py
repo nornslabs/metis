@@ -126,3 +126,24 @@ async def set_interview_brief(
         .returning(IdeaRow.id)
     )
     return (await session.scalars(stmt)).one_or_none() is not None
+
+
+async def set_current_score(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, score: int
+) -> bool:
+    """Store the idea's current score; ``False`` when no such (unarchived) idea.
+
+    ``version`` is not bumped: the score is the scorer's output, and a user's edit of the
+    title or text must not conflict with it.
+    """
+    stmt = (
+        update(IdeaRow)
+        .where(
+            IdeaRow.id == idea_id,
+            IdeaRow.workspace_id == workspace_id,
+            IdeaRow.archived_at.is_(None),
+        )
+        .values(current_score=score)
+        .returning(IdeaRow.id)
+    )
+    return (await session.scalars(stmt)).one_or_none() is not None

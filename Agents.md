@@ -113,7 +113,7 @@ Always run `/to-spec` first, review the PRD, then run `/implement-spec`. Never i
    `git checkout main && git pull && git checkout -b chore/core-infra`
 4. **Read context**: `progress-tracker.md` and the context files for the task (see "Which Context to Load").
 5. **Update the tracker, then build.** Set the PRD Status to `in progress`, update `progress-tracker.md` (Status block + PRD Board row with branch), then implement within the PRD's scope only.
-6. **Verify**: acceptance criteria plus the checks in "Before Moving to the Next PRD".
+6. **Verify**: acceptance criteria plus the local checks in "Before Moving to the Next PRD". Do not run the test suites locally (see "Tests Run in CI").
 7. **Code review (automatic).** Once the build passes verification, run the `code-review` skill (`/code-review`) on the changes since `main` without being asked. It reviews on two axes in parallel: Standards (`.agents/ctx/code-standards.md` and the other context files) and Spec (the PRD's Requirements and Acceptance criteria). Fix every real finding inside the PRD's scope, then re-run Verify (step 6). Report any finding you did not fix, with the reason, instead of hiding it. Do not skip this step, even for small changes.
 8. **Finish**: set Status to `done`, update `progress-tracker.md` and sync docs (see Keeping Docs in Sync).
 9. **Ask before committing.** Never commit or push without human approval. When coding and review are done, ask: "Should I commit and push to PR?" and wait for the answer. Include a short summary of the code review result in that message.
@@ -130,7 +130,7 @@ Every pull request uses the template at `.github/PULL_REQUEST_TEMPLATE.md`. Neve
    - **Linear**: the real issue id and URL from the PRD's Source line, e.g. `Closes linear issue: SHIP-206 — <url>`. No placeholder `SHIP-XXXX`.
    - **Spec**: the PRD path this PR implements.
    - **Scope**: copy **Touches** and **Out of scope** from the PRD.
-   - **Before merging**: tick (`[x]`) only the checks you actually ran and saw pass; leave the rest unticked and say why in **Notes**.
+   - **Before merging**: tick (`[x]`) only the checks you actually ran and saw pass; leave the rest unticked and say why in **Notes**. Test-suite checks are run by CI: leave them unticked and write "run by CI" in **Notes**.
    - **Notes**: trade-offs, known limitations, follow-ups. Write `None` if empty.
 3. **One PR = one PRD = one branch.** The PR title is the conventional commit summary with the Linear id, e.g. `feat(auth): add workspace RLS (SHIP-206)`.
 4. **Create it with a body file**, not inline text, so the template's markdown survives:
@@ -203,12 +203,22 @@ Update the matching file in `.agents/ctx/` in the same change when you alter:
 - Web UI design, tokens, components, routes or run-event mapping → `ui-context.md`
 - Features or scope → `project-overview.md`
 
+## Tests Run in CI
+
+The full test suites are slow, so GitHub Actions runs them, not the agent or the developer's machine.
+
+- Do not run `uv run pytest`, Vitest or Playwright locally, and do not start throwaway Postgres or Redis containers for them. This overrides any global rule to run tests or check coverage before finishing.
+- Still write tests with the code (new behavior gets tests, following `code-standards.md`); CI runs them on the PR.
+- Keep the fast local checks: `ruff`, `mypy`, `lint-imports`, `npm run lint`, `npm run typecheck`, `npm run build`, and `uv run alembic upgrade head` when a migration changes.
+- Do not report tests as passing unless CI shows it. Say "tests not run locally; CI runs them".
+- Run a single test only when the user asks for it.
+
 ## Before Moving to the Next PRD
 
 1. The PRD's acceptance checks pass end to end.
 2. No invariant in `architecture.md` is violated.
-3. Server: `uv run ruff check`, `uv run mypy`, `uv run pytest` pass.
-4. Web: `npm run lint`, `npm run typecheck`, `npm run build` pass, and the UI matches `design/samples/` in light and dark (see "Web UI Design").
+3. Server: `uv run ruff check`, `uv run mypy`, `uv run lint-imports` pass. Tests (`uv run pytest`) run in CI, not locally.
+4. Web: `npm run lint`, `npm run typecheck`, `npm run build` pass (Vitest and Playwright run in CI, not locally), and the UI matches `design/samples/` in light and dark (see "Web UI Design").
 5. The PRD status and `progress-tracker.md` are updated.
 
 ## External Tools
