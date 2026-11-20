@@ -30,10 +30,10 @@ export function useStartRunAction(ideaId: string) {
   const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
 
-  const start = () => {
+  const start = (prompt?: string, onRejected?: () => void) => {
     setError(null);
     startRun.mutate(
-      { ideaId, idempotencyKey: newIdempotencyKey() },
+      { ideaId, idempotencyKey: newIdempotencyKey(), ...(prompt ? { prompt } : {}) },
       {
         onSuccess: () => void refresh(),
         onError: (error) => {
@@ -43,6 +43,7 @@ export function useStartRunAction(ideaId: string) {
           if (alreadyRunning) void refresh();
           // The gate's line catches up with the server's answer.
           if (notReady) void queryClient.invalidateQueries({ queryKey: ["settings"] });
+          onRejected?.();
         },
       },
     );

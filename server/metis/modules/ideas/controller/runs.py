@@ -27,6 +27,7 @@ from metis.modules.ideas.dto import (
     RunStarted,
     RunStatus,
     RunView,
+    StartRunBody,
 )
 from metis.modules.identity import CurrentWorkspaceDep
 
@@ -54,10 +55,17 @@ async def start_run(
     workspace: CurrentWorkspaceDep,
     idea_id: UUID,
     idempotency_key: IdempotencyKey,
+    body: StartRunBody | None = None,
 ) -> RunStarted:
     """Start a run; the same ``Idempotency-Key`` returns the same run."""
     workspace_id = workspace.workspace.id
-    run = await service.workflow_runs.start_run(session, workspace_id, idea_id, idempotency_key)
+    run = await service.workflow_runs.start_run(
+        session,
+        workspace_id,
+        idea_id,
+        idempotency_key,
+        user_prompt=body.prompt if body else None,
+    )
     await session.commit()
     if run.status == RunStatus.QUEUED:  # a retry re-enqueues; the same job id queues once
         await _enqueue(run.id, workspace_id, job_id=str(run.id))

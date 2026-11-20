@@ -27,8 +27,11 @@ async def create(
     *,
     kind: str,
     idempotency_key: str | None,
+    user_prompt: str | None = None,
 ) -> WorkflowRunRow:
-    return (await session.scalars(_insert(workspace_id, idea_id, kind, idempotency_key))).one()
+    return (
+        await session.scalars(_insert(workspace_id, idea_id, kind, idempotency_key, user_prompt))
+    ).one()
 
 
 async def create_or_none(
@@ -38,9 +41,12 @@ async def create_or_none(
     *,
     kind: str,
     idempotency_key: str | None,
+    user_prompt: str | None = None,
 ) -> WorkflowRunRow | None:
     """Like ``create``; ``None`` when the idempotency key or the one-active-run index conflicts."""
-    return await insert_or_none(session, _insert(workspace_id, idea_id, kind, idempotency_key))
+    return await insert_or_none(
+        session, _insert(workspace_id, idea_id, kind, idempotency_key, user_prompt)
+    )
 
 
 async def get_by_key(
@@ -84,7 +90,11 @@ async def list_page(
 
 
 def _insert(
-    workspace_id: UUID, idea_id: UUID, kind: str, idempotency_key: str | None
+    workspace_id: UUID,
+    idea_id: UUID,
+    kind: str,
+    idempotency_key: str | None,
+    user_prompt: str | None,
 ) -> ReturningInsert[WorkflowRunRow]:
     return (
         insert(WorkflowRunRow)
@@ -94,6 +104,7 @@ def _insert(
             idea_id=idea_id,
             kind=kind,
             idempotency_key=idempotency_key,
+            user_prompt=user_prompt,
         )
         .returning(WorkflowRunRow)
     )

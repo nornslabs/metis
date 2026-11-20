@@ -805,6 +805,14 @@ export interface components {
             /** Value */
             value: string | boolean;
         };
+/**
+ * StartRunBody
+ * @description Optional user message to continue the idea's existing chat.
+ */
+StartRunBody: {
+/** Prompt */
+prompt?: string | null;
+};
         /**
          * RunCancelResult
          * @description ``status`` is ``cancelled`` when done at once, ``running`` while the worker stops it.
@@ -878,6 +886,8 @@ export interface components {
             status: components["schemas"]["RunStatus"];
             /** Version */
             version: number;
+/** User Prompt */
+user_prompt?: string | null;
         };
         /**
          * SettingsPatch
@@ -1446,7 +1456,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+requestBody?: {
+content: {
+"application/json": components["schemas"]["StartRunBody"] | null;
+};
+};
         responses: {
             /** @description Successful Response */
             202: {

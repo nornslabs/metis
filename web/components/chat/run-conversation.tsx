@@ -24,7 +24,7 @@ import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { RESEARCHER_NODE, finishedResearchSteps } from "@/lib/events/activity";
-import { isActiveStatus } from "@/lib/events/reducer";
+import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { buildInterviewThread } from "@/lib/interview/thread";
 import { answerSchema, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
@@ -79,35 +79,52 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const streamLost = stream === "failed";
   const active = isActiveStatus(state.status) && !streamLost;
   const awaiting = state.status === "awaiting_user" && !streamLost;
+  const canContinue = isTerminalStatus(state.status);
+  const canSubmitPrompt = canContinue && !starting;
   // Wait for the turns: a replayed old question must not look pending before they say it is answered.
   const question = awaiting && !turns.isPending ? thread.pendingQuestion : null;
   const decided = answers.decisions.some((decision) => decision.seq === seq);
   const approval = awaiting && interrupt?.kind === "approval" && !decided ? interrupt : null;
   const canAnswer = question !== null && !answers.pending;
-  const action: ComposerAction = question !== null || !active ? "send" : stopping ? "stopping" : "stop";
+  const action: ComposerAction =
+    question !== null || canContinue || !active ? "send" : stopping ? "stopping" : "stop";
 
   const placeholder = question !== null
     ? ANSWER_PLACEHOLDER
     : approval
       ? APPROVAL_PLACEHOLDER
+      : canContinue
+        ? starting
+          ? "Sending…"
+          : "Continue this chat…"
       : active
         ? WORKING_PLACEHOLDER
         : NO_ANSWER_PLACEHOLDER;
 
   const submit = form.handleSubmit((values) => {
-    if (question === null) return;
     const answerText = toAnswer(values);
-    // The text goes back into the box if the call fails, so nothing typed is lost.
-    answers.answer(seq, question, answerText, () => form.setValue("text", answerText));
-    form.reset();
+    if (question !== null) {
+      // The text goes back into the box if the call fails, so nothing typed is lost.
+      answers.answer(seq, question, answerText, () => form.setValue("text", answerText));
+      form.reset();
+      return;
+    }
+    if (canContinue) {
+      start(answerText, () => form.setValue("text", answerText));
+      form.reset();
+    }
   });
 
   const composer = (
     <Composer
       label="Reply to Metis"
-      textarea={{ ...form.register("text"), disabled: question === null, placeholder }}
+      textarea={{
+        ...form.register("text"),
+        disabled: question === null && !canSubmitPrompt,
+        placeholder,
+      }}
       action={action}
-      canSend={canAnswer && text.trim() !== ""}
+      canSend={(question !== null ? canAnswer : canSubmitPrompt) && text.trim() !== ""}
       onSubmit={submit}
       onStop={stop}
       error={form.formState.errors.text?.message ?? answers.error ?? stopError ?? startError}
@@ -119,8 +136,8 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
             onStop={stop}
             stopping={stopping}
           />
-        ) : state.status === "failed" ? (
-          // Retry starts a new run, so the LLM-key block applies here too (not the Exa banner).
+          ) : canContinue ? (
+            // Retry or continue starts a new run, so the LLM-key block applies here too.
           <KeyGateNotice gate={gate} includeExa={false} />
         ) : null
       }
@@ -131,13 +148,18 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     <ConversationLayout
       idea={idea}
       scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}`}
-      interview={<InterviewMessages messages={thread.messages} />}
+      interview={
+        <>
+          <InterviewMessages messages={thread.messages} />
+          {run.user_prompt ? <UserBubble text={run.user_prompt} /> : null}
+        </>
+      }
       composer={composer}
       body={
         <RunMessageBody
           state={state}
           streamLost={streamLost}
-          retry={<StartRunButton label="Retry" pending={starting} onClick={start} blocked={gate.llmBlock !== null} />}
+          retry={<StartRunButton label="Retry" pending={starting} onClick={() => start()} blocked={gate.llmBlock !== null} />}
           research={<ResearchSection ideaId={idea.id} researchStarted={state.steps.some((step) => step.node === RESEARCHER_NODE)} />}
           approval={
             <>
@@ -177,7 +199,7 @@ export function NoRunConversation({ idea }: { idea: Idea }) {
       body={
         <div className="flex items-center gap-2">
           <RunNote>No run yet.</RunNote>
-          <StartRunButton label="Start" pending={pending} onClick={start} blocked={gate.llmBlock !== null} />
+          <StartRunButton label="Start" pending={pending} onClick={() => start()} blocked={gate.llmBlock !== null} />
         </div>
       }
     />

@@ -42,6 +42,7 @@ from metis.modules.ideas.dto.workflow_runs import (
     RunStarted,
     RunStatus,
     RunView,
+    StartRunBody,
     WorkflowRun,
 )
 
@@ -80,6 +81,7 @@ __all__ = [
     "RunStarted",
     "RunStatus",
     "RunView",
+    "StartRunBody",
     "Stage",
     "WorkflowRun",
 ]

@@ -43,12 +43,21 @@ class MetisState(TypedDict):
     # before these fields existed do not have them.
     clarification: list[str]
     clarification_rounds: int
+    # A post-run user message is handled by the Interviewer before the stage's next step.
+    continuation_prompt: str | None
+    continuation_done: bool
     # Set by the Researcher when the workspace has no Exa key: the run ends (SHIP-272).
     research_skipped: bool
 
 
 def initial_state(
-    *, run_id: UUID, workspace_id: UUID, idea_id: UUID, stage: Stage, max_steps: int
+    *,
+    run_id: UUID,
+    workspace_id: UUID,
+    idea_id: UUID,
+    stage: Stage,
+    max_steps: int,
+    continuation_prompt: str | None = None,
 ) -> MetisState:
     """The state a new run starts with."""
     return MetisState(
@@ -65,4 +74,6 @@ def initial_state(
         clarification=[],
         clarification_rounds=0,
         research_skipped=False,
+        continuation_prompt=continuation_prompt,
+        continuation_done=False,
     )

@@ -34,6 +34,7 @@ class WorkflowRunRow(Base):
     error: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     pending_interrupt: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     idempotency_key: Mapped[str | None] = mapped_column(Text)
+    user_prompt: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
