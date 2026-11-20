@@ -38,6 +38,23 @@ CORS_HEADERS = [
     "X-Metis-Client",
 ]
 
+OPENAPI_DESCRIPTION = """Metis HTTP API.
+
+Protected endpoints use the configured session cookie set by the Google
+sign-in flow. In Swagger UI, sign in to Metis in the same browser first or
+authorize with the session cookie. Workspace-scoped endpoints accept the
+`X-Workspace-Id` header; omit it to use the personal workspace. Mutating
+requests also require `X-Metis-Client: web`.
+"""
+
+OPENAPI_TAGS = [
+    {"name": "health", "description": "Service liveness and readiness."},
+    {"name": "auth", "description": "Sign-in, session, and authentication provider operations."},
+    {"name": "identity", "description": "User settings and workspace membership."},
+    {"name": "ideas", "description": "Ideas and their workflow runs."},
+    {"name": "research", "description": "Research snapshots and findings."},
+]
+
 
 def _load_settings() -> Settings:
     """Load settings and configure logging, or log the error and exit."""
@@ -88,7 +105,14 @@ def _include_routers(app: FastAPI) -> None:
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build the API app: error handlers, middleware and routers."""
     settings = settings or _load_settings()
-    app = FastAPI(title="Metis", version=settings.app_version, lifespan=_lifespan)
+    app = FastAPI(
+        title="Metis API",
+        summary="HTTP API for Metis",
+        description=OPENAPI_DESCRIPTION,
+        version=settings.app_version,
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=_lifespan,
+    )
     register_error_handlers(app)
     _add_middleware(app, settings)
     _include_routers(app)
