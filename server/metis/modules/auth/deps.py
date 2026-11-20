@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Security
+from fastapi.security import APIKeyCookie
 
 from metis.core.config import get_settings
 from metis.core.db import SessionDep
@@ -27,6 +28,12 @@ from metis.modules.auth.dto import SessionRejection, SessionUser
 CLIENT_HEADER = "X-Metis-Client"
 WEB_CLIENT = "web"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+_session_cookie_scheme = APIKeyCookie(
+    name=get_settings().session_cookie_name,
+    scheme_name="SessionCookie",
+    description="Session cookie returned by the sign-in flow.",
+    auto_error=False,
+)
 
 
 def check_csrf(request: Request) -> None:
@@ -40,7 +47,12 @@ def check_csrf(request: Request) -> None:
         )
 
 
-async def current_user(request: Request, session: SessionDep, redis: RedisDep) -> SessionUser:
+async def current_user(
+    request: Request,
+    session: SessionDep,
+    redis: RedisDep,
+    _cookie: Annotated[str | None, Security(_session_cookie_scheme)] = None,
+) -> SessionUser:
     """Resolve the request's session cookie to its user, or raise."""
     token = request.cookies.get(get_settings().session_cookie_name)
     if not token:
