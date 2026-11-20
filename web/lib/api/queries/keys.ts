@@ -17,4 +17,14 @@ export const queryKeys = {
   /** The idea's latest research snapshot (also under the idea key). */
   research: (workspaceId: string | null, ideaId: string) =>
     ["ideas", workspaceId, ideaId, "research"] as const,
+  /** The idea's newest score run (under the idea key, so a refresh of the idea refetches it). */
+  latestScore: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "scores", "latest"] as const,
+  scoreHistory: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "scores", "history"] as const,
+  /** One stored score run, for comparing two. Immutable, so never stale. */
+  scoreRun: (workspaceId: string | null, ideaId: string, scoreRunId: string) =>
+    ["ideas", workspaceId, ideaId, "scores", "run", scoreRunId] as const,
+  suggestions: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "suggestions"] as const,
 };

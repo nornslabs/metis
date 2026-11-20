@@ -37,6 +37,8 @@ export type RunState = {
    * new interrupt with a new count, so local answers can be tied to one interrupt, not to its text.
    */
   readonly interruptCount: number;
+  /** The newest score run the stream announced (`score` event); a change refetches the scores. */
+  readonly scoreRunId: string | null;
 };
 
 /** The parts of `RunView` the reducer starts from. */
@@ -69,7 +71,7 @@ export function initialRunState(seed: RunSeed): RunState {
   const interrupt = seed.pending_interrupt
     ? (interruptSchema.safeParse(seed.pending_interrupt).data ?? null)
     : null;
-  return { status, steps: [], notices: [], text: "", error, interrupt, interruptCount: 0 };
+  return { status, steps: [], notices: [], text: "", error, interrupt, interruptCount: 0, scoreRunId: null };
 }
 
 function lastIndexOfNode(steps: readonly RunStep[], node: string): number {
@@ -172,6 +174,8 @@ export function runReducer(state: RunState, event: RunAction): RunState {
       return { ...state, text: state.text + event.text };
     case "notice":
       return addNotice(state, { code: event.code, text: event.text });
+    case "score":
+      return { ...state, scoreRunId: event.scoreRunId };
     case "interrupt":
       return { ...state, interrupt: event.interrupt, interruptCount: state.interruptCount + 1 };
   }

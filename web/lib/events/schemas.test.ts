@@ -93,4 +93,24 @@ describe("parseRunEvent", () => {
   test("ignores a frame whose envelope type differs from the event name", () => {
     expect(parseRunEvent("node_started", frame("node_finished", { node: "x" }))).toBeNull();
   });
+
+  test("reads a score event", () => {
+    const parsed = parseRunEvent("score", frame("score", { score_run_id: "s-1", total: 48, band: "advise" }));
+    expect(parsed).toEqual({ type: "score", scoreRunId: "s-1", total: 48, band: "advise" });
+  });
+
+  test("ignores a score event with an unknown band", () => {
+    expect(parseRunEvent("score", frame("score", { score_run_id: "s-1", total: 48, band: "great" }))).toBeNull();
+  });
+
+  test("reads an advice_decision interrupt", () => {
+    const parsed = parseRunEvent(
+      "interrupt",
+      frame("interrupt", { type: "advice_decision", score_run_id: "s-1", total: 48, band: "advise", suggestion_ids: ["a"] }),
+    );
+    expect(parsed).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "advice_decision", text: "s-1", scoreRunId: "s-1", total: 48, band: "advise" },
+    });
+  });
 });

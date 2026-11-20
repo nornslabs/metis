@@ -16,18 +16,21 @@ interface RunMessageBodyProps {
   retry: ReactNode;
   /** Sources chips and the research block, shown under the steps. */
   research?: ReactNode;
+  /** The score card, history and suggestions, shown under the research. */
+  score?: ReactNode;
   /** The approval prompt and the user's earlier choices; always rendered, the caller decides what shows. */
   approval?: ReactNode;
 }
 
-/** What the agent message shows for one run: steps, research, text, and the run's outcome. */
-export function RunMessageBody({ state, streamLost, retry, research, approval }: RunMessageBodyProps) {
+/** What the agent message shows for one run: steps, research, score, text, and the run's outcome. */
+export function RunMessageBody({ state, streamLost, retry, research, score, approval }: RunMessageBodyProps) {
   const working = isActiveStatus(state.status) && state.status !== "awaiting_user" && !streamLost;
   return (
     <>
       <StepList steps={state.steps} live={working} />
       <RunNotices notices={state.notices} />
       {research}
+      {score}
       <AgentText text={state.text} streaming={working && state.status === "running"} />
       {working && state.text === "" ? <Shimmer>{runActivity(state)}</Shimmer> : null}
       {streamLost ? (

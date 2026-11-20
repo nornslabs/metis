@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
+import { AdviceDecision } from "@/components/chat/advice-decision";
 import { ApprovalPrompt } from "@/components/chat/approval-prompt";
 import { Composer, type ComposerAction } from "@/components/chat/composer";
 import { ConversationLayout } from "@/components/chat/conversation-layout";
@@ -17,17 +18,20 @@ import { UserBubble } from "@/components/chat/user-bubble";
 import { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
 import { ResearchSection } from "@/components/research/research-section";
+import { ScoreSection } from "@/components/score/score-section";
 import { queryKeys } from "@/lib/api/queries/keys";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useInterview } from "@/lib/api/queries/use-interview";
+import { useSuggestions } from "@/lib/api/queries/use-suggestions";
 import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
-import { RESEARCHER_NODE, finishedResearchSteps } from "@/lib/events/activity";
+import { RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps } from "@/lib/events/activity";
 import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { buildInterviewThread } from "@/lib/interview/thread";
 import { answerSchema, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
+import { acceptedFor } from "@/lib/scores/decision";
 
 type Idea = components["schemas"]["Idea"];
 type RunView = components["schemas"]["RunView"];
@@ -35,11 +39,12 @@ type RunView = components["schemas"]["RunView"];
 const NO_ANSWER_PLACEHOLDER = "Nothing to answer right now";
 const WORKING_PLACEHOLDER = "Metis is working…";
 const APPROVAL_PLACEHOLDER = "Approve or reject above";
+const ADVICE_PLACEHOLDER = "Decide above";
 const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
-/** Refetches the interview turns and the research when the run produces something new for them. */
-function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number) {
+/** Refetches the interview turns, the research and the scores when the run produces something new for them. */
+function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number, scoreRunId: string | null) {
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   useEffect(() => {
@@ -48,6 +53,31 @@ function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDo
   useEffect(() => {
     if (researchDone > 0) void queryClient.invalidateQueries({ queryKey: queryKeys.research(workspaceId, ideaId) });
   }, [queryClient, workspaceId, ideaId, researchDone]);
+  // A new score run: the card, the history and the suggestions (the Advisor saves them just before).
+  useEffect(() => {
+    if (scoreRunId === null) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.latestScore(workspaceId, ideaId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.scoreHistory(workspaceId, ideaId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.suggestions(workspaceId, ideaId) });
+  }, [queryClient, workspaceId, ideaId, scoreRunId]);
+}
+
+type PlaceholderInput = {
+  answering: boolean;
+  approval: boolean;
+  advice: boolean;
+  canContinue: boolean;
+  starting: boolean;
+  active: boolean;
+};
+
+/** What the composer says: what it takes now, or why it waits. */
+function composerPlaceholder({ answering, approval, advice, canContinue, starting, active }: PlaceholderInput): string {
+  if (answering) return ANSWER_PLACEHOLDER;
+  if (approval) return APPROVAL_PLACEHOLDER;
+  if (advice) return ADVICE_PLACEHOLDER;
+  if (canContinue) return starting ? "Sending…" : "Continue this chat…";
+  return active ? WORKING_PLACEHOLDER : NO_ANSWER_PLACEHOLDER;
 }
 
 /** One run, live: the interview, the research, and a composer that answers the run's questions. */
@@ -71,7 +101,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     [turns.data, interrupt, seq, answers.sent],
   );
   const researchDone = finishedResearchSteps(state);
-  useRefetchOnProgress(idea.id, seq, researchDone);
+  useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId);
 
   const form = useForm<AnswerFormValues>({ resolver: zodResolver(answerSchema), defaultValues: { text: "" } });
   const text = useWatch({ control: form.control, name: "text" });
@@ -85,21 +115,21 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const question = awaiting && !turns.isPending ? thread.pendingQuestion : null;
   const decided = answers.decisions.some((decision) => decision.seq === seq);
   const approval = awaiting && interrupt?.kind === "approval" && !decided ? interrupt : null;
+  const adviceDecided = answers.adviceChoices.some((choice) => choice.seq === seq);
+  const advice = awaiting && interrupt?.kind === "advice_decision" && !adviceDecided ? interrupt : null;
+  const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
   const action: ComposerAction =
     question !== null || canContinue || !active ? "send" : stopping ? "stopping" : "stop";
 
-  const placeholder = question !== null
-    ? ANSWER_PLACEHOLDER
-    : approval
-      ? APPROVAL_PLACEHOLDER
-      : canContinue
-        ? starting
-          ? "Sending…"
-          : "Continue this chat…"
-      : active
-        ? WORKING_PLACEHOLDER
-        : NO_ANSWER_PLACEHOLDER;
+  const placeholder = composerPlaceholder({
+    answering: question !== null,
+    approval: approval !== null,
+    advice: advice !== null,
+    canContinue,
+    starting,
+    active,
+  });
 
   const submit = form.handleSubmit((values) => {
     const answerText = toAnswer(values);
@@ -147,7 +177,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   return (
     <ConversationLayout
       idea={idea}
-      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}`}
+      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}`}
       interview={
         <>
           <InterviewMessages messages={thread.messages} />
@@ -161,8 +191,27 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           streamLost={streamLost}
           retry={<StartRunButton label="Retry" pending={starting} onClick={() => start()} blocked={gate.llmBlock !== null} />}
           research={<ResearchSection ideaId={idea.id} researchStarted={state.steps.some((step) => step.node === RESEARCHER_NODE)} />}
+          score={
+            <ScoreSection
+              ideaId={idea.id}
+              runActive={active || state.status === "awaiting_user"}
+              scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
+            />
+          }
           approval={
             <>
+              {advice ? (
+                <AdviceDecision
+                  interrupt={advice}
+                  ideaText={idea.raw_text}
+                  accepted={acceptedFor(suggestions.data ?? [], advice.scoreRunId)}
+                  disabled={answers.pending}
+                  onDecide={(value, decision) => answers.advise(seq, value, decision)}
+                />
+              ) : null}
+              {answers.adviceChoices.map((choice) => (
+                <UserBubble key={choice.seq} text={choice.label} />
+              ))}
               {approval ? (
                 <ApprovalPrompt interrupt={approval} disabled={answers.pending} onDecide={(approved) => answers.decide(seq, approved)} />
               ) : null}

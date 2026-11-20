@@ -33,6 +33,25 @@ describe("initialRunState", () => {
   });
 });
 
+describe("runReducer, scores", () => {
+  test("remembers the newest score run the stream announced", () => {
+    const state = play([
+      { type: "score", scoreRunId: "s-1", total: 48, band: "advise" },
+      { type: "score", scoreRunId: "s-2", total: 61, band: "promising" },
+    ]);
+    expect(state.scoreRunId).toBe("s-2");
+  });
+
+  test("seeds a pending advice decision from the run view", () => {
+    const state = initialRunState({
+      status: "awaiting_user",
+      error: null,
+      pending_interrupt: { type: "advice_decision", score_run_id: "s-1", total: 48, band: "advise", suggestion_ids: [] },
+    });
+    expect(state.interrupt).toMatchObject({ kind: "advice_decision", scoreRunId: "s-1", total: 48 });
+  });
+});
+
 describe("runReducer", () => {
   test("adds a running step and marks it done", () => {
     const state = play([

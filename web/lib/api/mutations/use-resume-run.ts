@@ -4,11 +4,12 @@ import { useMutation } from "@tanstack/react-query";
 
 import { apiClient } from "@/lib/api/client";
 import { bodyOf } from "@/lib/api/result";
+import type { AdviceResume } from "@/lib/scores/decision";
 
 export type ResumeRunInput = {
   runId: string;
-  /** Text for a question, `true` / `false` for an approval. */
-  value: string | boolean;
+  /** Text for a question, `true` / `false` for an approval, a decision for the advice. */
+  value: string | boolean | AdviceResume;
 };
 
 /**

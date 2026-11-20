@@ -100,6 +100,29 @@
   grid-template-columns: 100px 1fr;
 }
 
+/* Param bar row: label, track, mark out of 10, weighted points. */
+@utility grid-cols-param-row {
+  grid-template-columns: minmax(0, 130px) 1fr 40px 36px;
+  /* the `compact` breakpoint */
+  @media (width < 700px) {
+    grid-template-columns: minmax(0, 96px) 1fr 36px 32px;
+  }
+}
+
+/* Score band badges (ui-context.md, Tokens): the band color at 18%, text mixed 70% with foreground. */
+@utility band-build {
+  background: color-mix(in oklch, var(--success) 18%, transparent);
+  color: color-mix(in oklch, var(--success) 70%, var(--foreground));
+}
+@utility band-promising {
+  background: color-mix(in oklch, var(--warning) 18%, transparent);
+  color: color-mix(in oklch, var(--warning) 70%, var(--foreground));
+}
+@utility band-advise {
+  background: color-mix(in oklch, var(--destructive) 18%, transparent);
+  color: color-mix(in oklch, var(--destructive) 70%, var(--foreground));
+}
+
 /* Agent work in progress (ui-context.md, Shimmer): muted text with a moving highlight. */
 @utility text-shimmer {
   background-image: linear-gradient(

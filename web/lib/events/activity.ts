@@ -4,6 +4,9 @@ import type { RunState } from "./reducer";
 /** The Researcher's graph node (the server's `Specialist` value). */
 export const RESEARCHER_NODE = "researcher";
 
+/** The Scorer's graph node. */
+export const SCORER_NODE = "scorer";
+
 /**
  * What the run is doing now, for the shimmer: the running step's name, plus its latest tool call
  * ("Researching… web_search_exa"), else what the run is waiting for.
