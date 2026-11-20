@@ -213,7 +213,7 @@ async def test_the_downgrade_drops_the_tables_and_keeps_the_schema(engine: Async
     assert MIGRATION.down_revision == "0016_research"
 
     async with engine.connect() as conn:
-        for table in ("score_params", "score_runs", "rubric_versions"):
+        for table in ("suggestions", "score_params", "score_runs", "rubric_versions"):
             await conn.execute(text(f"DROP TABLE scoring.{table}"))
         for statement in MIGRATION.SCHEMA_DOWN_SQL:
             await conn.execute(text(statement))
