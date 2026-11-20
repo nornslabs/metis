@@ -107,6 +107,7 @@ class ErrorCode(StrEnum):
     SCORE_INVALID_RUBRIC = "score.invalid_rubric"
     SCORE_UPSTREAM_ERROR = "score.upstream_error"
     SCORE_BUDGET_EXCEEDED = "score.budget_exceeded"
+    SCORE_INVALID_SUBMISSION = "score.invalid_submission"
 
     # ------------------------------------------------------------------------- spec
     SPEC_NOT_FOUND = "spec.not_found"
@@ -441,6 +442,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.SCORE_BUDGET_EXCEEDED: ErrorSpec(
         status=402,
         title="Scoring Budget Exceeded",
+        retryable=False,
+    ),
+    ErrorCode.SCORE_INVALID_SUBMISSION: ErrorSpec(
+        status=422,
+        title="Scorer Gave No Valid Score",
         retryable=False,
     ),
     # spec

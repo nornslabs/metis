@@ -115,7 +115,7 @@ async def open_run_snapshot(
 
 def research_tools(scope: ResearchScope) -> list[BaseTool]:
     """The Researcher's own allow-list (the Exa tools are added by the node)."""
-    return [_kb_lookup(scope), _upsert_competitor(scope), _save_item(scope), _finish()]
+    return [kb_lookup_tool(scope), _upsert_competitor(scope), _save_item(scope), _finish()]
 
 
 async def _embed(
@@ -130,7 +130,7 @@ async def _embed(
     return vectors[0] if vectors else None
 
 
-def _kb_lookup(scope: ResearchScope) -> BaseTool:
+def kb_lookup_tool(scope: ResearchScope) -> BaseTool:
     async def kb_lookup(query: str, k: int = DEFAULT_KB_RESULTS) -> str:
         async with scope.session() as session:
             embedding = await _embed(scope, session, [query])

@@ -104,9 +104,8 @@ def build_researcher(
             logger.info("research.already_closed")
             return _finish_node(state, {"stage": Stage.SCORING})
         budget = ExaCallBudget(redis, scope.run_id, MAX_EXA_CALLS)
-        try:
-            messages = await _research(scope, redis, make_exa_client, budget)
-        except GraphRecursionError:
+        messages = await _research(scope, redis, make_exa_client, budget)
+        if messages is None:
             logger.warning("research.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
         finish = _finish_args(messages)
@@ -133,7 +132,12 @@ def build_researcher(
 
 async def _research(
     scope: ResearchScope, redis: Redis, make_exa_client: ClientFactory, budget: ExaCallBudget
-) -> list[AnyMessage]:
+) -> list[AnyMessage] | None:
+    """The loop's messages, or ``None`` when it hit its step limit.
+
+    The limit is caught inside the Exa session: ``open_mcp_session`` turns any exception that
+    leaves its block into ``UpstreamError``, which would hide ``GraphRecursionError``.
+    """
     async with scope.session() as session:
         credentials = await get_key_for_use(session, scope.workspace_id, ProviderKind.EXA)
         model = await scope.gateway.chat_model(session, PURPOSE)
@@ -151,7 +155,10 @@ async def _research(
             step_limit=STEP_LIMIT,
             finish_tools={FINISH_RESEARCH},
         )
-        result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
+        try:
+            result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
+        except GraphRecursionError:
+            return None
     return list(result["messages"])
 
 

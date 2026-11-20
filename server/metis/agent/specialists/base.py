@@ -18,6 +18,7 @@ from langchain_core.messages import AIMessage, AnyMessage, SystemMessage, ToolMe
 from langchain_core.tools import BaseTool
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.prebuilt.tool_node import ToolInvocationError
 
 from metis.core.ports import LLMProvider
 
@@ -33,8 +34,14 @@ def build_react_specialist(
     *,
     step_limit: int = DEFAULT_STEP_LIMIT,
     finish_tools: Collection[str] = (),
+    refusals: tuple[type[Exception], ...] = (),
 ) -> Any:
-    """A compiled subgraph over ``MessagesState``; invoke it with ``{"messages": [...]}``."""
+    """A compiled subgraph over ``MessagesState``; invoke it with ``{"messages": [...]}``.
+
+    A tool may refuse a call by raising one of ``refusals``: the model gets the message back as
+    an error result (which never ends the loop) and may try again. Any other tool error fails
+    the run.
+    """
     bound = model.bind_tools(tools) if tools else model
 
     async def call_model(state: MessagesState) -> dict[str, Any]:
@@ -45,7 +52,8 @@ def build_react_specialist(
     graph.add_node(AGENT_NODE, call_model)
     graph.add_edge(START, AGENT_NODE)
     if tools:
-        graph.add_node(TOOLS_NODE, ToolNode(list(tools)))
+        handled: tuple[type[Exception], ...] = (ToolInvocationError, *refusals)
+        graph.add_node(TOOLS_NODE, ToolNode(list(tools), handle_tool_errors=handled))
         graph.add_conditional_edges(AGENT_NODE, tools_condition, {"tools": TOOLS_NODE, END: END})
         graph.add_conditional_edges(TOOLS_NODE, _after_tools(frozenset(finish_tools)))
     else:
