@@ -407,3 +407,18 @@ async def test_a_later_run_with_an_exa_key_does_the_research(
     [(summary, closed)] = await _snapshots(engine, later)
     assert closed and summary.startswith("Acme CRM is the main competitor.")
     assert await idea_stage(engine, later) == "exported"  # the stubs after the Researcher finish
+
+
+async def test_a_loop_that_never_settles_fails_with_the_step_limit(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await _researching_run(engine)
+    for _ in range(60):
+        llm.add(call("kb_lookup", query="crm for freelancers"))
+
+    await run_job(ctx, run)
+
+    row = await run_row(engine, run)
+    assert row.status == "failed"
+    assert row.error is not None and row.error["code"] == "run.step_limit_reached"
+    assert await _snapshots(engine, run) == [(None, False)]  # opened, never closed
