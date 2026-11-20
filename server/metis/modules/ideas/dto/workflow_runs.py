@@ -4,13 +4,21 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StrictBool, StrictStr
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictStr
 
 from metis.helpers.dto import FrozenModel
+from metis.helpers.text import strip
 from metis.modules.ideas.dto.ideas import Stage
+
+MAX_CONTINUATION_PROMPT_LENGTH = 10_000
+ContinuationPrompt = Annotated[
+    StrictStr,
+    BeforeValidator(strip),
+    Field(min_length=1, max_length=MAX_CONTINUATION_PROMPT_LENGTH),
+]
 
 
 class RunStatus(StrEnum):
@@ -44,6 +52,7 @@ class WorkflowRun(FrozenModel):
     error: dict[str, Any] | None
     pending_interrupt: dict[str, Any] | None
     idempotency_key: str | None
+    user_prompt: str | None = None
     version: int
     created_at: datetime
     updated_at: datetime
@@ -70,6 +79,7 @@ class RunView(FrozenModel):
     finished_at: datetime | None
     created_at: datetime
     version: int
+    user_prompt: str | None = None
 
 
 class RunPage(FrozenModel):
@@ -83,6 +93,14 @@ class ResumeBody(BaseModel):
     """The user's answer: text for a question, true/false for an approval."""
 
     value: StrictStr | StrictBool
+
+
+class StartRunBody(BaseModel):
+    """Optional user message to continue the idea's existing chat."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    prompt: ContinuationPrompt | None = None
 
 
 class RunStarted(BaseModel):

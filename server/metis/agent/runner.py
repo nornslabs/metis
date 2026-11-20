@@ -255,6 +255,7 @@ async def _input(
         idea_id=idea.id,
         stage=idea.stage,
         max_steps=overview.settings.max_steps,
+        continuation_prompt=run.user_prompt,
     )
 
 

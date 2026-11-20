@@ -948,6 +948,8 @@ export interface components {
             /** Started At */
             started_at: string | null;
             status: components["schemas"]["RunStatus"];
+            /** User Prompt */
+            user_prompt?: string | null;
             /** Version */
             version: number;
         };
@@ -1091,6 +1093,14 @@ export interface components {
          * @enum {string}
          */
         Stage: "intake" | "interviewing" | "researching" | "scoring" | "advising" | "spec_draft" | "spec_confirmed" | "planning" | "exported";
+        /**
+         * StartRunBody
+         * @description Optional user message to continue the idea's existing chat.
+         */
+        StartRunBody: {
+            /** Prompt */
+            prompt?: string | null;
+        };
         /**
          * TurnSource
          * @description ``asked``: a question the user saw. ``noted``: taken from the idea or an earlier answer.
@@ -1635,7 +1645,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["StartRunBody"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             202: {

@@ -66,6 +66,8 @@ def route(state: MetisState) -> str:
     Pending ``clarification`` questions (from the Researcher) go to the Interviewer whatever
     the stage; once it has asked them the stage routes back to the Researcher.
     """
+    if state.get("continuation_prompt") and not state.get("continuation_done"):
+        return Specialist.INTERVIEWER.value
     specialist = STAGE_ROUTES[state["stage"]]
     if state["last_error"] is not None or specialist is None or state.get("research_skipped"):
         return END

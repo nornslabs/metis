@@ -57,6 +57,7 @@ async def create_run(
     idea_id: UUID,
     *,
     idempotency_key: str | None = None,
+    user_prompt: str | None = None,
 ) -> WorkflowRun:
     """Save a new ``queued`` run (unknown, archived or foreign idea: ``IdeaNotFoundError``)."""
     if await repo.ideas.get(session, workspace_id, idea_id) is None:
@@ -67,13 +68,18 @@ async def create_run(
         idea_id,
         kind=RunKind.PIPELINE.value,
         idempotency_key=idempotency_key,
+        user_prompt=user_prompt,
     )
     logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id))
     return WorkflowRun.model_validate(row)
 
 
 async def start_run(
-    session: AsyncSession, workspace_id: UUID, idea_id: UUID, idempotency_key: str
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    idempotency_key: str,
+    user_prompt: str | None = None,
 ) -> WorkflowRun:
     """Start a run on the idea, once per ``idempotency_key``.
 
@@ -85,7 +91,9 @@ async def start_run(
     """
     if await repo.ideas.get(session, workspace_id, idea_id) is None:
         raise IdeaNotFoundError()
-    if (known := await _run_for_key(session, workspace_id, idea_id, idempotency_key)) is not None:
+    if (
+        known := await _run_for_key(session, workspace_id, idea_id, idempotency_key, user_prompt)
+    ) is not None:
         return known
     await _require_llm_ready(session, workspace_id)
     await _refuse_if_active(session, workspace_id, idea_id)
@@ -95,9 +103,10 @@ async def start_run(
         idea_id,
         kind=RunKind.PIPELINE.value,
         idempotency_key=idempotency_key,
+        user_prompt=user_prompt,
     )
     if row is None:  # lost a race: the winner holds the key or the idea's active slot
-        known = await _run_for_key(session, workspace_id, idea_id, idempotency_key)
+        known = await _run_for_key(session, workspace_id, idea_id, idempotency_key, user_prompt)
         if known is not None:
             return known
         raise RunAlreadyRunningError()
@@ -222,12 +231,16 @@ def _view(run: WorkflowRun, stage: str) -> RunView:
 
 
 async def _run_for_key(
-    session: AsyncSession, workspace_id: UUID, idea_id: UUID, idempotency_key: str
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_id: UUID,
+    idempotency_key: str,
+    user_prompt: str | None,
 ) -> WorkflowRun | None:
     row = await repo.workflow_runs.get_by_key(session, workspace_id, idempotency_key)
     if row is None:
         return None
-    if row.idea_id != idea_id:
+    if row.idea_id != idea_id or row.user_prompt != user_prompt:
         raise IdempotencyMismatchError()
     return WorkflowRun.model_validate(row)
 

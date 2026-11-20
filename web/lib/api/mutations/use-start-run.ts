@@ -10,16 +10,19 @@ export type StartRunInput = {
   ideaId: string;
   /** One key per start attempt: a resend with the same key returns the same run. */
   idempotencyKey: string;
+  /** Optional message to continue this idea's chat. */
+  prompt?: string;
 };
 
 /** Starts a run of an idea (`POST /v1/ideas/{id}/runs`); 409 `run.already_running` if one is active. */
 export function useStartRun() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ ideaId, idempotencyKey }: StartRunInput) =>
+    mutationFn: async ({ ideaId, idempotencyKey, prompt }: StartRunInput) =>
       bodyOf(
         await apiClient.POST("/v1/ideas/{idea_id}/runs", {
           params: { path: { idea_id: ideaId }, header: { "Idempotency-Key": idempotencyKey } },
+          ...(prompt ? { body: { prompt } } : {}),
         }),
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.allIdeas() }),
