@@ -167,10 +167,10 @@ async def _research(
 
 
 async def _exa_key_missing(scope: ResearchScope) -> bool:
-    """Whether the workspace lacks a tested Exa key usable for research."""
+    """Whether the workspace has no Exa key saved (presence only; no decryption)."""
     async with scope.session() as session:
         readiness = await key_readiness(session, scope.workspace_id, ProviderKind.EXA)
-    return readiness is not KeyReadiness.READY
+    return readiness is KeyReadiness.NOT_CONFIGURED
 
 
 async def _already_closed(scope: ResearchScope) -> bool:
