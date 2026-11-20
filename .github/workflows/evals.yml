@@ -1,0 +1,152 @@
+name: Evals
+
+# `harness` runs on pull requests that touch the Scorer, its prompts or the evals: it checks the
+# eval harness itself with a recorded fake model (no key, no spend).
+# `scoring` runs by hand (Actions > Evals > Run workflow): the real Scorer on the real model.
+
+on:
+  pull_request:
+    paths:
+      - "server/evals/**"
+      - "server/tests/evals/**"
+      - "server/metis/agent/**"
+      - "server/metis/prompts/**"
+      - ".github/workflows/evals.yml"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model name for the Scorer (EVAL_LLM_MODEL)"
+        required: true
+        type: string
+      min_pass_rate:
+        description: "Fail the job under this pass rate"
+        required: false
+        default: "0.8"
+        type: string
+
+# Throwaway CI-only values (empty database, no real data).
+env:
+  DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
+  APP_DB_PASSWORD: metis_app
+  REDIS_URL: redis://localhost:6379/0
+  ENCRYPTION_MASTER_KEY: AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+  GOOGLE_CLIENT_ID: metis-ci.apps.googleusercontent.com
+  GOOGLE_CLIENT_SECRET: ci-google-client-secret
+  GOOGLE_REDIRECT_URI: http://localhost:3000/v1/auth/google/callback
+
+jobs:
+  harness:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: metis
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Sync dependencies
+        working-directory: server
+        run: uv sync
+
+      - name: Database migrations
+        working-directory: server
+        run: uv run alembic upgrade heads
+
+      # The recording holds deliberately bad answers: the tests assert the harness reports
+      # exactly those failures, so a harness that always passes fails here.
+      - name: Harness tests
+        working-directory: server
+        run: uv run pytest tests/evals
+
+      # The recorded run passes 11 of 14 cases on purpose (see server/evals/README.md).
+      - name: Recorded run
+        working-directory: server
+        run: uv run python -m evals.run_scoring --recorded --min-pass-rate 0.7
+
+  scoring:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: metis
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+          enable-cache: true
+
+      - name: Sync dependencies
+        working-directory: server
+        run: uv sync
+
+      - name: Database migrations
+        working-directory: server
+        run: uv run alembic upgrade heads
+
+      - name: Score the eval cases
+        working-directory: server
+        run: >-
+          uv run python -m evals.run_scoring
+          --min-pass-rate "${{ inputs.min_pass_rate }}"
+          --json results.json
+        env:
+          EVAL_LLM_BASE_URL: ${{ secrets.EVAL_LLM_BASE_URL }}
+          EVAL_LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+          EVAL_LLM_MODEL: ${{ inputs.model }}
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scoring-eval-results
+          path: server/results.json
+          if-no-files-found: ignore
