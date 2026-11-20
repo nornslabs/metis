@@ -126,7 +126,7 @@ async def test_a_stub_run_succeeds_and_streams_every_node_in_order(
         (
             RunKind.MARKET_RECHECK.value,
             ["researcher", "scorer"],
-            Stage.SPEC_DRAFT.value,
+            Stage.ADVISING.value,
         ),
     ],
 )
