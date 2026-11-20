@@ -230,9 +230,10 @@ Server event names (`core.events.RunEventType`), kept as is:
 | `tool_call`                      | `{node, name}`                                                | Tool name under the node's latest row (once per name)                                                      |
 | `token`                          | `{node, text}`                                                | Append to the agent text (sanitized markdown) with a caret while `running`                                 |
 | `notice`                         | `{code, text}`                                                | A `RunNotices` row (one per code; a replay shows it again). `research.skipped_no_exa` also marks the Researcher's step skipped. A step still running when the run `succeeded` closes as done |
+| `score`                          | `{score_run_id, total, band}`                                 | Ignored for now (unknown event names are dropped); the score card in SHIP-245 reads the score by refetch |
 | `interrupt`                      | `{type: "question", question}` or `{type: "approval", action, details?}` | A question joins the interview thread and enables the composer; an approval shows `ApprovalPrompt`. Answers go to `POST /v1/runs/{id}/resume` |
 
-Not emitted yet, added with their features: step progress (`current/total`), research items (live source chips), score params and totals. Research arrives by refetch instead: `GET /v1/ideas/{id}/research` reloads when a `researcher` step finishes and when the run ends.
+Not emitted yet, added with their features: step progress (`current/total`), research items (live source chips), score params and totals as live events (the `score` event only announces a stored score). Research arrives by refetch instead: `GET /v1/ideas/{id}/research` reloads when a `researcher` step finishes and when the run ends.
 
 While a run works and no text has streamed, a `Shimmer` shows the running step ("Interviewer…"; "Researching… <tool name>" for the Researcher), else "Starting…" / "Thinking…". The server sends `retry: 3000` and a `: ping` every 15 s; a finished run whose stream expired gets one synthetic `run_status` frame.
 

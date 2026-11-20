@@ -41,6 +41,7 @@ class RunEventType(StrEnum):
     TOKEN = "token"
     TOOL_CALL = "tool_call"
     NOTICE = "notice"
+    SCORE = "score"
     INTERRUPT = "interrupt"
     RUN_STATUS = "run_status"
 

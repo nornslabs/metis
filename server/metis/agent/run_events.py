@@ -36,7 +36,7 @@ TOKEN_FLUSH_SECONDS = 0.1
 INTERRUPT_KEY = "__interrupt__"
 # Event types a node may emit itself through the stream writer.
 NODE_EVENT_TYPES = frozenset(
-    {RunEventType.NODE_FINISHED, RunEventType.TOOL_CALL, RunEventType.NOTICE}
+    {RunEventType.NODE_FINISHED, RunEventType.TOOL_CALL, RunEventType.NOTICE, RunEventType.SCORE}
 )
 
 logger = get_logger(__name__)

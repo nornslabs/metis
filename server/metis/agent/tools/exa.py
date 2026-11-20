@@ -1,4 +1,5 @@
 """Run-scoped Exa tools backed by the hosted MCP server."""
+
 from __future__ import annotations
 
 import asyncio
@@ -91,22 +92,20 @@ async def open_exa_tools(
         raw = {tool.name: tool for tool in loaded if tool.name in RESEARCHER_TOOLS}
         if set(raw) != RESEARCHER_TOOLS:
             raise provider_error(PROVIDER, FailureReason.BAD_RESPONSE)
-        yield {
-            name: _wrap_tool(tool, name, str(run_id), redis)
-            for name, tool in raw.items()
-        }
+        yield {name: _wrap_tool(tool, name, str(run_id), redis) for name, tool in raw.items()}
 
 
 class ExaCallBudget:
     """How many Exa calls a run may make, counted in Redis so a re-run cannot spend it again.
 
     The count is per run (every pass and every re-run of a node share it); a call counts when
-    it is asked for, whether Exa or the cache answers and whether it succeeds.
+    it is asked for, whether Exa or the cache answers and whether it succeeds. ``counter`` names
+    the count, so two specialists of one run keep separate budgets.
     """
 
-    def __init__(self, redis: Redis, run_id: UUID, limit: int) -> None:
+    def __init__(self, redis: Redis, run_id: UUID, limit: int, counter: str = "calls") -> None:
         self._redis = redis
-        self._key = f"agent:exa:{run_id}:calls"
+        self._key = f"agent:exa:{run_id}:{counter}"
         self._limit = limit
 
     async def take(self) -> bool:
@@ -233,9 +232,9 @@ def _research_hits(result: Any) -> list[ResearchHit]:
                 url=url,
                 title=str(row.get("title") or ""),
                 published_at=_optional_text(row.get("publishedDate", row.get("published_at"))),
-                snippet=str(
-                    row.get("snippet") or row.get("summary") or row.get("text") or ""
-                )[:MAX_FETCH_CHARS],
+                snippet=str(row.get("snippet") or row.get("summary") or row.get("text") or "")[
+                    :MAX_FETCH_CHARS
+                ],
             )
         )
     return hits
@@ -284,12 +283,14 @@ def _parse_text_hits(value: str) -> list[Mapping[str, Any]]:
             re.findall(r"^(Title|URL|Published Date|Summary|Snippet):\s*(.*)$", chunk, re.M)
         )
         if fields.get("URL"):
-            rows.append({
-                "url": fields["URL"],
-                "title": fields.get("Title", ""),
-                "publishedDate": fields.get("Published Date"),
-                "snippet": fields.get("Snippet") or fields.get("Summary", ""),
-            })
+            rows.append(
+                {
+                    "url": fields["URL"],
+                    "title": fields.get("Title", ""),
+                    "publishedDate": fields.get("Published Date"),
+                    "snippet": fields.get("Snippet") or fields.get("Summary", ""),
+                }
+            )
     return rows
 
 

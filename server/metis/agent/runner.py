@@ -12,8 +12,8 @@ graph (``thread_id`` = run id), publishes its events and settles the run's statu
 
 It starts a new run from the idea's stage, resumes a paused one with ``Command(resume=...)``,
 and continues a crashed one from its last checkpoint. Each run gets its own ``LLMGateway``
-(closed when the stream ends); the Interviewer and Researcher are real, the other specialists
-are stubs, and ``AGENT_STUB_SPECIALISTS`` makes every specialist a stub. No database
+(closed when the stream ends); the Interviewer, Researcher and Scorer are real, the other
+specialists are stubs, and ``AGENT_STUB_SPECIALISTS`` makes every specialist a stub. No database
 transaction is open while the graph runs: every status change is its own short, committed
 transaction, and the terminal ``run_status`` event is published after its row is committed.
 """
@@ -40,6 +40,7 @@ from metis.agent.run_events import RunEventPublisher
 from metis.agent.run_lock import RunLock, hold_run_lock
 from metis.agent.specialists.interviewer import build_interviewer
 from metis.agent.specialists.researcher import build_researcher
+from metis.agent.specialists.scorer import build_scorer
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.stage_sync import save_stage, stages_in
 from metis.agent.state import initial_state
@@ -230,6 +231,12 @@ def _specialists(
     if not get_settings().agent_stub_specialists:
         real[Specialist.INTERVIEWER] = build_interviewer(gateway, partial(_scoped, deps))
         real[Specialist.RESEARCHER] = build_researcher(
+            gateway,
+            partial(_scoped, deps),
+            redis,
+            deps.exa_http_client or provider_http_factory(),
+        )
+        real[Specialist.SCORER] = build_scorer(
             gateway,
             partial(_scoped, deps),
             redis,
