@@ -28,7 +28,7 @@ Metis turns an idea into: adaptive interview → Exa research → live score (6 
 - `server/metis/agent/` — the graph: supervisor + Interviewer, Researcher, Scorer, Advisor, Architect, Planner, Integrator; tools; MCP loading; budgets.
 - `server/metis/modules/<name>/` — auth, identity, ideas, research, scoring, planning, integrations, memory, notifications. Each owns its tables; its public surface is its `__init__.py`, and its layers (`controller/`, `service/`, `repo/`, `cache/`, `models/`, `dto/`, `helpers/`) are internal. `auth` owns who you are (users, sessions, sign-in identities, OAuth, providers; `auth` schema); `identity` owns where you work (workspaces, members, provider keys, settings, `current_workspace`; `identity` schema).
   Import rule: `research | scoring → ideas → identity → auth` only (`research` and `scoring` do not import each other), each through the lower module's `__init__.py` surface; `auth` imports no other module; `core` and `helpers` import no module. Enforced by import-linter (`uv run lint-imports` in CI, contracts in `server/pyproject.toml`).
-- `server/metis/prompts/` — versioned specialist prompts. `server/evals/` — scoring evals.
+- `server/metis/prompts/` — versioned specialist prompts. `server/evals/` — scoring evals (frozen cases, a runner that drives the real Scorer through `run_graph`, a recorded-model replay for CI; not imported by `metis`; it is a developer tool outside the import contracts, so its seeding uses raw SQL as the database owner).
 
 ## Run Flow
 

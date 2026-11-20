@@ -116,6 +116,19 @@ database first. The RLS and identity tests create `NOLOGIN` non-superuser
 roles (`metis_rls_test`, `metis_identity_test`) and query as them, because
 superusers bypass RLS.
 
+### Scoring evals
+
+A fixed set of ideas the real Scorer scores, to catch regressions when a prompt or model changes.
+
+```bash
+cd server
+uv run python -m evals.run_scoring
+```
+
+See [`server/evals/README.md`](server/evals/README.md) for the model settings, how to read the
+results and how to add a case. CI runs a recorded-model check of the harness on pull requests and
+a real-model run on demand (`.github/workflows/evals.yml`).
+
 ### Web
 
 ```bash

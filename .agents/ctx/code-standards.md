@@ -99,7 +99,7 @@ Public before private: module docstring, imports, constants, then public functio
 - Stages end with structured output; never parse free text.
 - External writes need an approval `interrupt()`; web/MCP content is untrusted data.
 - Keep state small (ids, summaries); nodes must be safe to re-run.
-- Prompts are versioned files; scoring changes must pass `evals/`.
+- Prompts are versioned files; scoring changes must pass the scoring evals (`uv run python -m evals.run_scoring` in `server/`, see `server/evals/README.md`). The evals call a real model, so they run on demand in CI (`evals.yml`), not in the test suite.
 
 ## Jobs
 

@@ -37,8 +37,8 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 │   │   ├── entrypoints/       # api, worker, scheduler processes
 │   │   ├── modules/           # domain modules; each layer (controller, service, repo, cache, models, dto) a folder of one file per domain
 │   │   │                      # (auth owns users, sessions, sign-in; identity owns workspaces, members, keys, settings)
-│   │   ├── evals/             # evaluation datasets
 │   │   └── prompts/           # prompt versions
+│   ├── evals/                 # scoring evals: datasets and the `python -m evals.run_scoring` runner
 │   ├── migrations/            # Alembic migrations
 │   ├── tests/                 # tests (mirror metis/)
 │   └── ...                    # pyproject.toml, uv.lock, Dockerfile, alembic.ini
