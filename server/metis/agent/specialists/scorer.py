@@ -143,7 +143,11 @@ async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> None:
         finish_tools={SUBMIT_SCORES},
         refusals=(ScoreRefused,),
     )
-    await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
+    # The limit is passed at the call too: inside the run's graph the parent's config would
+    # otherwise replace the one bound in the builder, and the loop would never hit its limit.
+    await loop.ainvoke(
+        {"messages": [HumanMessage(content=seed)]}, config={"recursion_limit": STEP_LIMIT}
+    )
 
 
 async def _exa_key(session: AsyncSession, scope: ResearchScope) -> str | None:
