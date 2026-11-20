@@ -41,9 +41,10 @@ web/
 ├── components/
 │   ├── ui/                        # shadcn/ui generated (do not edit)
 │   ├── frame/                     # AppFrame, SideRails, GridGuides, CrossTick, AppHeader, RecentIdeas
-│   ├── chat/                      # Thread, UserBubble, AgentMessage, StepList, AgentText, Composer, KeyGateNotice, QuickReplies, ApprovalPrompt, InterviewMessages, Shimmer, RunNotices, run notices, EmptyChat, IdeaConversation, RunConversation
+│   ├── chat/                      # Thread, UserBubble, AgentMessage, StepList, AgentText, Composer, KeyGateNotice, QuickReplies, ApprovalPrompt, InterviewMessages, AdviceDecision, Shimmer, RunNotices, run notices, EmptyChat, IdeaConversation, RunConversation
 │   ├── research/                  # ResearchSection, ResearchPanel, CompetitorCard, MarketFactRow, Sources, SourceLink
-│   ├── score/                     # ScoreCard, ParamBar, BandBadge
+│   ├── score/                     # ScoreSection, ScoreCard, ParamBar, BandBadge, ScoreHistoryChart, ScoreCompare, RefreshActions
+│   ├── suggestions/               # SuggestionList, SuggestionCard
 │   ├── account/                   # AccountMenu, WorkspaceSwitcher, NewWorkspaceDialog, UserAvatar (square), ThemeSegment
 │   └── settings/                  # SettingsSheet, SettingsShortcut (⌘,) + one panel per tab (keys: KeysPanel, key-fields, saved-key, run-limits-fields)
 ├── lib/
@@ -52,6 +53,7 @@ web/
 │   ├── events/                    # useRunEvents, event Zod schemas (schemas.ts), runReducer (reducer.ts), node/stage labels
 │   ├── interview/                 # buildInterviewThread: questions and answers for the thread
 │   ├── research/                  # research view mapping: safe links, domains, overlap %, confidence, source chips
+│   ├── scores/                    # score view helpers (labels, chart points, days ago), diff of two score runs, advice decision (Zod + resume value)
 │   ├── schemas/                   # Zod form schemas (settings-forms.ts, idea-form.ts, answer.ts)
 │   ├── settings/                  # tab parsing (`?settings=`), useOpenSettings, key-test failure messages
 │   └── utils.ts                   # cn()
@@ -199,8 +201,16 @@ Header and footer are transparent so rails show through. Under 820px: hide colum
 | `InterviewMessages` | AgentMessage + UserBubble | Questions as agent messages and answers as user bubbles, between the idea and the run's message; only `asked` turns show |
 | `KeyGateNotice` | bordered row             | One `role="status"` row above the composer's textarea (inside the form padding): `TriangleAlert` (`--warning`) and the reason when the LLM key blocks a run, else an `Info` icon and the Exa banner; a plain "Open API keys" link (`?settings=keys`). Nothing when both keys are fine. See Key Gate |
 | `RunNotices`    | bordered rows            | Under the step list: one quiet row per server `notice` (`Info` icon, the text as plain text; no destructive color). `research.skipped_no_exa` adds an "Add an Exa key for a new run" link |
-| `ScoreCard`     | Card                     | Total, `BandBadge`, six `ParamBar`s (label, 4px track, value); bars animate width on mount; click a bar for reason + evidence + confidence                                                                                                                 |
-| `Suggestions`   | shadcn.io Suggestion     | Outline chips above the composer; click sends the label                                                                                                                                                                                                    |
+| `ScoreSection`  | fragment                 | In the agent message under the research: `ScoreCard`, then History (`ScoreHistoryChart` + `ScoreCompare`), then `SuggestionList`. Reads the idea's score (`GET /v1/ideas/{id}/scores/latest`, `404 score.not_found` = nothing), history and suggestions; nothing before the first score; skeleton once a Scorer step started; alert with Retry on a load error |
+| `ScoreCard`     | bordered `bg-card`       | Total (`text-score`) `/ 100`, `BandBadge`, "Last checked N days ago", six `ParamBar`s, `RefreshActions` |
+| `BandBadge`     | span                     | "Build · 75+", "Promising · 55–74", "Advise · below 55": text plus the band color (`band-build` / `band-promising` / `band-advise` utilities in `globals.css`) |
+| `ParamBar`      | button row + detail      | Label, weight, 3px track (width animates 800 ms on mount; `motion-reduce` shows it filled), `raw/10`, weighted points. The row toggles (`aria-expanded`) a detail block: reason, confidence (High / Medium / Low + number), evidence (title, quote, `SourceLink`) or "No evidence: this mark is a guess." |
+| `ScoreHistoryChart` | inline SVG + buttons | Totals oldest to newest on a 0–100 scale with dashed lines at 55 and 75; one focusable button per run (its `aria-label` is the value); the chosen run's details show below; "One score so far." with a single run. No chart library |
+| `ScoreCompare`  | fieldset                 | A checkbox per score run (the third pick replaces the oldest); "Compare" with two picks loads both (`GET /v1/scores/{id}`) and lists total change plus each parameter's before → after, signed delta and both reasons. The diff is computed in the web |
+| `RefreshActions`| buttons                  | "Re-check market" (`POST /v1/ideas/{id}/recheck-market`) and "Rescore" (`POST /v1/ideas/{id}/rescore`), fresh `Idempotency-Key`, no body; disabled while a run is active or the LLM key blocks (same text as the Key Gate); `409 run.already_running`, `404 research.not_found` ("Run research first: there is no finished research to re-check.") and `402` are mapped inline. The page follows the new run (it is the idea's latest) |
+| `SuggestionList`| cards                    | The newest score run's suggestions (older runs under "Earlier suggestions"): kind chip, title, rationale, target parameters, expected impact, source links, Accept / Dismiss (`PATCH /v1/suggestions/{id}`); a chosen card shows its status and Undo (back to `open`). Not the empty-chat chips |
+| `AdviceDecision`| bordered group           | While the run waits on `advice_decision`: the score and band, "Revise idea and rescore" (opens an editor starting from the idea's text, 10–10,000 characters, with the accepted suggestions listed; the server applies the revision), "Continue to spec anyway", "Stop here". Each answers `POST /v1/runs/{id}/resume` with `{decision, revised_text?, accepted_suggestion_ids}` and shows as a user message; the composer reads "Decide above" |
+| Empty-chat chips | shadcn.io Suggestion    | Outline chips above the composer on `/`; click sends the label (not the score suggestions) |
 | `Composer`      | shadcn.io Prompt Input   | Auto-growing textarea (1 line → 180px, `field-sizing: content`). Right: "Enter to send" hint + 26px send. Send turns into Stop while a run is active, then "Stopping…" until the run reports `cancelled`. Enter sends, Shift+Enter new line. Inline error under the textarea. Tools (attach, web research, mention a past idea, model) are not shown until their server features exist. On the idea page it answers the run's pending question (placeholder "Type your answer", 1–10,000 characters, Zod); it is disabled while Metis works ("Metis is working…"), while an approval waits ("Approve or reject above") and when there is nothing to answer |
 | `AccountMenu`   | DropdownMenu             | Head (square avatar, name, email), workspace switcher (a submenu: workspaces, New workspace), Settings (⌘,), API keys (saved count `n/2`), Integrations, Theme segment, Sign out. No Docs item until a docs URL exists                                      |
 | `SettingsSheet` | Sheet `side="right"`     | Open while `?settings=<tab>` is on the URL (unknown tab → `account`); tabs: Account, API keys, Integrations, Preferences. Sticky footer Cancel / Save changes only on API keys (owners). Esc and scrim close it; focus lands on the open tab and returns to the trigger. |
@@ -230,10 +240,10 @@ Server event names (`core.events.RunEventType`), kept as is:
 | `tool_call`                      | `{node, name}`                                                | Tool name under the node's latest row (once per name)                                                      |
 | `token`                          | `{node, text}`                                                | Append to the agent text (sanitized markdown) with a caret while `running`                                 |
 | `notice`                         | `{code, text}`                                                | A `RunNotices` row (one per code; a replay shows it again). `research.skipped_no_exa` also marks the Researcher's step skipped. A step still running when the run `succeeded` closes as done |
-| `score`                          | `{score_run_id, total, band}`                                 | Ignored for now (unknown event names are dropped); the score card in SHIP-245 reads the score by refetch |
-| `interrupt`                      | `{type: "question", question}` or `{type: "approval", action, details?}` (server also sends `{type: "advice_decision", score_run_id, total, band, suggestion_ids}`; no UI yet, ignored) | A question joins the interview thread and enables the composer; an approval shows `ApprovalPrompt`. Answers go to `POST /v1/runs/{id}/resume` |
+| `score`                          | `{score_run_id, total, band}`                                 | The reducer keeps the newest `score_run_id`; a change refetches the latest score, the history and the suggestions (the card never renders from the event) |
+| `interrupt`                      | `{type: "question", question}` or `{type: "approval", action, details?}` or `{type: "advice_decision", score_run_id, total, band, suggestion_ids}` | A question joins the interview thread and enables the composer; an approval shows `ApprovalPrompt`; an advice decision shows `AdviceDecision`. Answers go to `POST /v1/runs/{id}/resume` |
 
-Not emitted yet, added with their features: step progress (`current/total`), research items (live source chips), score params and totals as live events (the `score` event only announces a stored score). Research arrives by refetch instead: `GET /v1/ideas/{id}/research` reloads when a `researcher` step finishes and when the run ends.
+Not emitted yet, added with their features: step progress (`current/total`), research items (live source chips), score parameters as live events (the `score` event only announces a stored score; `score.param` / `score.completed` do not exist). Research arrives by refetch instead: `GET /v1/ideas/{id}/research` reloads when a `researcher` step finishes and when the run ends.
 
 While a run works and no text has streamed, a `Shimmer` shows the running step ("Interviewer…"; "Researching… <tool name>" for the Researcher), else "Starting…" / "Thinking…". The server sends `retry: 3000` and a `: ping` every 15 s; a finished run whose stream expired gets one synthetic `run_status` frame.
 
@@ -243,6 +253,13 @@ While a run works and no text has streamed, a `Shimmer` shows the running step (
 - **Interview source:** past turns come from `GET /v1/ideas/{id}/interview` (only `asked` turns show); the run's current question comes from the stream or `pending_interrupt`. An answer sent from the page shows at once (tied to the interrupt it answers, `RunState.interruptCount`, so a repeated question is asked again) and is taken back, with its text, if the call fails; the turns refetch on every new interrupt and when the run ends.
 - **Answering:** Enter sends, Shift+Enter adds a line; the composer stays disabled until `run_status: running`. `409 run.invalid_state` refetches the run and says "This run already moved on."
 - **Research:** shown inside the agent message under the steps (Sources chips, then the collapsible `ResearchPanel`); no side panel or tab. Mobile needs no extra layout because it sits in the single column.
+
+## Scores
+
+- **Where:** `ScoreSection` sits in the latest run's agent message, under the research, for pipeline and refresh runs alike. It reads the idea's stored score, not the run's events.
+- **Refetch:** the three score queries live under the idea's query key, so a refresh of the idea (run end) refetches them; a new `score_run_id` on the stream refetches them at once.
+- **Advice:** below 55 (`advise`) the Advisor saves suggestions and the run pauses on `advice_decision` (a reload restores it from the run view). The accepted suggestions of the advised score run (at most 5) go in `accepted_suggestion_ids`; the web never calls `PATCH /v1/ideas/{id}` for this.
+- **Refresh:** Re-check market and Rescore start a refresh run; while it runs the card shows the old score, and when its `score` event arrives the card, chart and suggestions update with no reload.
 
 ## Key Gate
 

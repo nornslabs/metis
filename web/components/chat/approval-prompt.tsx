@@ -1,10 +1,10 @@
 import { ShieldQuestion } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { RunInterrupt } from "@/lib/events/schemas";
+import type { PromptInterrupt } from "@/lib/events/schemas";
 
 interface ApprovalPromptProps {
-  interrupt: RunInterrupt;
+  interrupt: PromptInterrupt;
   disabled: boolean;
   onDecide: (approved: boolean) => void;
 }

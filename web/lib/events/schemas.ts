@@ -13,6 +13,7 @@ export const RUN_EVENT_TYPES = [
   "token",
   "interrupt",
   "notice",
+  "score",
 ] as const;
 
 export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
@@ -32,16 +33,38 @@ export const runErrorSchema = z.object({ code: z.string(), message: z.string() }
 
 export type RunError = z.infer<typeof runErrorSchema>;
 
-/** A question or approval the run waits on, reduced to the text the page shows. */
-export type RunInterrupt = { kind: "question" | "approval"; text: string; details?: string };
+const scoreBandSchema = z.enum(["build", "promising", "advise"]);
+
+/**
+ * A question, approval or advice decision the run waits on, reduced to what the page shows. For an
+ * advice decision `text` is the score run's id, so two decisions are never taken for the same one.
+ */
+export type PromptInterrupt = { kind: "question" | "approval"; text: string; details?: string };
+export type AdviceInterrupt = {
+  kind: "advice_decision";
+  text: string;
+  scoreRunId: string;
+  total: number;
+  band: z.infer<typeof scoreBandSchema>;
+};
+export type RunInterrupt = PromptInterrupt | AdviceInterrupt;
 
 export const interruptSchema = z
   .union([
     z.object({ type: z.literal("question"), question: z.string() }),
     z.object({ type: z.literal("approval"), action: z.string(), details: z.unknown().optional() }),
+    z.object({
+      type: z.literal("advice_decision"),
+      score_run_id: z.string(),
+      total: z.number(),
+      band: scoreBandSchema,
+    }),
   ])
   .transform((value): RunInterrupt => {
     if (value.type === "question") return { kind: "question", text: value.question };
+    if (value.type === "advice_decision") {
+      return { kind: "advice_decision", text: value.score_run_id, scoreRunId: value.score_run_id, total: value.total, band: value.band };
+    }
     const details = typeof value.details === "string" && value.details.trim() !== "" ? value.details : undefined;
     return { kind: "approval", text: value.action, ...(details && { details }) };
   });
@@ -64,6 +87,9 @@ const payloadSchemas = {
   notice: z
     .object({ code: z.string(), text: z.string() })
     .transform(({ code, text }) => ({ type: "notice" as const, code, text })),
+  score: z
+    .object({ score_run_id: z.string(), total: z.number(), band: scoreBandSchema })
+    .transform(({ score_run_id, total, band }) => ({ type: "score" as const, scoreRunId: score_run_id, total, band })),
 } satisfies Record<RunEventType, z.ZodType>;
 
 export type RunEvent = {

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
 import { useResumeRun } from "@/lib/api/mutations/use-resume-run";
 import type { SentAnswer } from "@/lib/interview/thread";
+import { DECISION_LABELS, type AdviceDecision, type AdviceResume } from "@/lib/scores/decision";
 
 const INVALID_STATE = "run.invalid_state";
 const MOVED_ON_MESSAGE = "This run already moved on.";
@@ -23,6 +24,9 @@ function messageFor(caught: unknown): string {
   return describeError(caught);
 }
 
+/** The user's choice on one advice decision, shown in the thread. */
+export type AdviceChoice = { readonly seq: number; readonly label: string };
+
 /**
  * Answers a question or an approval. Each answer is tied to the interrupt it answers (`seq`), so a
  * repeated question or a second approval is never mistaken for an answered one. The answer shows at
@@ -33,6 +37,7 @@ export function useAnswerActions(runId: string, onMovedOn: () => void) {
   const resume = useResumeRun();
   const [sent, setSent] = useState<readonly SentAnswer[]>([]);
   const [decisions, setDecisions] = useState<readonly Decision[]>([]);
+  const [adviceChoices, setAdviceChoices] = useState<readonly AdviceChoice[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const fail = (caught: unknown, undo: () => void) => {
@@ -68,5 +73,15 @@ export function useAnswerActions(runId: string, onMovedOn: () => void) {
     );
   };
 
-  return { answer, decide, sent, decisions, pending: resume.isPending, error };
+  const advise = (seq: number, value: AdviceResume, decision: AdviceDecision) => {
+    setError(null);
+    const choice: AdviceChoice = { seq, label: DECISION_LABELS[decision] };
+    setAdviceChoices((current) => [...current, choice]);
+    resume.mutate(
+      { runId, value },
+      { onError: (caught) => fail(caught, () => setAdviceChoices((current) => current.filter((item) => item !== choice))) },
+    );
+  };
+
+  return { answer, decide, advise, sent, decisions, adviceChoices, pending: resume.isPending, error };
 }
