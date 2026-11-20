@@ -134,6 +134,7 @@ None open.
 - Built: `job_ctx(…, llm=…)` keeps the Scorer a stub unless `score=True`.
 - The `score` event is not yet known to the web (`parseRunEvent` returns `null`); SHIP-245 uses it.
 - Built (code review): `submit_scores` validates its entries itself (the tool node would otherwise reject a malformed call before the tool runs, outside the refusal count); a key that is untested or failed its test also means no search tool, not a failed run; the seed lists competitor pricing.
+- Built (CI fix): the step-limit error is caught inside the Exa session, because `open_mcp_session` turns any exception leaving its block into `UpstreamError` (it showed as `provider.upstream_error`). The Researcher has the same structure and was not changed.
 - Tests are written but not run locally; CI runs them.
 
 - A second refused (or missing) `submit_scores` fails the run with new `score.invalid_submission`; no score is stored (user, 2026-11-20).

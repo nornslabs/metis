@@ -87,9 +87,7 @@ def build_scorer(
             logger.info("score.already_recorded")
             return _finish_node(state, {"stage": _next_stage(existing, state)})
         ledger = SubmissionLedger()
-        try:
-            await _score(scope, redis, make_exa_client, ledger)
-        except GraphRecursionError:
+        if not await _score(scope, redis, make_exa_client, ledger):
             logger.warning("score.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
         if ledger.recorded is None:
@@ -111,7 +109,8 @@ def build_scorer(
 
 async def _score(
     scope: ResearchScope, redis: Redis, make_exa_client: ClientFactory, ledger: SubmissionLedger
-) -> None:
+) -> bool:
+    """Run the loop; ``False`` when it hit its step limit."""
     book = SourceBook()
     async with scope.session() as session:
         api_key = await _exa_key(session, scope)
@@ -119,8 +118,7 @@ async def _score(
         seed = await _seed(session, scope, book, searching=api_key is not None)
     own_tools = [kb_lookup_tool(scope), *scoring_tools(scope, book, ledger)]
     if api_key is None:
-        await _loop(model, own_tools, seed)
-        return
+        return await _loop(model, own_tools, seed)
     budget = ExaCallBudget(redis, scope.run_id, MAX_SEARCH_CALLS, SEARCH_COUNTER)
     async with open_exa_tools(api_key, scope.run_id, redis, make_exa_client) as exa_tools:
         search = collect_search_urls(
@@ -131,10 +129,15 @@ async def _score(
             ),
             book,
         )
-        await _loop(model, [*search, *own_tools], seed)
+        return await _loop(model, [*search, *own_tools], seed)
 
 
-async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> None:
+async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> bool:
+    """Run the loop; ``False`` when it hit its step limit.
+
+    The limit is caught here, inside the Exa session: ``open_mcp_session`` turns any exception
+    that leaves its block into ``UpstreamError``, which would hide ``GraphRecursionError``.
+    """
     loop = build_react_specialist(
         load_prompt(PROMPT),
         tools,
@@ -143,11 +146,11 @@ async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> None:
         finish_tools={SUBMIT_SCORES},
         refusals=(ScoreRefused,),
     )
-    # The limit is passed at the call too: inside the run's graph the parent's config would
-    # otherwise replace the one bound in the builder, and the loop would never hit its limit.
-    await loop.ainvoke(
-        {"messages": [HumanMessage(content=seed)]}, config={"recursion_limit": STEP_LIMIT}
-    )
+    try:
+        await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
+    except GraphRecursionError:
+        return False
+    return True
 
 
 async def _exa_key(session: AsyncSession, scope: ResearchScope) -> str | None:
