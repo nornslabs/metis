@@ -58,7 +58,7 @@ jobs:
 
       - name: Database migrations
         working-directory: server
-        run: uv run alembic upgrade head
+        run: uv run alembic upgrade heads
         env:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
           APP_DB_PASSWORD: metis_app
