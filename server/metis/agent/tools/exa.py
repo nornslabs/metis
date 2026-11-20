@@ -22,7 +22,7 @@ from metis.core.errors import UpstreamError
 from metis.core.events import RunEventType, publish
 from metis.helpers.http import ClientFactory, FailureReason, provider_error
 from metis.helpers.mcp import open_mcp_session
-from metis.modules.identity import ProviderKind, get_key_for_use
+from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
 
 PROVIDER = "exa"
 EXA_MCP_URL = "https://mcp.exa.ai/mcp"
@@ -45,6 +45,17 @@ class ResearchHit:
     published_at: str | None
     snippet: str
     source: str = PROVIDER
+
+
+async def ready_exa_key(session: AsyncSession, workspace_id: UUID) -> str | None:
+    """The workspace's Exa key, or ``None`` unless it is saved and has passed its test.
+
+    A missing, untested or failed key must not block a specialist that can work without the
+    search tool: it then goes without it.
+    """
+    if await key_readiness(session, workspace_id, ProviderKind.EXA) is not KeyReadiness.READY:
+        return None
+    return (await get_key_for_use(session, workspace_id, ProviderKind.EXA)).api_key
 
 
 def allowed_exa_tools(specialist: str) -> frozenset[str]:

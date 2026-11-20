@@ -61,7 +61,8 @@ def route(state: MetisState) -> str:
     """The next node for ``state``: a specialist's name, or ``END``.
 
     A run whose Researcher skipped research (``research_skipped``) ends here too, with the
-    stage left at ``researching`` so a later run picks the research up.
+    stage left at ``researching`` so a later run picks the research up; so does a run the user
+    stopped at the Advisor's decision (``advice_stopped``), with the stage left at ``advising``.
 
     Pending ``clarification`` questions (from the Researcher) go to the Interviewer whatever
     the stage; once it has asked them the stage routes back to the Researcher.
@@ -69,7 +70,12 @@ def route(state: MetisState) -> str:
     if state.get("continuation_prompt") and not state.get("continuation_done"):
         return Specialist.INTERVIEWER.value
     specialist = STAGE_ROUTES[state["stage"]]
-    if state["last_error"] is not None or specialist is None or state.get("research_skipped"):
+    if (
+        state["last_error"] is not None
+        or specialist is None
+        or state.get("research_skipped")
+        or state.get("advice_stopped")
+    ):
         return END
     if state.get("clarification"):
         return Specialist.INTERVIEWER.value

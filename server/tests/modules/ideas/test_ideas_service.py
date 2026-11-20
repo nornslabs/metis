@@ -27,6 +27,7 @@ LEGAL_MOVES = {
     (S.ADVISING, S.INTERVIEWING),
     (S.ADVISING, S.RESEARCHING),
     (S.ADVISING, S.SCORING),
+    (S.ADVISING, S.SPEC_DRAFT),
     (S.SPEC_DRAFT, S.SPEC_CONFIRMED),
     (S.SPEC_CONFIRMED, S.SPEC_DRAFT),
     (S.SPEC_CONFIRMED, S.PLANNING),
@@ -170,3 +171,88 @@ async def _version(engine: AsyncEngine, idea_id: UUID) -> int:
         )
     assert isinstance(value, int)
     return value
+
+
+# ------------------------------------------------------------------------- apply_revision
+
+
+async def _raw_text(engine: AsyncEngine, idea_id: UUID) -> str:
+    async with AsyncSession(engine) as session:
+        idea = await ideas.get_idea(session, await _workspace_of(engine, idea_id), idea_id)
+    return idea.raw_text
+
+
+async def _workspace_of(engine: AsyncEngine, idea_id: UUID) -> UUID:
+    from sqlalchemy import text
+
+    async with engine.connect() as conn:
+        value = await conn.scalar(
+            text("SELECT workspace_id FROM ideas.ideas WHERE id = :id"), {"id": idea_id}
+        )
+    return UUID(str(value))
+
+
+async def test_a_revision_replaces_the_text_and_bumps_the_version(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    ada = await owner(client, engine)
+    idea_id = UUID((await create(client, ada))["id"])
+    before = await _version(engine, idea_id)
+
+    async with AsyncSession(engine) as session:
+        revised = await ideas.apply_revision(
+            session, UUID(ada.workspace_id), idea_id, "  A CRM that also sends invoices.  "
+        )
+        await session.commit()
+
+    assert revised.raw_text == "A CRM that also sends invoices."
+    assert revised.version == before + 1
+    assert await _raw_text(engine, idea_id) == "A CRM that also sends invoices."
+
+
+async def test_repeating_a_revision_changes_nothing(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    ada = await owner(client, engine)
+    idea_id = UUID((await create(client, ada))["id"])
+    workspace_id = UUID(ada.workspace_id)
+
+    async with AsyncSession(engine) as session:
+        await ideas.apply_revision(session, workspace_id, idea_id, "A CRM that sends invoices.")
+        await session.commit()
+    version = await _version(engine, idea_id)
+    async with AsyncSession(engine) as session:
+        again = await ideas.apply_revision(
+            session, workspace_id, idea_id, "A CRM that sends invoices."
+        )
+        await session.commit()
+
+    assert again.version == version == await _version(engine, idea_id)
+
+
+@pytest.mark.parametrize("text", ["", "   ", "too short", "x" * 10_001])
+async def test_a_revision_keeps_the_idea_text_bounds(
+    client: httpx.AsyncClient, engine: AsyncEngine, text: str
+) -> None:
+    ada = await owner(client, engine)
+    idea_id = UUID((await create(client, ada))["id"])
+
+    async with AsyncSession(engine) as session:
+        with pytest.raises(InvalidInputError):
+            await ideas.apply_revision(session, UUID(ada.workspace_id), idea_id, text)
+
+
+async def test_a_revision_of_an_unknown_or_foreign_idea_is_not_found(
+    client: httpx.AsyncClient, engine: AsyncEngine
+) -> None:
+    ada = await owner(client, engine, "ada")
+    bob = await owner(client, engine, "bob")
+    created = await create(client, ada)
+
+    async with AsyncSession(engine) as session:
+        with pytest.raises(IdeaNotFoundError):
+            await ideas.apply_revision(session, UUID(ada.workspace_id), uuid4(), "A new idea text.")
+        with pytest.raises(IdeaNotFoundError):
+            await ideas.apply_revision(
+                session, UUID(bob.workspace_id), UUID(created["id"]), "A new idea text."
+            )

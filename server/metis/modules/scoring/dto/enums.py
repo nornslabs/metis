@@ -30,3 +30,20 @@ class ScoreTrigger(StrEnum):
     MANUAL = "manual"
     SCHEDULED = "scheduled"
     SIGNAL = "signal"
+
+
+class SuggestionKind(StrEnum):
+    """What a suggestion changes."""
+
+    FEATURE = "feature"
+    NICHE = "niche"
+    PRICING = "pricing"
+    PIVOT = "pivot"
+
+
+class SuggestionStatus(StrEnum):
+    """Where a suggestion stands with the user."""
+
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    DISMISSED = "dismissed"

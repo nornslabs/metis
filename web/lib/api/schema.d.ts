@@ -323,6 +323,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Suggestions
+         * @description The idea's suggestions, newest score run first; ``score_run_id`` narrows to one run.
+         */
+        get: operations["list_suggestions_v1_ideas__idea_id__suggestions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/research/snapshots/{snapshot_id}": {
         parameters: {
             query?: never;
@@ -511,6 +531,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/suggestions/{suggestion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Set Suggestion Status
+         * @description Mark a suggestion open, accepted or dismissed.
+         */
+        patch: operations["set_suggestion_status_v1_suggestions__suggestion_id__patch"];
+        trace?: never;
+    };
     "/v1/workspaces": {
         parameters: {
             query?: never;
@@ -559,6 +599,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * AdviceDecision
+         * @description What the user chose after the Advisor's suggestions.
+         * @enum {string}
+         */
+        AdviceDecision: "revise" | "continue" | "stop";
+        /**
+         * AdviceResume
+         * @description The answer to an ``advice_decision`` interrupt.
+         *
+         *     ``revise`` needs the idea's new text (the same bounds as an idea's text); the other
+         *     decisions ignore ``revised_text``. ``accepted_suggestion_ids`` names the suggestions the
+         *     user took; the Advisor ignores ids that are not its own.
+         */
+        AdviceResume: {
+            /**
+             * Accepted Suggestion Ids
+             * @default []
+             */
+            accepted_suggestion_ids: string[];
+            decision: components["schemas"]["AdviceDecision"];
+            /** Revised Text */
+            revised_text?: string | null;
+        };
         /**
          * AuthProviderName
          * @description Sign-in methods; matches the ``auth.identities.provider`` CHECK.
@@ -871,11 +935,11 @@ export interface components {
         };
         /**
          * ResumeBody
-         * @description The user's answer: text for a question, true/false for an approval.
+         * @description The user's answer: text for a question, true/false for an approval, or an advice decision.
          */
         ResumeBody: {
             /** Value */
-            value: string | boolean;
+            value: string | boolean | components["schemas"]["AdviceResume"];
         };
         /**
          * RunCancelResult
@@ -1100,6 +1164,71 @@ export interface components {
         StartRunBody: {
             /** Prompt */
             prompt?: string | null;
+        };
+        /**
+         * Suggestion
+         * @description A stored suggestion.
+         */
+        Suggestion: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceItem"][];
+            /** Expected Impact */
+            expected_impact: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            kind: components["schemas"]["SuggestionKind"];
+            /** Rationale */
+            rationale: string;
+            /**
+             * Score Run Id
+             * Format: uuid
+             */
+            score_run_id: string;
+            status: components["schemas"]["SuggestionStatus"];
+            /** Target Params */
+            target_params: components["schemas"]["ScoreParam"][];
+            /** Title */
+            title: string;
+        };
+        /**
+         * SuggestionKind
+         * @description What a suggestion changes.
+         * @enum {string}
+         */
+        SuggestionKind: "feature" | "niche" | "pricing" | "pivot";
+        /**
+         * SuggestionList
+         * @description An idea's suggestions: newest score run first, then in the order they were saved.
+         */
+        SuggestionList: {
+            /** Items */
+            items: components["schemas"]["Suggestion"][];
+        };
+        /**
+         * SuggestionStatus
+         * @description Where a suggestion stands with the user.
+         * @enum {string}
+         */
+        SuggestionStatus: "open" | "accepted" | "dismissed";
+        /**
+         * SuggestionStatusBody
+         * @description ``PATCH /v1/suggestions/{id}``.
+         */
+        SuggestionStatusBody: {
+            status: components["schemas"]["SuggestionStatus"];
         };
         /**
          * TurnSource
@@ -1737,6 +1866,41 @@ export interface operations {
             };
         };
     };
+    list_suggestions_v1_ideas__idea_id__suggestions_get: {
+        parameters: {
+            query?: {
+                score_run_id?: string | null;
+            };
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_snapshot_v1_research_snapshots__snapshot_id__get: {
         parameters: {
             query?: never;
@@ -2115,6 +2279,43 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    set_suggestion_status_v1_suggestions__suggestion_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SuggestionStatusBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Suggestion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

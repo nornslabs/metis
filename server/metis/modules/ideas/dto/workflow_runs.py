@@ -7,13 +7,22 @@ from enum import StrEnum
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StrictBool, StrictStr
+from pydantic import (
+    BaseModel,
+    BeforeValidator,
+    ConfigDict,
+    Field,
+    StrictBool,
+    StrictStr,
+    model_validator,
+)
 
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip
-from metis.modules.ideas.dto.ideas import Stage
+from metis.modules.ideas.dto.ideas import MAX_RAW_TEXT_LENGTH, MIN_RAW_TEXT_LENGTH, Stage
 
 MAX_CONTINUATION_PROMPT_LENGTH = 10_000
+MAX_ACCEPTED = 5
 ContinuationPrompt = Annotated[
     StrictStr,
     BeforeValidator(strip),
@@ -89,10 +98,44 @@ class RunPage(FrozenModel):
     next_cursor: str | None
 
 
-class ResumeBody(BaseModel):
-    """The user's answer: text for a question, true/false for an approval."""
+class AdviceDecision(StrEnum):
+    """What the user chose after the Advisor's suggestions."""
 
-    value: StrictStr | StrictBool
+    REVISE = "revise"
+    CONTINUE = "continue"
+    STOP = "stop"
+
+
+class AdviceResume(FrozenModel):
+    """The answer to an ``advice_decision`` interrupt.
+
+    ``revise`` needs the idea's new text (the same bounds as an idea's text); the other
+    decisions ignore ``revised_text``. ``accepted_suggestion_ids`` names the suggestions the
+    user took; the Advisor ignores ids that are not its own.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    decision: AdviceDecision
+    revised_text: StrictStr | None = None
+    accepted_suggestion_ids: tuple[UUID, ...] = Field(default=(), max_length=MAX_ACCEPTED)
+
+    @model_validator(mode="after")
+    def _check_revision(self) -> AdviceResume:
+        if self.decision is not AdviceDecision.REVISE:
+            return self
+        text = (self.revised_text or "").strip()
+        if not MIN_RAW_TEXT_LENGTH <= len(text) <= MAX_RAW_TEXT_LENGTH:
+            raise ValueError(
+                f"revised_text is {MIN_RAW_TEXT_LENGTH} to {MAX_RAW_TEXT_LENGTH} characters"
+            )
+        return self
+
+
+class ResumeBody(BaseModel):
+    """The user's answer: text for a question, true/false for an approval, or an advice decision."""
+
+    value: StrictStr | StrictBool | AdviceResume
 
 
 class StartRunBody(BaseModel):

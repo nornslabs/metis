@@ -11,12 +11,26 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.core.errors import ConflictError, IdeaNotFoundError, IdeaNotOwnerError
+from metis.core.errors import (
+    ConflictError,
+    IdeaNotFoundError,
+    IdeaNotOwnerError,
+    InvalidInputError,
+)
 from metis.core.logging import bind_context, get_logger
 from metis.core.outbox import DomainEvent, DomainEventType, add_event
 from metis.modules import auth
 from metis.modules.ideas import repo
-from metis.modules.ideas.dto import DEFAULT_PAGE_SIZE, Idea, IdeaPage, IdeaPatch, NewIdea, Stage
+from metis.modules.ideas.dto import (
+    DEFAULT_PAGE_SIZE,
+    MAX_RAW_TEXT_LENGTH,
+    MIN_RAW_TEXT_LENGTH,
+    Idea,
+    IdeaPage,
+    IdeaPatch,
+    NewIdea,
+    Stage,
+)
 from metis.modules.ideas.helpers.cursor import decode_cursor, encode_cursor
 from metis.modules.ideas.helpers.transitions import check_transition
 from metis.modules.ideas.models import IdeaRow
@@ -117,6 +131,37 @@ async def transition(
     )
     if updated is None:
         raise ConflictError("The idea changed while its stage was being moved; try again")
+    return Idea.model_validate(updated)
+
+
+async def apply_revision(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, raw_text: str
+) -> Idea:
+    """Replace the idea's text with the user's revision (the Advisor's write, on resume).
+
+    Same bounds as an idea's text. Writing the text the idea already has changes nothing, so a
+    node re-run after a crash is safe. Bumps ``version`` when the text changes.
+    """
+    text = raw_text.strip()
+    if not MIN_RAW_TEXT_LENGTH <= len(text) <= MAX_RAW_TEXT_LENGTH:
+        raise InvalidInputError(
+            "Invalid idea text",
+            errors=[
+                {
+                    "field": "raw_text",
+                    "message": f"{MIN_RAW_TEXT_LENGTH} to {MAX_RAW_TEXT_LENGTH} characters",
+                }
+            ],
+        )
+    row = await _get_row(session, workspace_id, idea_id)
+    if row.raw_text == text:
+        return Idea.model_validate(row)
+    updated = await repo.ideas.update_at_version(
+        session, workspace_id, idea_id, version=row.version, changes={"raw_text": text}
+    )
+    if updated is None:
+        raise ConflictError("The idea changed while the revision was saved; try again")
+    logger.info("idea.revised", idea_id=str(idea_id))
     return Idea.model_validate(updated)
 
 

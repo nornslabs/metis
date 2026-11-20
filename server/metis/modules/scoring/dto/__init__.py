@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
-from metis.modules.scoring.dto.enums import ScoreBand, ScoreParam, ScoreTrigger
+from metis.modules.scoring.dto.enums import (
+    ScoreBand,
+    ScoreParam,
+    ScoreTrigger,
+    SuggestionKind,
+    SuggestionStatus,
+)
 from metis.modules.scoring.dto.scores import (
     MAX_EVIDENCE_ITEMS,
     NO_EVIDENCE_MAX_CONFIDENCE,
@@ -18,8 +24,22 @@ from metis.modules.scoring.dto.scores import (
     ScoreRunSummary,
     ScoreSubmission,
 )
+from metis.modules.scoring.dto.suggestions import (
+    MAX_TARGET_PARAMS,
+    NewSuggestion,
+    Suggestion,
+    SuggestionList,
+    SuggestionStatusBody,
+)
 
 __all__ = [
+    "MAX_TARGET_PARAMS",
+    "NewSuggestion",
+    "Suggestion",
+    "SuggestionKind",
+    "SuggestionList",
+    "SuggestionStatus",
+    "SuggestionStatusBody",
     "MAX_EVIDENCE_ITEMS",
     "NO_EVIDENCE_MAX_CONFIDENCE",
     "EvidenceItem",
