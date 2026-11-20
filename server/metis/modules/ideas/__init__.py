@@ -27,7 +27,7 @@ from metis.modules.ideas.dto import (
     Stage,
     WorkflowRun,
 )
-from metis.modules.ideas.service.ideas import get_idea, transition
+from metis.modules.ideas.service.ideas import get_idea, set_current_score, transition
 from metis.modules.ideas.service.interview import (
     answer_question,
     finish_interview,
@@ -88,5 +88,6 @@ __all__ = [
     "router",
     "save_interview_brief",
     "save_interview_turn",
+    "set_current_score",
     "transition",
 ]

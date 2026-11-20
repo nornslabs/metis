@@ -283,6 +283,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/scores": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Score History
+         * @description The idea's score runs without params, newest first.
+         */
+        get: operations["get_score_history_v1_ideas__idea_id__scores_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/scores/latest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Latest Score
+         * @description The idea's newest score run; 404 ``score.not_found`` before the first one.
+         */
+        get: operations["get_latest_score_v1_ideas__idea_id__scores_latest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/research/snapshots/{snapshot_id}": {
         parameters: {
             query?: never;
@@ -374,6 +414,26 @@ export interface paths {
          * @description Answer the question or approval the run waits on.
          */
         post: operations["resume_run_v1_runs__run_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/scores/{score_run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Score Run
+         * @description A score run with its six params.
+         */
+        get: operations["get_score_run_v1_scores__score_run_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -512,6 +572,18 @@ export interface components {
         CreateWorkspaceRequest: {
             /** Name */
             name: string;
+        };
+        /**
+         * EvidenceItem
+         * @description A stored source.
+         */
+        EvidenceItem: {
+            /** Quote */
+            quote: string;
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -879,6 +951,123 @@ export interface components {
             /** Version */
             version: number;
         };
+        /**
+         * ScoreBand
+         * @description ``build`` from 75, ``promising`` 55–74, ``advise`` below 55.
+         * @enum {string}
+         */
+        ScoreBand: "build" | "promising" | "advise";
+        /**
+         * ScoreHistory
+         * @description An idea's score runs, newest first.
+         */
+        ScoreHistory: {
+            /** Items */
+            items: components["schemas"]["ScoreRunSummary"][];
+        };
+        /**
+         * ScoreParam
+         * @description The six fixed rubric parameters, in rubric order.
+         * @enum {string}
+         */
+        ScoreParam: "problem_severity" | "uniqueness" | "market_demand" | "value" | "feasibility" | "timing";
+        /**
+         * ScoreParamResult
+         * @description One stored parameter result, with the weight it was computed with.
+         */
+        ScoreParamResult: {
+            /** Confidence */
+            confidence: number;
+            /** Evidence */
+            evidence: components["schemas"]["EvidenceItem"][];
+            /** No Evidence */
+            no_evidence: boolean;
+            param: components["schemas"]["ScoreParam"];
+            /** Raw */
+            raw: number;
+            /** Reason */
+            reason: string;
+            /** Weight */
+            weight: number;
+            /** Weighted */
+            weighted: number;
+        };
+        /**
+         * ScoreRun
+         * @description A score run with the rubric weights and its six parameters, in rubric order.
+         */
+        ScoreRun: {
+            band: components["schemas"]["ScoreBand"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Params */
+            params: components["schemas"]["ScoreParamResult"][];
+            /** Rubric Version */
+            rubric_version: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Total */
+            total: number;
+            trigger: components["schemas"]["ScoreTrigger"];
+            /** Weights */
+            weights: {
+                [key: string]: number;
+            };
+        };
+        /**
+         * ScoreRunSummary
+         * @description A score run without its parameters (history rows).
+         */
+        ScoreRunSummary: {
+            band: components["schemas"]["ScoreBand"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Rubric Version */
+            rubric_version: number;
+            /**
+             * Run Id
+             * Format: uuid
+             */
+            run_id: string;
+            /** Total */
+            total: number;
+            trigger: components["schemas"]["ScoreTrigger"];
+        };
+        /**
+         * ScoreTrigger
+         * @description Why a score was made.
+         * @enum {string}
+         */
+        ScoreTrigger: "manual" | "scheduled" | "signal";
         /**
          * SettingsPatch
          * @description Body of ``PATCH /v1/settings``: the ``version`` read, plus at least one change.
@@ -1468,6 +1657,72 @@ export interface operations {
             };
         };
     };
+    get_score_history_v1_ideas__idea_id__scores_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScoreHistory"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_latest_score_v1_ideas__idea_id__scores_latest_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScoreRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_snapshot_v1_research_snapshots__snapshot_id__get: {
         parameters: {
             query?: never;
@@ -1629,6 +1884,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_score_run_v1_scores__score_run_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                score_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScoreRun"];
                 };
             };
             /** @description Validation Error */

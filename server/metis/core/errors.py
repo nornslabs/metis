@@ -102,6 +102,8 @@ class ErrorCode(StrEnum):
     RESEARCH_COMPETITOR_NOT_FOUND = "research.competitor_not_found"
 
     # ----------------------------------------------------------------------- scoring
+    SCORE_NOT_FOUND = "score.not_found"
+    SCORE_RUN_NOT_FOUND = "score.run_not_found"
     SCORE_INVALID_RUBRIC = "score.invalid_rubric"
     SCORE_UPSTREAM_ERROR = "score.upstream_error"
     SCORE_BUDGET_EXCEEDED = "score.budget_exceeded"
@@ -416,6 +418,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         retryable=False,
     ),
     # scoring
+    ErrorCode.SCORE_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="No Score Yet",
+        retryable=False,
+    ),
+    ErrorCode.SCORE_RUN_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Score Run Not Found",
+        retryable=False,
+    ),
     ErrorCode.SCORE_INVALID_RUBRIC: ErrorSpec(
         status=400,
         title="Invalid Scoring Rubric",
@@ -758,6 +770,24 @@ class CompetitorNotFoundError(NotFoundError):
     code: ErrorCode = ErrorCode.RESEARCH_COMPETITOR_NOT_FOUND
 
 
+class ScoreNotFoundError(NotFoundError):
+    """404: the idea has no score run yet."""
+
+    code: ErrorCode = ErrorCode.SCORE_NOT_FOUND
+
+
+class ScoreRunNotFoundError(NotFoundError):
+    """404: no such score run in the caller's workspace (or its idea is archived)."""
+
+    code: ErrorCode = ErrorCode.SCORE_RUN_NOT_FOUND
+
+
+class InvalidRubricError(MetisError):
+    """400: the stored rubric does not hold the six parameters weighing 100."""
+
+    code: ErrorCode = ErrorCode.SCORE_INVALID_RUBRIC
+
+
 __all__ = [
     "ErrorCode",
     "ErrorSpec",
@@ -795,6 +825,9 @@ __all__ = [
     "SnapshotClosedError",
     "ResearchSourceMissingError",
     "CompetitorNotFoundError",
+    "ScoreNotFoundError",
+    "InvalidRubricError",
+    "ScoreRunNotFoundError",
 ]
 
 
