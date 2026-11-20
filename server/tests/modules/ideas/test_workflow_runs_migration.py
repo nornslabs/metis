@@ -91,8 +91,10 @@ async def test_the_downgrade_drops_the_function_the_key_and_the_table(engine: As
     assert migration.down_revision == "0012_agent_checkpoints"
 
     async with engine.connect() as conn:
-        # 0016's research tables and 0015's interview turns reference runs; their downgrades
-        # run first.
+        # 0017's score tables, 0016's research tables and 0015's interview turns reference
+        # runs; their downgrades run first.
+        for table in ("score_params", "score_runs"):
+            await conn.execute(text(f"DROP TABLE scoring.{table}"))
         for table in ("idea_competitors", "items", "competitors", "snapshots"):
             await conn.execute(text(f"DROP TABLE research.{table}"))
         await conn.execute(text("DROP TABLE ideas.interview_turns"))
