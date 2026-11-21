@@ -1,4 +1,4 @@
-import { nodeLabel } from "./labels";
+import { nodeLabel, toolLabel } from "./labels";
 import type { RunState } from "./reducer";
 
 /** The Researcher's graph node (the server's `Specialist` value). */
@@ -16,7 +16,7 @@ export function runActivity(state: Pick<RunState, "status" | "steps">): string {
   if (!running) return state.status === "queued" ? "Starting…" : "Thinking…";
   const tool = running.tools.at(-1);
   const label = running.node === RESEARCHER_NODE ? "Researching…" : `${nodeLabel(running.node)}…`;
-  return tool ? `${label} ${tool}` : label;
+  return tool ? `${label} ${toolLabel(tool)}` : label;
 }
 
 /** How many Researcher steps have finished: when it grows, the research view is refetched. */

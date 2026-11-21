@@ -312,7 +312,7 @@ test.describe("research view", () => {
       fulfillProblem(route, 404, "research.not_found", "No research yet"),
     );
     await page.goto(`/ideas/${idea.id}`);
-    await expect(page.getByText("Researching… web_search_exa")).toBeVisible();
+    await expect(page.getByText("Researching… Web search")).toBeVisible();
     await expect(page.getByText("Research", { exact: true })).toHaveCount(0);
   });
 
