@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useState } from "react";
 
 import { CompetitorCard } from "@/components/research/competitor-card";
 import { MarketFactRow } from "@/components/research/market-fact-row";
@@ -21,8 +22,13 @@ function plural(count: number, noun: string): string {
 export function ResearchPanel({ view }: { view: ResearchView }) {
   const facts = marketFacts(view);
   const others = otherFindings(view);
+  const [isOpen, setIsOpen] = useState(true);
   return (
-    <details open className="group border">
+    <details
+      open={isOpen}
+      onToggle={(event) => setIsOpen((event.target as HTMLDetailsElement).open)}
+      className="group border"
+    >
       <summary className="flex cursor-pointer items-center gap-2 px-2.5 py-1.5 text-control font-medium select-none">
         Research
         <span className="font-normal text-meta text-muted-foreground">
