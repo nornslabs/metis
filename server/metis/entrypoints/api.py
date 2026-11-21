@@ -24,6 +24,7 @@ from metis.core.logging import configure_logging
 from metis.core.middleware import RequestContextMiddleware
 from metis.core.redis import close_redis
 from metis.modules.auth import router as auth_router
+from metis.modules.docs import router as docs_router
 from metis.modules.health import router as health_router
 from metis.modules.ideas import router as ideas_router
 from metis.modules.identity import router as identity_router
@@ -114,10 +115,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=settings.app_version,
         openapi_tags=OPENAPI_TAGS,
         lifespan=_lifespan,
+        # Docs are served under /v1/docs/* with session auth (see docs module).
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
     )
     register_error_handlers(app)
     _add_middleware(app, settings)
     _include_routers(app)
+    app.include_router(docs_router)
 
     @app.get("/")
     def root() -> dict[str, str]:
