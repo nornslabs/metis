@@ -24,6 +24,22 @@ const STAGE_LABELS: Readonly<Record<components["schemas"]["Stage"], string>> = {
   exported: "Exported",
 };
 
+/** User-friendly display names for internal tool calls; unknown names fall back to title case. */
+const TOOL_LABELS: Readonly<Record<string, string>> = {
+  web_search_exa: "Web search",
+  web_search: "Web search",
+  fetch: "Fetch page",
+  ask_user: "Ask question",
+  ask: "Ask question",
+  recall_memory: "Recall memory",
+  kb_lookup: "Knowledge base",
+  save_research_item: "Save finding",
+};
+
+export function toolLabel(name: string): string {
+  return TOOL_LABELS[name] ?? titleCase(name);
+}
+
 function titleCase(value: string): string {
   const spaced = value.replaceAll("_", " ").trim();
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);

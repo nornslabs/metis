@@ -1,7 +1,7 @@
 import { Check, Minus } from "lucide-react";
 
 import type { RunStep } from "@/lib/events/reducer";
-import { nodeLabel } from "@/lib/events/labels";
+import { nodeLabel, toolLabel } from "@/lib/events/labels";
 import { cn } from "@/lib/utils";
 
 interface StepListProps {
@@ -49,7 +49,9 @@ export function StepList({ steps, live }: StepListProps) {
             <span className="sr-only">{stepStateLabel(step)}</span>
           </span>
           {step.tools.length > 0 ? (
-            <span className="pl-5 font-mono text-meta text-muted-foreground">{step.tools.join(" · ")}</span>
+            <span className="pl-5 font-mono text-meta text-muted-foreground">
+              {step.tools.map(toolLabel).join(" · ")}
+            </span>
           ) : null}
         </li>
       ))}
