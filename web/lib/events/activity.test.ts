@@ -11,7 +11,7 @@ describe("runActivity", () => {
 
   it("shows Researching with the latest tool name", () => {
     const steps = [step("interviewer", true), step("researcher", false, ["web_search_exa", "web_fetch_exa"])];
-    expect(runActivity({ status: "running", steps })).toBe("Researching… web_fetch_exa");
+    expect(runActivity({ status: "running", steps })).toBe("Researching… Web fetch exa");
   });
 
   it("shows Researching alone before a tool call", () => {
