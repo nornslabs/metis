@@ -1,14 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 
 import { NoRunConversation, RunConversation } from "@/components/chat/run-conversation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, describeError } from "@/lib/api/errors";
+import { useQueryClient } from "@tanstack/react-query";
 import { useIdea } from "@/lib/api/queries/use-idea";
 import { useLatestRun } from "@/lib/api/queries/use-latest-run";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
+
+import { queryKeys } from "@/lib/api/queries/keys";
 
 export function ConversationSkeleton() {
   return (
@@ -37,6 +40,18 @@ export function IdeaConversation({ ideaId }: { ideaId: string }) {
   const idea = useIdea(ideaId);
   const run = useLatestRun(ideaId);
   const workspaceId = useWorkspaceId();
+  const queryClient = useQueryClient();
+
+  // Purge all idea-scoped cache when switching ideas, so no stale data from a
+  // previous idea can leak into this one. React Query keys are already unique per
+  // idea, but this is belt-and-suspenders for cross-navigation cache residue.
+  const prevIdeaId = useRef(ideaId);
+  useEffect(() => {
+    if (prevIdeaId.current !== ideaId) {
+      queryClient.removeQueries({ queryKey: queryKeys.allIdeas() });
+      prevIdeaId.current = ideaId;
+    }
+  }, [ideaId, queryClient]);
 
   if (idea.isPending || run.isPending) return <ConversationSkeleton />;
   const error = idea.error ?? run.error;

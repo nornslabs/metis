@@ -42,7 +42,11 @@ export function useRunEvents(runId: string, seed: RunSeed, onEnd?: () => void): 
     onEndRef.current = onEnd;
   }, [onEnd]);
 
+  // Guards against dispatching events after unmount (navigation between ideas).
+  const mountedRef = useRef(true);
+
   useEffect(() => {
+    mountedRef.current = true;
     const source = new EventSource(runEventsUrl(runId, workspaceId), { withCredentials: true });
     const end = (stream: StreamState) => {
       source.close();
@@ -51,6 +55,7 @@ export function useRunEvents(runId: string, seed: RunSeed, onEnd?: () => void): 
     };
 
     const onFrame = (message: MessageEvent<string>) => {
+      if (!mountedRef.current) return;
       const event = parseRunEvent(message.type, message.data);
       if (!event) return;
       dispatch(event);
@@ -60,6 +65,7 @@ export function useRunEvents(runId: string, seed: RunSeed, onEnd?: () => void): 
     // `event: error` is the server's frame (a MessageEvent with data); a bare Event is the
     // connection dropping, which the browser retries unless it gave up (CLOSED).
     const onError = (event: Event) => {
+      if (!mountedRef.current) return;
       if (event instanceof MessageEvent || source.readyState === EventSource.CLOSED) {
         end("failed");
         return;
@@ -67,11 +73,16 @@ export function useRunEvents(runId: string, seed: RunSeed, onEnd?: () => void): 
       setStream("reconnecting");
     };
 
-    source.onopen = () => setStream("live");
+    source.onopen = () => {
+      if (mountedRef.current) setStream("live");
+    };
     source.addEventListener("error", onError);
     for (const type of RUN_EVENT_TYPES) source.addEventListener(type, onFrame);
 
-    return () => source.close();
+    return () => {
+      mountedRef.current = false;
+      source.close();
+    };
   }, [runId, workspaceId]);
 
   return { state, stream, sync };

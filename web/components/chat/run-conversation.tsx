@@ -91,6 +91,23 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const turns = useInterview(idea.id);
   const gate = useKeyGate();
 
+  if (process.env.NODE_ENV === "development" && run.idea_id !== idea.id) {
+    console.warn(
+      `RunConversation: run.idea_id (${run.idea_id}) !== idea.id (${idea.id}) — possible cross-contamination`,
+    );
+  }
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`RunConversation mounted: run=${run.id} idea=${idea.id}`);
+    }
+    return () => {
+      if (process.env.NODE_ENV === "development") {
+        console.log(`RunConversation unmounted: run=${run.id} idea=${idea.id}`);
+      }
+    };
+  }, [run.id, idea.id]);
+
   // The stream is primary; this poll only catches a pause or finish it did not deliver.
   useRunSync(run.id, state.status === "queued" || state.status === "running", sync);
 

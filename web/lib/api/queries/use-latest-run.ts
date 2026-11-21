@@ -21,5 +21,8 @@ export function useLatestRun(ideaId: string) {
       );
       return page.items[0] ?? null;
     },
+    placeholderData: undefined,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
