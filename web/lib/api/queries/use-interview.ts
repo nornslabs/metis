@@ -17,5 +17,8 @@ export function useInterview(ideaId: string) {
       bodyOf(
         await apiClient.GET("/v1/ideas/{idea_id}/interview", { params: { path: { idea_id: ideaId } } }),
       ).items,
+    placeholderData: undefined,
+    staleTime: 0,
+    gcTime: 0,
   });
 }

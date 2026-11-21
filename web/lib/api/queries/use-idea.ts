@@ -15,5 +15,8 @@ export function useIdea(ideaId: string) {
     queryKey: queryKeys.idea(workspaceId, ideaId),
     queryFn: async () =>
       bodyOf(await apiClient.GET("/v1/ideas/{idea_id}", { params: { path: { idea_id: ideaId } } })),
+    placeholderData: undefined,
+    staleTime: 0,
+    gcTime: 0,
   });
 }
