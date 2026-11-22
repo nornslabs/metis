@@ -83,8 +83,11 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
   const submit = handleSubmit(async (values) => {
     setFormError(null);
     onNotice(null);
+    // The key being saved: the API names its fields `base_url`, the form nests them as `llm.base_url`.
+    let savingKind: "llm" | "exa" | null = null;
     try {
       if (values.llm.value.trim() !== "") {
+        savingKind = "llm";
         await saveKey.mutateAsync({
           kind: "llm",
           body: {
@@ -95,8 +98,10 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
         });
       }
       if (values.exa.value.trim() !== "") {
+        savingKind = "exa";
         await saveKey.mutateAsync({ kind: "exa", body: { value: values.exa.value.trim() } });
       }
+      savingKind = null;
       if (dirtyFields.run_budget_usd || dirtyFields.max_steps) {
         await updateSettings.mutateAsync({
           version: settings.settings.version,
@@ -122,7 +127,8 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
       }
       const fields = fieldErrors(error);
       for (const { name, error: fieldError } of fields) {
-        setError(name as Parameters<typeof setError>[0], fieldError);
+        const path = savingKind ? `${savingKind}.${name}` : name;
+        setError(path as Parameters<typeof setError>[0], fieldError);
       }
       if (fields.length === 0) setFormError(errorMessage(error));
     }
