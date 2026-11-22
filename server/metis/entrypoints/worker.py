@@ -23,6 +23,7 @@ from metis.core.outbox import relay_once
 from metis.jobs.run_graph import run_graph
 
 AGENT_MAX_JOBS = 10
+JOB_TIMEOUT_MARGIN_SECONDS = 60
 MAINTENANCE_MAX_JOBS = 1
 
 logger = get_logger(__name__)
@@ -85,7 +86,8 @@ class AgentWorkerSettings:
     functions = [ping, run_graph]
     queue_name = AGENT_QUEUE
     max_jobs = AGENT_MAX_JOBS
-    job_timeout = get_settings().agent_job_timeout_seconds
+    # Arq's cap is a backstop past the runner's own timeout, which records the failure.
+    job_timeout = get_settings().agent_job_timeout_seconds + JOB_TIMEOUT_MARGIN_SECONDS
     on_startup = agent_on_startup
     on_shutdown = on_shutdown
     redis_settings = redis_settings()

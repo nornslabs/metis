@@ -128,14 +128,12 @@ async def execute_run(
             await _settle(deps, publisher, run, Outcome("cancelled"))
             return
         try:
-            await _drive(deps, redis, publisher, lock, run, resume)
+            # The job's own timeout fails the run here. A worker shutdown cancels the job
+            # instead and leaves the run ``running``, for recovery to pick up.
+            async with asyncio.timeout(settings.agent_job_timeout_seconds):
+                await _drive(deps, redis, publisher, lock, run, resume)
         except Exception as exc:  # noqa: BLE001  (every failure is recorded on the run)
             await _fail(deps, publisher, run, exc)
-        except asyncio.CancelledError as exc:
-            # Arq cancels a job that outlives its timeout. Record it, or the run would stay
-            # ``running`` with no lock and no worker until the next worker restart.
-            await asyncio.shield(_fail(deps, publisher, run, exc))
-            raise
 
 
 async def _drive(
@@ -317,7 +315,7 @@ async def _settle(
 
 
 async def _fail(
-    deps: RunnerDeps, publisher: RunEventPublisher, run: WorkflowRun, exc: BaseException
+    deps: RunnerDeps, publisher: RunEventPublisher, run: WorkflowRun, exc: Exception
 ) -> None:
     code = exc.code if isinstance(exc, MetisError) else ErrorCode.RUN_FAILED
     logger.exception("run.failed", code=code.value)
