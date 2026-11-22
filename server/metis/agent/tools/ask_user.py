@@ -14,6 +14,7 @@ from langgraph.types import interrupt
 QUESTION = "question"
 APPROVAL = "approval"
 ADVICE_DECISION = "advice_decision"
+SPEC_REVIEW = "spec_review"
 
 
 @tool

@@ -68,7 +68,7 @@ async def start_run(
     )
     await session.commit()
     if run.status == RunStatus.QUEUED:  # a retry re-enqueues; the same job id queues once
-        await _enqueue(run.id, workspace_id, job_id=str(run.id))
+        await enqueue_run(run.id, workspace_id, job_id=str(run.id))
     return RunStarted(run_id=run.id)
 
 
@@ -84,7 +84,7 @@ async def resume_run(
         session, workspace_id, run_id, body.value
     )
     # One job id per pause (the version moves on every status change): a double submit queues once.
-    await _enqueue(run.id, workspace_id, job_id=f"{run.id}:resume:{run.version}", resume=value)
+    await enqueue_run(run.id, workspace_id, job_id=f"{run.id}:resume:{run.version}", resume=value)
     return RunStarted(run_id=run.id)
 
 
@@ -124,7 +124,7 @@ async def list_runs(
     )
 
 
-async def _enqueue(run_id: UUID, workspace_id: UUID, *, job_id: str, **kwargs: Any) -> None:
+async def enqueue_run(run_id: UUID, workspace_id: UUID, *, job_id: str, **kwargs: Any) -> None:
     """Queue ``run_graph``; the job takes its ids as strings."""
     try:
         await jobs.enqueue(

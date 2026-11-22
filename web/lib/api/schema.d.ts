@@ -363,6 +363,87 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Spec
+         * @description The latest and the confirmed spec version (each ``null`` while there is none).
+         */
+        get: operations["get_spec_v1_ideas__idea_id__spec_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/spec/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Spec
+         * @description Confirm the latest version and resume the run waiting on it (if one is).
+         */
+        post: operations["confirm_spec_v1_ideas__idea_id__spec_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/spec/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Spec Versions
+         * @description Every version without its text, newest first.
+         */
+        get: operations["list_spec_versions_v1_ideas__idea_id__spec_versions_get"];
+        put?: never;
+        /**
+         * Edit Spec
+         * @description Save an edit as the next version; ``base_number`` must be the latest (else 409).
+         */
+        post: operations["edit_spec_v1_ideas__idea_id__spec_versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/spec/versions/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Spec Version */
+        get: operations["get_spec_version_v1_ideas__idea_id__spec_versions__number__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/suggestions": {
         parameters: {
             query?: never;
@@ -670,12 +751,30 @@ export interface components {
          */
         AuthProviderName: "google" | "email";
         /**
+         * ConfirmSpecBody
+         * @description Body of ``POST /v1/ideas/{id}/spec/confirm``.
+         */
+        ConfirmSpecBody: {
+            /** Number */
+            number: number;
+        };
+        /**
          * CreateWorkspaceRequest
          * @description Body of ``POST /v1/workspaces``; the service validates and trims ``name``.
          */
         CreateWorkspaceRequest: {
             /** Name */
             name: string;
+        };
+        /**
+         * EditSpecBody
+         * @description Body of ``POST /v1/ideas/{id}/spec/versions``: the new text and its base version.
+         */
+        EditSpecBody: {
+            /** Base Number */
+            base_number: number;
+            /** Content Md */
+            content_md: string;
         };
         /**
          * EvidenceItem
@@ -1196,6 +1295,89 @@ export interface components {
         SettingsResponse: {
             keys: components["schemas"]["ProviderKeys"];
             settings: components["schemas"]["WorkspaceSettingsView"];
+        };
+        /**
+         * SpecConfirmed
+         * @description Result of a confirmation: the version, and the run it resumed (``None`` when none waited).
+         */
+        SpecConfirmed: {
+            confirmed: components["schemas"]["SpecVersion"];
+            /** Run Id */
+            run_id: string | null;
+        };
+        /**
+         * SpecOverview
+         * @description The latest version and the confirmed one (each ``None`` while there is none).
+         */
+        SpecOverview: {
+            confirmed: components["schemas"]["SpecVersion"] | null;
+            latest: components["schemas"]["SpecVersion"] | null;
+        };
+        /**
+         * SpecSource
+         * @description Who wrote a version.
+         * @enum {string}
+         */
+        SpecSource: "agent" | "user";
+        /**
+         * SpecVersion
+         * @description One version of an idea's spec.
+         */
+        SpecVersion: {
+            /** Content Md */
+            content_md: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Number */
+            number: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Sections */
+            sections: {
+                [key: string]: string;
+            };
+            source: components["schemas"]["SpecSource"];
+        };
+        /** SpecVersionList */
+        SpecVersionList: {
+            /** Items */
+            items: components["schemas"]["SpecVersionSummary"][];
+        };
+        /**
+         * SpecVersionSummary
+         * @description A version without its text, for the version list.
+         */
+        SpecVersionSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            source: components["schemas"]["SpecSource"];
         };
         /**
          * Stage
@@ -1969,6 +2151,180 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScoreRun"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spec_v1_ideas__idea_id__spec_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_spec_v1_ideas__idea_id__spec_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSpecBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecConfirmed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_spec_versions_v1_ideas__idea_id__spec_versions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecVersionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_spec_v1_ideas__idea_id__spec_versions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditSpecBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecVersion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spec_version_v1_ideas__idea_id__spec_versions__number__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecVersion"];
                 };
             };
             /** @description Validation Error */
