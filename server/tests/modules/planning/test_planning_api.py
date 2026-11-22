@@ -59,7 +59,9 @@ async def test_a_plan_is_read_with_phases_tasks_dependencies_and_critical_path(
         ada,
         idea["id"],
         spec_id,
-        plan_input([task("a"), task("b", estimate=5), task("c", phase=1, estimate=3)]),
+        plan_input(
+            [task("a"), task("b", estimate=5), task("c", phase=1, estimate=3)], [dep("c", "a")]
+        ),
     )
 
     response = await _get(client, ada, idea["id"])
@@ -373,12 +375,12 @@ async def _edit_task(
     client: httpx.AsyncClient,
     caller: Caller,
     plan: Plan,
-    title: str,
+    task: str,
     version: int,
     **fields: object,
 ) -> httpx.Response:
     return await client.patch(
-        plan_url(plan.id, f"/tasks/{task_id(plan, title)}"),
+        plan_url(plan.id, f"/tasks/{task_id(plan, task)}"),
         json={"version": version, **fields},
         headers=caller.headers,
     )
@@ -472,7 +474,7 @@ async def test_an_empty_task_patch_is_refused(
 ) -> None:
     ada, _, _, plan = await planned(client, engine, app_sessions)
 
-    assert_problem(await _edit_task(client, ada, plan, "a", 1), 422, "validation_failed")
+    assert_problem(await _edit_task(client, ada, plan, "a", 1), 422, "common.validation_failed")
 
 
 # ----------------------------------------------------------------------------- versions
