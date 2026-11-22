@@ -59,13 +59,15 @@ def job_ctx(
     exa: ClientFactory | None = None,
     score: bool = False,
     advise: bool = False,
+    architect: bool = False,
 ) -> dict[str, Any]:
     """The Arq ``ctx`` a worker would pass, with the runner pointed at the test database.
 
     Without ``llm`` every specialist is a stub unless ``specialists`` replaces it. With
     ``llm`` the real specialists run against that scripted model; the Researcher stays a stub
     unless ``exa`` (the Exa HTTP client factory, e.g. a ``FakeExaMcp`` transport) is given, and
-    the Scorer stays a stub unless ``score`` is true, and the Advisor unless ``advise`` is.
+    the Scorer stays a stub unless ``score`` is true, the Advisor unless ``advise`` is, and the
+    Architect unless ``architect`` is.
     """
     if llm is None:
         specialists = {**stub_specialists(), **(specialists or {})}
@@ -74,6 +76,8 @@ def job_ctx(
         kept = {} if score else {Specialist.SCORER: stubs[Specialist.SCORER]}
         if not advise:
             kept[Specialist.ADVISOR] = stubs[Specialist.ADVISOR]
+        if not architect:
+            kept[Specialist.ARCHITECT] = stubs[Specialist.ARCHITECT]
         if exa is None:
             kept[Specialist.RESEARCHER] = stubs[Specialist.RESEARCHER]
         specialists = {**kept, **(specialists or {})}

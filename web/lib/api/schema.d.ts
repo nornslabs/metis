@@ -239,6 +239,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan
+         * @description The idea's newest plan (or the one for ``spec_version_id``) with its critical path.
+         */
+        get: operations["get_plan_v1_ideas__idea_id__plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/recheck-market": {
         parameters: {
             query?: never;
@@ -363,6 +383,90 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/spec": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Spec
+         * @description The latest and the confirmed spec version (each ``null`` while there is none).
+         */
+        get: operations["get_spec_v1_ideas__idea_id__spec_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/spec/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Spec
+         * @description Confirm the latest version and resume the run waiting on it (if one is).
+         */
+        post: operations["confirm_spec_v1_ideas__idea_id__spec_confirm_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/spec/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Spec Versions
+         * @description Every version without its text, newest first.
+         */
+        get: operations["list_spec_versions_v1_ideas__idea_id__spec_versions_get"];
+        put?: never;
+        /**
+         * Edit Spec
+         * @description Save an edit as the next version; ``base_number`` must be the latest (else 409).
+         */
+        post: operations["edit_spec_v1_ideas__idea_id__spec_versions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/ideas/{idea_id}/spec/versions/{number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Spec Version
+         * @description One version of the spec, with its text.
+         */
+        get: operations["get_spec_version_v1_ideas__idea_id__spec_versions__number__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/suggestions": {
         parameters: {
             query?: never;
@@ -381,6 +485,66 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}/phases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Phases
+         * @description Rename, reorder, add or remove phases on plan ``version``; 409 when it is stale.
+         */
+        patch: operations["edit_phases_v1_plans__plan_id__phases_patch"];
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Ready
+         * @description Fix the plan and emit ``PlanReady`` (once; asking again returns the plan unchanged).
+         */
+        post: operations["mark_ready_v1_plans__plan_id__ready_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Task
+         * @description Change one task (text, estimate, labels, phase, position) on plan ``version``.
+         */
+        patch: operations["edit_task_v1_plans__plan_id__tasks__task_id__patch"];
         trace?: never;
     };
     "/v1/research/snapshots/{snapshot_id}": {
@@ -640,6 +804,25 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AddPhase
+         * @description Add a phase at ``position`` (last by default); later phases move down.
+         */
+        AddPhase: {
+            /** Exit Criteria */
+            exit_criteria: string;
+            /** Goal */
+            goal: string;
+            /** Name */
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "add";
+            /** Position */
+            position?: number | null;
+        };
+        /**
          * AdviceDecision
          * @description What the user chose after the Advisor's suggestions.
          * @enum {string}
@@ -670,12 +853,70 @@ export interface components {
          */
         AuthProviderName: "google" | "email";
         /**
+         * ConfirmSpecBody
+         * @description Body of ``POST /v1/ideas/{id}/spec/confirm``.
+         */
+        ConfirmSpecBody: {
+            /** Number */
+            number: number;
+        };
+        /**
          * CreateWorkspaceRequest
          * @description Body of ``POST /v1/workspaces``; the service validates and trims ``name``.
          */
         CreateWorkspaceRequest: {
             /** Name */
             name: string;
+        };
+        /**
+         * CriticalPath
+         * @description The dependency chain with the most points: its tasks in order, and the sum.
+         */
+        CriticalPath: {
+            /** Points */
+            points: number;
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * EditPhasesBody
+         * @description Phase edits applied in order, all or none, on plan ``version``.
+         */
+        EditPhasesBody: {
+            /** Ops */
+            ops: (components["schemas"]["RenamePhase"] | components["schemas"]["ReorderPhases"] | components["schemas"]["AddPhase"] | components["schemas"]["RemovePhase"])[];
+            /** Version */
+            version: number;
+        };
+        /**
+         * EditSpecBody
+         * @description Body of ``POST /v1/ideas/{id}/spec/versions``: the new text and its base version.
+         */
+        EditSpecBody: {
+            /** Base Number */
+            base_number: number;
+            /** Content Md */
+            content_md: string;
+        };
+        /**
+         * EditTaskBody
+         * @description A task patch made on plan ``version``.
+         */
+        EditTaskBody: {
+            /** Description */
+            description?: string | null;
+            /** Estimate */
+            estimate?: number | null;
+            /** Labels */
+            labels?: string[] | null;
+            /** Phase Id */
+            phase_id?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Version */
+            version: number;
         };
         /**
          * EvidenceItem
@@ -864,6 +1105,72 @@ export interface components {
             title: string;
         };
         /**
+         * Phase
+         * @description A stored phase with its tasks in order.
+         */
+        Phase: {
+            /** Exit Criteria */
+            exit_criteria: string;
+            /** Goal */
+            goal: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+            /** Tasks */
+            tasks: components["schemas"]["Task"][];
+        };
+        /**
+         * Plan
+         * @description A stored plan: phases → tasks → dependencies, and its critical path.
+         */
+        Plan: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            critical_path: components["schemas"]["CriticalPath"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Phases */
+            phases: components["schemas"]["Phase"][];
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Spec Version Id
+             * Format: uuid
+             */
+            spec_version_id: string;
+            status: components["schemas"]["PlanStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * PlanStatus
+         * @description A plan is edited as a ``draft`` and fixed once ``ready``.
+         * @enum {string}
+         */
+        PlanStatus: "draft" | "ready";
+        /**
          * ProviderKeyView
          * @description A saved key as clients see it: masked, never the plaintext or ciphertext.
          */
@@ -908,6 +1215,59 @@ export interface components {
             model?: string | null;
             /** Value */
             value: string;
+        };
+        /**
+         * RemovePhase
+         * @description Remove a phase; its tasks go to the end of ``move_tasks_to``.
+         */
+        RemovePhase: {
+            /** Move Tasks To */
+            move_tasks_to?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "remove";
+            /**
+             * Phase Id
+             * Format: uuid
+             */
+            phase_id: string;
+        };
+        /**
+         * RenamePhase
+         * @description Change the name, goal or exit criteria of a phase (what is given changes).
+         */
+        RenamePhase: {
+            /** Exit Criteria */
+            exit_criteria?: string | null;
+            /** Goal */
+            goal?: string | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "rename";
+            /**
+             * Phase Id
+             * Format: uuid
+             */
+            phase_id: string;
+        };
+        /**
+         * ReorderPhases
+         * @description Put the phases in this order; every phase of the plan must be listed once.
+         */
+        ReorderPhases: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "reorder";
+            /** Phase Ids */
+            phase_ids: string[];
         };
         /**
          * ResearchItem
@@ -1198,6 +1558,89 @@ export interface components {
             settings: components["schemas"]["WorkspaceSettingsView"];
         };
         /**
+         * SpecConfirmed
+         * @description Result of a confirmation: the version, and the run it resumed (``None`` when none waited).
+         */
+        SpecConfirmed: {
+            confirmed: components["schemas"]["SpecVersion"];
+            /** Run Id */
+            run_id: string | null;
+        };
+        /**
+         * SpecOverview
+         * @description The latest version and the confirmed one (each ``None`` while there is none).
+         */
+        SpecOverview: {
+            confirmed: components["schemas"]["SpecVersion"] | null;
+            latest: components["schemas"]["SpecVersion"] | null;
+        };
+        /**
+         * SpecSource
+         * @description Who wrote a version.
+         * @enum {string}
+         */
+        SpecSource: "agent" | "user";
+        /**
+         * SpecVersion
+         * @description One version of an idea's spec.
+         */
+        SpecVersion: {
+            /** Content Md */
+            content_md: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Number */
+            number: number;
+            /** Run Id */
+            run_id: string | null;
+            /** Sections */
+            sections: {
+                [key: string]: string;
+            };
+            source: components["schemas"]["SpecSource"];
+        };
+        /** SpecVersionList */
+        SpecVersionList: {
+            /** Items */
+            items: components["schemas"]["SpecVersionSummary"][];
+        };
+        /**
+         * SpecVersionSummary
+         * @description A version without its text, for the version list.
+         */
+        SpecVersionSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Created By */
+            created_by: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Number */
+            number: number;
+            source: components["schemas"]["SpecSource"];
+        };
+        /**
          * Stage
          * @description Where an idea is in the flow. Moves go through ``helpers.transitions``.
          * @enum {string}
@@ -1275,6 +1718,31 @@ export interface components {
          */
         SuggestionStatusBody: {
             status: components["schemas"]["SuggestionStatus"];
+        };
+        /**
+         * Task
+         * @description A stored task; ``blocked_by`` lists the tasks that must finish first.
+         */
+        Task: {
+            /** Blocked By */
+            blocked_by: string[];
+            /** Description */
+            description: string;
+            /** Estimate */
+            estimate: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Labels */
+            labels: string[];
+            /** Parent Task Id */
+            parent_task_id: string | null;
+            /** Position */
+            position: number;
+            /** Title */
+            title: string;
         };
         /**
          * TurnSource
@@ -1738,6 +2206,41 @@ export interface operations {
             };
         };
     };
+    get_plan_v1_ideas__idea_id__plan_get: {
+        parameters: {
+            query?: {
+                spec_version_id?: string | null;
+            };
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     recheck_market_v1_ideas__idea_id__recheck_market_post: {
         parameters: {
             query?: never;
@@ -1982,6 +2485,180 @@ export interface operations {
             };
         };
     };
+    get_spec_v1_ideas__idea_id__spec_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    confirm_spec_v1_ideas__idea_id__spec_confirm_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmSpecBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecConfirmed"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_spec_versions_v1_ideas__idea_id__spec_versions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecVersionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_spec_v1_ideas__idea_id__spec_versions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditSpecBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecVersion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_spec_version_v1_ideas__idea_id__spec_versions__number__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+                number: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpecVersion"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_suggestions_v1_ideas__idea_id__suggestions_get: {
         parameters: {
             query?: {
@@ -2004,6 +2681,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_phases_v1_plans__plan_id__phases_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditPhasesBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_ready_v1_plans__plan_id__ready_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_task_v1_plans__plan_id__tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditTaskBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
                 };
             };
             /** @description Validation Error */

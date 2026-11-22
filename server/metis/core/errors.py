@@ -115,11 +115,13 @@ class ErrorCode(StrEnum):
     SPEC_NOT_FOUND = "spec.not_found"
     SPEC_CONFLICT = "spec.conflict"
     SPEC_INVALID_TRANSITION = "spec.invalid_transition"
+    SPEC_INVALID_SUBMISSION = "spec.invalid_submission"
 
     # ------------------------------------------------------------------------- plan
     PLAN_NOT_FOUND = "plan.not_found"
     PLAN_CONFLICT = "plan.conflict"
     PLAN_INVALID_TRANSITION = "plan.invalid_transition"
+    PLAN_INVALID_PLAN = "plan.invalid_plan"
 
     # -------------------------------------------------------------------------- mcp
     MCP_NOT_CONNECTED = "mcp.not_connected"
@@ -477,6 +479,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Invalid Spec Transition",
         retryable=False,
     ),
+    ErrorCode.SPEC_INVALID_SUBMISSION: ErrorSpec(
+        status=422,
+        title="Architect Gave No Valid Spec",
+        retryable=False,
+    ),
     # plan
     ErrorCode.PLAN_NOT_FOUND: ErrorSpec(
         status=404,
@@ -491,6 +498,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.PLAN_INVALID_TRANSITION: ErrorSpec(
         status=409,
         title="Invalid Plan Transition",
+        retryable=False,
+    ),
+    ErrorCode.PLAN_INVALID_PLAN: ErrorSpec(
+        status=422,
+        title="Invalid Plan",
         retryable=False,
     ),
     # mcp
@@ -806,6 +818,48 @@ class SuggestionNotFoundError(NotFoundError):
     code: ErrorCode = ErrorCode.SCORE_SUGGESTION_NOT_FOUND
 
 
+class SpecNotFoundError(NotFoundError):
+    """404: the idea has no such spec version (or no spec yet)."""
+
+    code: ErrorCode = ErrorCode.SPEC_NOT_FOUND
+
+
+class SpecConflictError(ConflictError):
+    """409: the edit or confirmation is based on a spec version that is no longer the latest."""
+
+    code: ErrorCode = ErrorCode.SPEC_CONFLICT
+
+
+class SpecNotEditableError(ConflictError):
+    """409: the spec can be edited or confirmed only while the idea is at ``spec_draft``."""
+
+    code: ErrorCode = ErrorCode.SPEC_INVALID_TRANSITION
+
+
+class PlanNotFoundError(NotFoundError):
+    """404: no such plan, phase or task in the caller's workspace (or its idea is archived)."""
+
+    code: ErrorCode = ErrorCode.PLAN_NOT_FOUND
+
+
+class PlanConflictError(ConflictError):
+    """409: the edit was made on a plan version that is no longer the current one."""
+
+    code: ErrorCode = ErrorCode.PLAN_CONFLICT
+
+
+class PlanNotEditableError(ConflictError):
+    """409: a plan that is ready can no longer be changed or replaced."""
+
+    code: ErrorCode = ErrorCode.PLAN_INVALID_TRANSITION
+
+
+class InvalidPlanError(MetisError):
+    """422: the plan breaks a rule; ``meta`` holds ``reason`` and the ``tasks`` involved."""
+
+    code: ErrorCode = ErrorCode.PLAN_INVALID_PLAN
+
+
 class InvalidRubricError(MetisError):
     """400: the stored rubric does not hold the six parameters weighing 100."""
 
@@ -853,6 +907,9 @@ __all__ = [
     "InvalidRubricError",
     "ScoreRunNotFoundError",
     "SuggestionNotFoundError",
+    "SpecNotFoundError",
+    "SpecConflictError",
+    "SpecNotEditableError",
 ]
 
 

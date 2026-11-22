@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from metis.agent.tools.ask_user import ADVICE_DECISION, APPROVAL, QUESTION
+from metis.agent.tools.ask_user import ADVICE_DECISION, APPROVAL, QUESTION, SPEC_REVIEW
 from metis.core.errors import InvalidInputError
 from metis.modules.ideas.dto.workflow_runs import AdviceResume
 
@@ -26,6 +26,8 @@ def check_resume_value(
         return _decision(value)
     if kind == ADVICE_DECISION:
         return _advice(value)
+    if kind == SPEC_REVIEW:
+        raise _invalid("Confirm the spec to continue the run")
     raise InvalidInputError("The run is not waiting for a known kind of input")
 
 

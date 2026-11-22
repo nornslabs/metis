@@ -147,3 +147,36 @@ async def set_current_score(
         .returning(IdeaRow.id)
     )
     return (await session.scalars(stmt)).one_or_none() is not None
+
+
+async def set_kind_if_null(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, kind: str
+) -> bool:
+    """Set ``kind`` only while the idea has none; ``False`` when no such idea or already set.
+
+    ``version`` is not bumped: it is the Architect's default, not a user edit.
+    """
+    stmt = (
+        update(IdeaRow)
+        .where(
+            IdeaRow.id == idea_id,
+            IdeaRow.workspace_id == workspace_id,
+            IdeaRow.archived_at.is_(None),
+            IdeaRow.kind.is_(None),
+        )
+        .values(kind=kind)
+        .returning(IdeaRow.id)
+    )
+    return (await session.scalars(stmt)).one_or_none() is not None
+
+
+async def set_confirmed_spec(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, version_id: UUID
+) -> None:
+    """Point the idea at the spec version the user confirmed."""
+    stmt = (
+        update(IdeaRow)
+        .where(IdeaRow.id == idea_id, IdeaRow.workspace_id == workspace_id)
+        .values(confirmed_spec_version_id=version_id)
+    )
+    await session.execute(stmt)
