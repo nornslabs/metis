@@ -15,7 +15,7 @@ from metis.helpers.text import strip, strip_to_none
 MAX_KEY_LENGTH = 512
 MAX_MODEL_LENGTH = 200
 MAX_BASE_URL_LENGTH = 2048
-LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "host.docker.internal"})
 # Validation context flag: allow http:// base URLs on LOCAL_HOSTS (development only).
 ALLOW_LOCAL_HTTP = "allow_local_http"
 
@@ -42,7 +42,7 @@ def _check_base_url(value: str, allow_local_http: bool) -> str:
     if parts.username or parts.password or parts.query or parts.fragment:
         raise ValueError("must not contain credentials, a query or a fragment")
     if parts.scheme == "http" and not (allow_local_http and parts.hostname in LOCAL_HOSTS):
-        raise ValueError("must use https (http only for localhost in development)")
+        raise ValueError("must use https (http only for local hosts in development)")
     return value.rstrip("/")
 
 
