@@ -20,6 +20,7 @@ transaction, and the terminal ``run_status`` event is published after its row is
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -130,6 +131,11 @@ async def execute_run(
             await _drive(deps, redis, publisher, lock, run, resume)
         except Exception as exc:  # noqa: BLE001  (every failure is recorded on the run)
             await _fail(deps, publisher, run, exc)
+        except asyncio.CancelledError as exc:
+            # Arq cancels a job that outlives its timeout. Record it, or the run would stay
+            # ``running`` with no lock and no worker until the next worker restart.
+            await asyncio.shield(_fail(deps, publisher, run, exc))
+            raise
 
 
 async def _drive(
@@ -311,7 +317,7 @@ async def _settle(
 
 
 async def _fail(
-    deps: RunnerDeps, publisher: RunEventPublisher, run: WorkflowRun, exc: Exception
+    deps: RunnerDeps, publisher: RunEventPublisher, run: WorkflowRun, exc: BaseException
 ) -> None:
     code = exc.code if isinstance(exc, MetisError) else ErrorCode.RUN_FAILED
     logger.exception("run.failed", code=code.value)

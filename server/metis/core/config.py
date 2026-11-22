@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     run_lock_heartbeat_seconds: int = Field(
         default=20, ge=1, validation_alias="RUN_LOCK_HEARTBEAT_SECONDS"
     )
+    # Hard cap on one agent job (Arq's default is 300s, shorter than a research run).
+    agent_job_timeout_seconds: int = Field(
+        default=1800, ge=60, validation_alias="AGENT_JOB_TIMEOUT_SECONDS"
+    )
     # Every specialist a stub (no LLM calls): for the web e2e stack, which has no LLM key.
     agent_stub_specialists: bool = Field(default=False, validation_alias="AGENT_STUB_SPECIALISTS")
 

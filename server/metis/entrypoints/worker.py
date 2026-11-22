@@ -85,6 +85,7 @@ class AgentWorkerSettings:
     functions = [ping, run_graph]
     queue_name = AGENT_QUEUE
     max_jobs = AGENT_MAX_JOBS
+    job_timeout = get_settings().agent_job_timeout_seconds
     on_startup = agent_on_startup
     on_shutdown = on_shutdown
     redis_settings = redis_settings()
