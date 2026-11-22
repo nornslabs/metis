@@ -121,6 +121,7 @@ class ErrorCode(StrEnum):
     PLAN_NOT_FOUND = "plan.not_found"
     PLAN_CONFLICT = "plan.conflict"
     PLAN_INVALID_TRANSITION = "plan.invalid_transition"
+    PLAN_INVALID_PLAN = "plan.invalid_plan"
 
     # -------------------------------------------------------------------------- mcp
     MCP_NOT_CONNECTED = "mcp.not_connected"
@@ -499,6 +500,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Invalid Plan Transition",
         retryable=False,
     ),
+    ErrorCode.PLAN_INVALID_PLAN: ErrorSpec(
+        status=422,
+        title="Invalid Plan",
+        retryable=False,
+    ),
     # mcp
     ErrorCode.MCP_NOT_CONNECTED: ErrorSpec(
         status=503,
@@ -828,6 +834,30 @@ class SpecNotEditableError(ConflictError):
     """409: the spec can be edited or confirmed only while the idea is at ``spec_draft``."""
 
     code: ErrorCode = ErrorCode.SPEC_INVALID_TRANSITION
+
+
+class PlanNotFoundError(NotFoundError):
+    """404: no such plan, phase or task in the caller's workspace (or its idea is archived)."""
+
+    code: ErrorCode = ErrorCode.PLAN_NOT_FOUND
+
+
+class PlanConflictError(ConflictError):
+    """409: the edit was made on a plan version that is no longer the current one."""
+
+    code: ErrorCode = ErrorCode.PLAN_CONFLICT
+
+
+class PlanNotEditableError(ConflictError):
+    """409: a plan that is ready can no longer be changed or replaced."""
+
+    code: ErrorCode = ErrorCode.PLAN_INVALID_TRANSITION
+
+
+class InvalidPlanError(MetisError):
+    """422: the plan breaks a rule; ``meta`` holds ``reason`` and the ``tasks`` involved."""
+
+    code: ErrorCode = ErrorCode.PLAN_INVALID_PLAN
 
 
 class InvalidRubricError(MetisError):

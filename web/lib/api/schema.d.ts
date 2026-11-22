@@ -239,6 +239,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Plan
+         * @description The idea's newest plan (or the one for ``spec_version_id``) with its critical path.
+         */
+        get: operations["get_plan_v1_ideas__idea_id__plan_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/recheck-market": {
         parameters: {
             query?: never;
@@ -434,7 +454,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Spec Version */
+        /**
+         * Get Spec Version
+         * @description One version of the spec, with its text.
+         */
         get: operations["get_spec_version_v1_ideas__idea_id__spec_versions__number__get"];
         put?: never;
         post?: never;
@@ -462,6 +485,66 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}/phases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Phases
+         * @description Rename, reorder, add or remove phases on plan ``version``; 409 when it is stale.
+         */
+        patch: operations["edit_phases_v1_plans__plan_id__phases_patch"];
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark Ready
+         * @description Fix the plan and emit ``PlanReady`` (once; asking again returns the plan unchanged).
+         */
+        post: operations["mark_ready_v1_plans__plan_id__ready_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/plans/{plan_id}/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit Task
+         * @description Change one task (text, estimate, labels, phase, position) on plan ``version``.
+         */
+        patch: operations["edit_task_v1_plans__plan_id__tasks__task_id__patch"];
         trace?: never;
     };
     "/v1/research/snapshots/{snapshot_id}": {
@@ -721,6 +804,25 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AddPhase
+         * @description Add a phase at ``position`` (last by default); later phases move down.
+         */
+        AddPhase: {
+            /** Exit Criteria */
+            exit_criteria: string;
+            /** Goal */
+            goal: string;
+            /** Name */
+            name: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "add";
+            /** Position */
+            position?: number | null;
+        };
+        /**
          * AdviceDecision
          * @description What the user chose after the Advisor's suggestions.
          * @enum {string}
@@ -767,6 +869,26 @@ export interface components {
             name: string;
         };
         /**
+         * CriticalPath
+         * @description The dependency chain with the most points: its tasks in order, and the sum.
+         */
+        CriticalPath: {
+            /** Points */
+            points: number;
+            /** Task Ids */
+            task_ids: string[];
+        };
+        /**
+         * EditPhasesBody
+         * @description Phase edits applied in order, all or none, on plan ``version``.
+         */
+        EditPhasesBody: {
+            /** Ops */
+            ops: (components["schemas"]["RenamePhase"] | components["schemas"]["ReorderPhases"] | components["schemas"]["AddPhase"] | components["schemas"]["RemovePhase"])[];
+            /** Version */
+            version: number;
+        };
+        /**
          * EditSpecBody
          * @description Body of ``POST /v1/ideas/{id}/spec/versions``: the new text and its base version.
          */
@@ -775,6 +897,26 @@ export interface components {
             base_number: number;
             /** Content Md */
             content_md: string;
+        };
+        /**
+         * EditTaskBody
+         * @description A task patch made on plan ``version``.
+         */
+        EditTaskBody: {
+            /** Description */
+            description?: string | null;
+            /** Estimate */
+            estimate?: number | null;
+            /** Labels */
+            labels?: string[] | null;
+            /** Phase Id */
+            phase_id?: string | null;
+            /** Position */
+            position?: number | null;
+            /** Title */
+            title?: string | null;
+            /** Version */
+            version: number;
         };
         /**
          * EvidenceItem
@@ -963,6 +1105,72 @@ export interface components {
             title: string;
         };
         /**
+         * Phase
+         * @description A stored phase with its tasks in order.
+         */
+        Phase: {
+            /** Exit Criteria */
+            exit_criteria: string;
+            /** Goal */
+            goal: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+            /** Tasks */
+            tasks: components["schemas"]["Task"][];
+        };
+        /**
+         * Plan
+         * @description A stored plan: phases → tasks → dependencies, and its critical path.
+         */
+        Plan: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            critical_path: components["schemas"]["CriticalPath"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Phases */
+            phases: components["schemas"]["Phase"][];
+            /** Ready At */
+            ready_at: string | null;
+            /**
+             * Spec Version Id
+             * Format: uuid
+             */
+            spec_version_id: string;
+            status: components["schemas"]["PlanStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * PlanStatus
+         * @description A plan is edited as a ``draft`` and fixed once ``ready``.
+         * @enum {string}
+         */
+        PlanStatus: "draft" | "ready";
+        /**
          * ProviderKeyView
          * @description A saved key as clients see it: masked, never the plaintext or ciphertext.
          */
@@ -1007,6 +1215,59 @@ export interface components {
             model?: string | null;
             /** Value */
             value: string;
+        };
+        /**
+         * RemovePhase
+         * @description Remove a phase; its tasks go to the end of ``move_tasks_to``.
+         */
+        RemovePhase: {
+            /** Move Tasks To */
+            move_tasks_to?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "remove";
+            /**
+             * Phase Id
+             * Format: uuid
+             */
+            phase_id: string;
+        };
+        /**
+         * RenamePhase
+         * @description Change the name, goal or exit criteria of a phase (what is given changes).
+         */
+        RenamePhase: {
+            /** Exit Criteria */
+            exit_criteria?: string | null;
+            /** Goal */
+            goal?: string | null;
+            /** Name */
+            name?: string | null;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "rename";
+            /**
+             * Phase Id
+             * Format: uuid
+             */
+            phase_id: string;
+        };
+        /**
+         * ReorderPhases
+         * @description Put the phases in this order; every phase of the plan must be listed once.
+         */
+        ReorderPhases: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            op: "reorder";
+            /** Phase Ids */
+            phase_ids: string[];
         };
         /**
          * ResearchItem
@@ -1457,6 +1718,31 @@ export interface components {
          */
         SuggestionStatusBody: {
             status: components["schemas"]["SuggestionStatus"];
+        };
+        /**
+         * Task
+         * @description A stored task; ``blocked_by`` lists the tasks that must finish first.
+         */
+        Task: {
+            /** Blocked By */
+            blocked_by: string[];
+            /** Description */
+            description: string;
+            /** Estimate */
+            estimate: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Labels */
+            labels: string[];
+            /** Parent Task Id */
+            parent_task_id: string | null;
+            /** Position */
+            position: number;
+            /** Title */
+            title: string;
         };
         /**
          * TurnSource
@@ -1920,6 +2206,41 @@ export interface operations {
             };
         };
     };
+    get_plan_v1_ideas__idea_id__plan_get: {
+        parameters: {
+            query?: {
+                spec_version_id?: string | null;
+            };
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     recheck_market_v1_ideas__idea_id__recheck_market_post: {
         parameters: {
             query?: never;
@@ -2360,6 +2681,114 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SuggestionList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_phases_v1_plans__plan_id__phases_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditPhasesBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_ready_v1_plans__plan_id__ready_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_task_v1_plans__plan_id__tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                plan_id: string;
+                task_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EditTaskBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Plan"];
                 };
             };
             /** @description Validation Error */
