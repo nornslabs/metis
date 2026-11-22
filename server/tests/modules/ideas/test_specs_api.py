@@ -108,7 +108,7 @@ async def test_a_version_is_read_by_number_and_an_unknown_one_is_not_found(
     found = await client.get(_spec(idea["id"], "/versions/1"), headers=ada.headers)
     missing = await client.get(_spec(idea["id"], "/versions/9"), headers=ada.headers)
 
-    assert found.json()["content_md"] == DRAFT
+    assert found.json()["content_md"] == DRAFT.strip()
     assert_problem(missing, 404, "spec.not_found")
 
 

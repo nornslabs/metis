@@ -46,6 +46,15 @@ SECTIONS = {
     "open_questions": "None.",
 }
 
+SCORE_PARAMS = (
+    "problem_severity",
+    "uniqueness",
+    "market_demand",
+    "value",
+    "feasibility",
+    "timing",
+)
+
 
 def save_spec(kind: str = "software", **overrides: str) -> Reply:
     return call("save_spec", kind=kind, **{**SECTIONS, **overrides})
@@ -131,6 +140,15 @@ async def _accepted_and_open_suggestions(engine: AsyncEngine, run: QueuedRun) ->
                 "FROM ideas.workflow_runs WHERE id = :run"
             ),
             {"id": score_run_id, "run": run.run_id},
+        )
+        await conn.execute(
+            text(
+                "INSERT INTO scoring.score_params (score_run_id, workspace_id, param, raw, "
+                "weighted, reason, confidence, no_evidence, evidence) "
+                "SELECT :id, workspace_id, p, 4, 10, 'Weak.', 0.30, true, '[]'::jsonb "
+                "FROM ideas.workflow_runs, unnest(CAST(:params AS text[])) AS p WHERE id = :run"
+            ),
+            {"id": score_run_id, "run": run.run_id, "params": list(SCORE_PARAMS)},
         )
         for title, status in (("Niche down to agencies", "accepted"), ("Add a mobile app", "open")):
             await conn.execute(

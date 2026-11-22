@@ -51,13 +51,22 @@ async def _get(
 async def test_a_plan_is_read_with_phases_tasks_dependencies_and_critical_path(
     client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
 ) -> None:
-    ada, idea, spec_id, plan = await planned(client, engine, app_sessions)
+    ada, idea, spec_id, _ = await planned(client, engine, app_sessions)
+    # The default plan ties: a then c is 3 + 2 = 5 points, the same as the lone b, and a tie
+    # goes to the earlier task. A bigger c makes the chain the critical path.
+    plan = await save(
+        app_sessions,
+        ada,
+        idea["id"],
+        spec_id,
+        plan_input([task("a"), task("b", estimate=5), task("c", phase=1, estimate=3)]),
+    )
 
     response = await _get(client, ada, idea["id"])
 
     assert response.status_code == 200, response.text
     body = response.json()
-    assert (body["id"], body["status"], body["version"]) == (str(plan.id), "draft", 1)
+    assert (body["id"], body["status"], body["version"]) == (str(plan.id), "draft", 2)
     assert body["spec_version_id"] == str(spec_id)
     assert titles(body) == [["Task a", "Task b"], ["Task c"]]
     assert [p["name"] for p in body["phases"]] == ["Phase 0", "Phase 1"]
@@ -65,7 +74,7 @@ async def test_a_plan_is_read_with_phases_tasks_dependencies_and_critical_path(
     assert c["blocked_by"] == [str(task_id(plan, "a"))]
     assert body["critical_path"] == {
         "task_ids": [str(task_id(plan, "a")), str(task_id(plan, "c"))],
-        "points": 5,
+        "points": 6,
     }
 
 
