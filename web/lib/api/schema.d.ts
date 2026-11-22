@@ -1126,6 +1126,16 @@ export interface components {
             tasks: components["schemas"]["Task"][];
         };
         /**
+         * PhaseReviewResume
+         * @description The answer to a ``phase_review`` interrupt: the phases to write tasks for, in order.
+         *
+         *     Approving the proposal as it is means sending the proposed list back.
+         */
+        PhaseReviewResume: {
+            /** Phases */
+            phases: components["schemas"]["ReviewedPhase"][];
+        };
+        /**
          * Plan
          * @description A stored plan: phases → tasks → dependencies, and its critical path.
          */
@@ -1335,11 +1345,23 @@ export interface components {
         };
         /**
          * ResumeBody
-         * @description The user's answer: text for a question, true/false for an approval, or an advice decision.
+         * @description The user's answer: text for a question, true/false for an approval, or a decision.
          */
         ResumeBody: {
             /** Value */
-            value: string | boolean | components["schemas"]["AdviceResume"];
+            value: string | boolean | components["schemas"]["AdviceResume"] | components["schemas"]["PhaseReviewResume"];
+        };
+        /**
+         * ReviewedPhase
+         * @description One phase as the user left it at the ``phase_review`` interrupt.
+         */
+        ReviewedPhase: {
+            /** Exit Criteria */
+            exit_criteria: string;
+            /** Goal */
+            goal: string;
+            /** Name */
+            name: string;
         };
         /**
          * RunCancelResult

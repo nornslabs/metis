@@ -26,7 +26,7 @@ from metis.modules import identity
 from metis.modules.ideas import repo
 from metis.modules.ideas.dto import (
     DEFAULT_PAGE_SIZE,
-    AdviceResume,
+    ResumeValue,
     RunKind,
     RunPage,
     RunRef,
@@ -160,7 +160,10 @@ async def _start_run(
 
 
 async def prepare_resume(
-    session: AsyncSession, workspace_id: UUID, run_id: UUID, value: str | bool | AdviceResume
+    session: AsyncSession,
+    workspace_id: UUID,
+    run_id: UUID,
+    value: ResumeValue,
 ) -> tuple[WorkflowRun, str | bool | dict[str, Any]]:
     """The run and the checked value to resume it with; only an ``awaiting_user`` run resumes."""
     run = await get_run(session, workspace_id, run_id)

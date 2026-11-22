@@ -43,6 +43,7 @@ from metis.agent.run_lock import RunLock, hold_run_lock
 from metis.agent.specialists.advisor import build_advisor
 from metis.agent.specialists.architect import build_architect
 from metis.agent.specialists.interviewer import build_interviewer
+from metis.agent.specialists.planner import build_planner
 from metis.agent.specialists.researcher import build_researcher
 from metis.agent.specialists.scorer import build_scorer
 from metis.agent.specialists.stubs import SpecialistNode
@@ -260,6 +261,7 @@ def _specialists(
             deps.exa_http_client or provider_http_factory(),
         )
         real[Specialist.ARCHITECT] = build_architect(gateway, partial(_scoped, deps))
+        real[Specialist.PLANNER] = build_planner(gateway, partial(_scoped, deps))
     return {**real, **(deps.specialists or {})}
 
 
