@@ -2,14 +2,14 @@
 
 Adds two columns to ``identity.workspace_settings``:
 - ``sarvam_api_key``: encrypted Sarvam STT API key (nullable, text)
-- ``stt_provider``: speech-to-text provider selection (sarvam | web-speech | mock, default web-speech)
+- ``stt_provider``: speech-to-text provider selection (sarvam | web-speech
+  | mock, default web-speech)
 """
 
 from datetime import datetime
 
 import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 revision = "0022_stt_settings"
 down_revision = "0021_planning"

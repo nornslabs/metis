@@ -36,7 +36,10 @@ async def get_settings_overview(session: AsyncSession, workspace_id: UUID) -> Se
             for row in await repo.provider_keys.list_for_workspace(session, workspace_id)
         }
         settings = await repo.settings.get(session, workspace_id)
-    return SettingsResponse(keys=ProviderKeys(**keys, sarvam=keys.get("sarvam")), settings=_settings_view(settings))
+    return SettingsResponse(
+        keys=ProviderKeys(**keys, sarvam=keys.get("sarvam")),
+        settings=_settings_view(settings),
+    )
 
 
 async def update_settings(
