@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { Composer } from "@/components/chat/composer";
+import { VoiceButton } from "@/components/chat/voice-button";
 import { ConversationLayout } from "@/components/chat/conversation-layout";
 import { Dock } from "@/components/chat/dock";
 import { OutputCards } from "@/components/chat/output-cards";
@@ -21,11 +22,13 @@ import { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { useRunPrompts } from "@/components/chat/use-run-prompts";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
 import { queryKeys } from "@/lib/api/queries/keys";
+import { getSTTClientProvider } from "@/lib/stt/config";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useInterview } from "@/lib/api/queries/use-interview";
 import { useResearch } from "@/lib/api/queries/use-research";
 import { useSuggestions } from "@/lib/api/queries/use-suggestions";
 import { useRunSync } from "@/lib/api/queries/use-run-sync";
+import { toast } from "sonner";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { pickedLabel } from "@/lib/chat/choice";
@@ -176,6 +179,26 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   });
 
   const formError = form.formState.errors.text?.message ?? answers.error ?? stopError ?? startError;
+
+  /** Voice input: transcribe the recorded blob and populate the text field. */
+  const voice = (
+    <VoiceButton
+      onBlob={async (blob) => {
+        try {
+          const provider = getSTTClientProvider();
+          const transcript = await provider.transcribe(blob);
+          if (transcript.trim()) {
+            form.setValue("text", transcript);
+          } else {
+            toast.error("Nothing heard. Try again.");
+          }
+        } catch {
+          toast.error("Transcription failed. You can still type.");
+        }
+      }}
+    />
+  );
+
   const composer = (
     <Composer
       frameBand={false}
@@ -191,6 +214,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
       onStop={stop}
       onBack={offered !== null ? () => setOtherSeq(null) : undefined}
       error={formError}
+      voice={voice}
       above={
         question !== null && offered === null ? (
           <QuickReplies
