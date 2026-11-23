@@ -1,4 +1,6 @@
 import {
+  UNREADABLE_PAUSE_CODE,
+  UNREADABLE_PAUSE_TEXT,
   interruptSchema,
   runErrorSchema,
   runStatusSchema,
@@ -68,10 +70,11 @@ export function isTerminalStatus(status: string): boolean {
 export function initialRunState(seed: RunSeed): RunState {
   const status = runStatusSchema.catch("queued").parse(seed.status);
   const error = seed.error ? runErrorSchema.catch(FALLBACK_ERROR).parse(seed.error) : null;
-  const interrupt = seed.pending_interrupt
-    ? (interruptSchema.safeParse(seed.pending_interrupt).data ?? null)
-    : null;
-  return { status, steps: [], notices: [], text: "", error, interrupt, interruptCount: 0, scoreRunId: null };
+  const parsed = seed.pending_interrupt ? interruptSchema.safeParse(seed.pending_interrupt) : null;
+  const interrupt = parsed?.success ? parsed.data : null;
+  const notices: readonly RunNotice[] =
+    parsed && !parsed.success ? [{ code: UNREADABLE_PAUSE_CODE, text: UNREADABLE_PAUSE_TEXT }] : [];
+  return { status, steps: [], notices, text: "", error, interrupt, interruptCount: 0, scoreRunId: null };
 }
 
 function lastIndexOfNode(steps: readonly RunStep[], node: string): number {

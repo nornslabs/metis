@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { EdgeToggle } from "@/components/chat/edge-toggle";
 import { HistoryPanel } from "@/components/history/history-panel";
 import { OutputPanel } from "@/components/panel/output-panel";
+import { OutputRegistryProvider } from "@/lib/workspace/output-registry";
 import { useNarrow } from "@/lib/workspace/use-narrow";
 import { WorkspacePanelsProvider, useWorkspacePanels } from "@/lib/workspace/workspace-panels";
 
@@ -50,8 +51,10 @@ function WorkspaceRow({ children }: { children: ReactNode }) {
 /** `[history panel | chat pane | output panel]` inside the frame (ui-context.md, Layout). */
 export function WorkspaceLayout({ children }: { children: ReactNode }) {
   return (
-    <WorkspacePanelsProvider>
-      <WorkspaceRow>{children}</WorkspaceRow>
-    </WorkspacePanelsProvider>
+    <OutputRegistryProvider>
+      <WorkspacePanelsProvider>
+        <WorkspaceRow>{children}</WorkspaceRow>
+      </WorkspacePanelsProvider>
+    </OutputRegistryProvider>
   );
 }

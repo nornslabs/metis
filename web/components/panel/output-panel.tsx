@@ -5,6 +5,7 @@ import { useRef, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useOutputAvailability } from "@/lib/workspace/output-availability";
+import { useMarkOutputSeen, useOutputContent } from "@/lib/workspace/output-registry";
 import { OUTPUT_PANES, type OutputPane } from "@/lib/workspace/panes";
 import { useFocusOnOverlayOpen } from "@/lib/workspace/use-focus-on-open";
 import { useWorkspacePanels } from "@/lib/workspace/workspace-panels";
@@ -21,13 +22,15 @@ const PANE_LABEL: Record<OutputPane, string> = {
 /**
  * The right panel's shell: a tab strip with a close button and a body slot, `clamp(360px, 36vw,
  * 500px)` wide, pushing the chat pane (a full-screen overlay under 820px). The panes' content
- * is filled by SHIP-290 and later; a pane without content has a disabled tab.
+ * is filled by SHIP-290 and later (until then the idea page registers the existing score and research views through the output registry); a pane without content has a disabled tab.
  */
 export function OutputPanel({ children }: { children?: ReactNode }) {
   const { outputOpen, pane, openOutput, closeOutput } = useWorkspacePanels();
   const { panes: withContent } = useOutputAvailability();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const registered = useOutputContent(pane);
   useFocusOnOverlayOpen(outputOpen, closeRef);
+  useMarkOutputSeen(outputOpen);
 
   return (
     <aside
@@ -88,7 +91,7 @@ export function OutputPanel({ children }: { children?: ReactNode }) {
           aria-labelledby={pane ? `output-tab-${pane}` : undefined}
           className="min-h-0 flex-1 overflow-y-auto"
         >
-          {children ?? <p className="p-4 text-note text-muted-foreground">Nothing to show here yet.</p>}
+          {children ?? registered ?? <p className="p-4 text-note text-muted-foreground">Nothing to show here yet.</p>}
         </div>
       </div>
     </aside>

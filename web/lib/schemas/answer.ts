@@ -23,3 +23,16 @@ export type AnswerFormValues = z.input<typeof answerSchema>;
 export function toAnswer(values: AnswerFormValues): string {
   return values.text.trim();
 }
+
+/** What `POST /v1/runs/{id}/resume` takes for a question: typed text, a typed "Something else", or picks. */
+export type QuestionResumeValue = string | { option_ids: string[]; text?: string };
+
+/** The value for typed text: a plain string for a plain question, `{text}` when the question offered options. */
+export function textValue(text: string, offeredOptions: boolean): QuestionResumeValue {
+  return offeredOptions ? { option_ids: [], text } : text;
+}
+
+/** The value for picked options; the server turns the ids into the saved labels. */
+export function pickValue(optionIds: readonly string[]): QuestionResumeValue {
+  return { option_ids: [...optionIds] };
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, ChevronLeft, Square } from "lucide-react";
 import { useId, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type TextareaHTMLAttributes } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,10 @@ export interface ComposerProps {
   error?: string | null;
   /** A row above the textarea inside the band, e.g. quick replies. */
   above?: ReactNode;
+  /** Back to the answer options (after "Something else"); the button shows only when given. */
+  onBack?: () => void;
+  /** False inside a `Dock`, which carries the input band line itself. */
+  frameBand?: boolean;
 }
 
 /** Space-joined ids for `aria-describedby`; undefined when there are none. */
@@ -64,13 +68,13 @@ function ActionButton({ action, canSend, onStop }: Pick<ComposerProps, "action" 
  * The prompt input in the band at the bottom of the chat column: auto-growing textarea, hint and
  * a send button that becomes Stop while a run is active (ui-context.md, Composer).
  */
-export function Composer({ textarea, label, action, canSend, onSubmit, onStop, error, above }: ComposerProps) {
+export function Composer({ textarea, label, action, canSend, onSubmit, onStop, error, above, onBack, frameBand = true }: ComposerProps) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const hint = action === "stopping" ? "Stopping…" : "Enter to send";
 
   return (
-    <div data-frame="band" className="relative shrink-0">
+    <div data-frame={frameBand ? "band" : undefined} className="relative shrink-0">
       <form
         noValidate
         onSubmit={onSubmit}
@@ -95,6 +99,18 @@ export function Composer({ textarea, label, action, canSend, onSubmit, onStop, e
           </p>
         ) : null}
         <div className="flex items-center justify-end gap-2 pt-1">
+          {onBack ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button type="button" variant="ghost" size="icon-xs" aria-label="Back to options" onClick={onBack} className="mr-auto size-6.5" />
+                }
+              >
+                <ChevronLeft size={15} strokeWidth={2} />
+              </TooltipTrigger>
+              <TooltipContent>Back to options</TooltipContent>
+            </Tooltip>
+          ) : null}
           <kbd aria-live="polite" className="font-mono text-eyebrow text-muted-foreground max-compact:hidden">
             {hint}
           </kbd>

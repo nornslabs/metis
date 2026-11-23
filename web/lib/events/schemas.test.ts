@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { parseRunEvent } from "./schemas";
+import { UNREADABLE_PAUSE_CODE, parseRunEvent } from "./schemas";
 
 const RUN_ID = "0196d6c4-0000-7000-8000-000000000001";
 
@@ -112,5 +112,59 @@ describe("parseRunEvent", () => {
       type: "interrupt",
       interrupt: { kind: "advice_decision", text: "s-1", scoreRunId: "s-1", total: 48, band: "advise" },
     });
+  });
+
+  test("reads a question with options, ids, a best fit and progress", () => {
+    const parsed = parseRunEvent(
+      "interrupt",
+      frame("interrupt", {
+        type: "question",
+        question: "Who is it for?",
+        multi: false,
+        options: [
+          { id: "o1", label: "Solo freelancers", detail: "One person.", recommended: true },
+          { id: "o2", label: "Small agencies", recommended: false },
+        ],
+        allow_free_text: true,
+        index: 2,
+        total: 5,
+      }),
+    );
+    expect(parsed).toEqual({
+      type: "interrupt",
+      interrupt: {
+        kind: "question",
+        text: "Who is it for?",
+        multi: false,
+        options: [
+          { id: "o1", label: "Solo freelancers", detail: "One person.", recommended: true },
+          { id: "o2", label: "Small agencies", recommended: false },
+        ],
+        allowFreeText: true,
+        index: 2,
+        total: 5,
+      },
+    });
+  });
+
+  test("reads a question the server sent with no options at all", () => {
+    const parsed = parseRunEvent(
+      "interrupt",
+      frame("interrupt", { type: "question", question: "Why?", multi: false, options: [], allow_free_text: true, index: 1, total: 4 }),
+    );
+    expect(parsed).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "question", text: "Why?", multi: false, options: [], allowFreeText: true, index: 1, total: 4 },
+    });
+  });
+
+  test.each([
+    ["an option without an id", { type: "question", question: "Q?", options: [{ label: "A" }] }],
+    ["options that are not a list", { type: "question", question: "Q?", options: "A" }],
+    ["an index of zero", { type: "question", question: "Q?", index: 0 }],
+    ["a question without text", { type: "question", options: [] }],
+  ])("turns an unreadable question (%s) into a notice, never an exception", (_name, payload) => {
+    const parsed = parseRunEvent("interrupt", frame("interrupt", payload));
+    expect(parsed).toMatchObject({ type: "notice", code: UNREADABLE_PAUSE_CODE });
   });
 });

@@ -148,6 +148,8 @@ test.describe("score card", () => {
   test("shows the total, band, last checked and six bars", async ({ page }) => {
     const { idea } = await fakeScoredIdea(page, { band: "promising", total: 62, raw: 6 });
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     const card = page.getByRole("region", { name: "Score" });
     await expect(card.getByText("62")).toBeVisible();
@@ -159,6 +161,8 @@ test.describe("score card", () => {
   test("a bar opens its reason, evidence and confidence; no evidence says so", async ({ page }) => {
     const { idea } = await fakeScoredIdea(page);
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: /^Uniqueness: 4 out of 10/ }).click();
     await expect(page.getByText("Reason for uniqueness (48)")).toBeVisible();
@@ -175,6 +179,8 @@ test.describe("score card", () => {
   test("history lists both runs and compare shows signed deltas with reasons", async ({ page }) => {
     const { idea } = await fakeScoredIdea(page);
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await expect(page.getByRole("button", { name: /^48 \/ 100 · Advise/ })).toBeVisible();
     const compare = page.getByRole("button", { name: "Compare" });
@@ -192,6 +198,8 @@ test.describe("score card", () => {
   test("accept, undo and dismiss a suggestion; the choice survives a reload", async ({ page }) => {
     const { idea, state } = await fakeScoredIdea(page);
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await expect(page.getByText("Narrow to freelancers")).toBeVisible();
     await page.getByRole("button", { name: "Accept" }).click();
@@ -211,6 +219,8 @@ test.describe("advice decision", () => {
     const { idea, runId } = await fakeScoredIdea(page, { advice: true });
     const bodies = await captureResume(page, runId);
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await expect(page.getByRole("group", { name: "Decide what happens next" })).toBeVisible();
     await expect(page.getByLabel("Reply to Metis")).toHaveAttribute("placeholder", "Decide above");
@@ -224,6 +234,8 @@ test.describe("advice decision", () => {
     const { idea, runId } = await fakeScoredIdea(page, { advice: true });
     const bodies = await captureResume(page, runId);
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: "Stop here" }).click();
     await expect.poll(() => bodies).toEqual([{ value: { decision: "stop", accepted_suggestion_ids: [] } }]);
@@ -233,6 +245,8 @@ test.describe("advice decision", () => {
     const { idea, runId } = await fakeScoredIdea(page, { advice: true });
     const bodies = await captureResume(page, runId);
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: "Accept" }).click();
     await page.getByRole("button", { name: "Revise idea and rescore" }).click();
@@ -266,6 +280,8 @@ test.describe("advice decision", () => {
       fulfillProblem(route, 409, "run.invalid_state", "The run is not waiting."),
     );
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: "Stop here" }).click();
     await expect(page.getByText("This run already moved on.")).toBeVisible();
@@ -285,6 +301,8 @@ test.describe("refresh actions", () => {
       return fulfillJson(route, { run_id: "00000000-0000-4000-8000-0000000000c2" }, 202);
     });
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: "Re-check market" }).click();
     await expect.poll(() => calls.length).toBe(1);
@@ -302,6 +320,8 @@ test.describe("refresh actions", () => {
       fulfillProblem(route, 404, "research.not_found", "No research"),
     );
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: "Re-check market" }).click();
     await expect(page.getByText("Run research first: there is no finished research to re-check.")).toBeVisible();
@@ -313,6 +333,8 @@ test.describe("refresh actions", () => {
       fulfillProblem(route, 409, "run.already_running", "Already running"),
     );
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await page.getByRole("button", { name: "Rescore" }).click();
     await expect(page.getByText("A run is already in progress for this idea.")).toBeVisible();
@@ -321,6 +343,8 @@ test.describe("refresh actions", () => {
   test("both buttons wait while a run is active", async ({ page }) => {
     const { idea } = await fakeScoredIdea(page, { waiting: true });
     await page.goto(`/ideas/${idea.id}`);
+    // The score lives in the output panel; the chat holds one card that opens it.
+    await page.locator('[data-pane="score"]').click();
 
     await expect(page.getByRole("button", { name: "Re-check market" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Rescore" })).toBeDisabled();
