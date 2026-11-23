@@ -122,6 +122,7 @@ class ErrorCode(StrEnum):
     PLAN_CONFLICT = "plan.conflict"
     PLAN_INVALID_TRANSITION = "plan.invalid_transition"
     PLAN_INVALID_PLAN = "plan.invalid_plan"
+    PLAN_INVALID_SUBMISSION = "plan.invalid_submission"
 
     # -------------------------------------------------------------------------- mcp
     MCP_NOT_CONNECTED = "mcp.not_connected"
@@ -503,6 +504,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.PLAN_INVALID_PLAN: ErrorSpec(
         status=422,
         title="Invalid Plan",
+        retryable=False,
+    ),
+    ErrorCode.PLAN_INVALID_SUBMISSION: ErrorSpec(
+        status=422,
+        title="Planner Gave No Valid Plan",
         retryable=False,
     ),
     # mcp

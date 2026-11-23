@@ -29,6 +29,11 @@ ACTIVE = ["queued", "running", "awaiting_user"]
 TERMINAL = ["succeeded", "failed", "cancelled"]
 QUESTION = {"type": "question", "question": "Who is it for?"}
 APPROVAL = {"type": "approval", "action": "create_issue", "details": "Create SHIP-1"}
+PHASE_REVIEW = {"type": "phase_review", "phases": []}
+PHASES = [
+    {"name": "Foundations", "goal": "Set up.", "exit_criteria": "Base runs."},
+    {"name": "Launch", "goal": "Ship.", "exit_criteria": "Live."},
+]
 ADVICE = {"type": "advice_decision", "score_run_id": str(uuid4()), "total": 40, "band": "advise"}
 
 
@@ -403,6 +408,64 @@ async def test_an_advice_decision_does_not_answer_a_question_or_approval(
     queue.clear()
 
     response = await _resume(client, ada, run_id, {"decision": "continue"})
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
+
+
+async def test_resume_carries_the_reviewed_phases(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, PHASE_REVIEW)
+    queue.clear()
+    edited = [{**PHASES[0], "name": "  Base  "}, PHASES[1]]
+
+    response = await _resume(client, ada, run_id, {"phases": edited})
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"] == {"phases": [{**PHASES[0], "name": "Base"}, PHASES[1]]}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        {"phases": []},
+        {"phases": [PHASES[0]] * 13},
+        {"phases": [{**PHASES[0], "name": ""}]},
+        {"phases": [{**PHASES[0], "name": "x" * 121}]},
+        {"phases": [{**PHASES[0], "goal": "x" * 1_001}]},
+        {"phases": [{"name": "Only a name"}]},
+        {"phases": PHASES, "extra": 1},
+        "approve",
+        True,
+    ],
+)
+async def test_a_phase_review_value_that_does_not_fit_is_422(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    value: Any,
+) -> None:
+    ada, run_id = await _waiting(client, engine, PHASE_REVIEW)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert response.status_code == 422, response.text
+    assert queue == []
+
+
+@pytest.mark.parametrize("interrupt", [QUESTION, APPROVAL, ADVICE])
+async def test_reviewed_phases_do_not_answer_another_kind_of_interrupt(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    interrupt: dict[str, Any],
+) -> None:
+    ada, run_id = await _waiting(client, engine, interrupt)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"phases": PHASES})
 
     assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
     assert queue == []

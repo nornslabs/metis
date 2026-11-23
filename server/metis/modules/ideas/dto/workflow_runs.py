@@ -23,6 +23,21 @@ from metis.modules.ideas.dto.ideas import MAX_RAW_TEXT_LENGTH, MIN_RAW_TEXT_LENG
 
 MAX_CONTINUATION_PROMPT_LENGTH = 10_000
 MAX_ACCEPTED = 5
+# The planning module's phase limits (``ideas`` cannot import ``planning``); the Planner checks
+# the reviewed list against planning's own rules again when it saves the plan.
+MAX_REVIEWED_PHASES = 12
+MAX_PHASE_NAME_LENGTH = 120
+MAX_PHASE_TEXT_LENGTH = 1_000
+PhaseName = Annotated[
+    StrictStr,
+    BeforeValidator(strip),
+    Field(min_length=1, max_length=MAX_PHASE_NAME_LENGTH),
+]
+PhaseText = Annotated[
+    StrictStr,
+    BeforeValidator(strip),
+    Field(min_length=1, max_length=MAX_PHASE_TEXT_LENGTH),
+]
 ContinuationPrompt = Annotated[
     StrictStr,
     BeforeValidator(strip),
@@ -135,10 +150,34 @@ class AdviceResume(FrozenModel):
         return self
 
 
-class ResumeBody(BaseModel):
-    """The user's answer: text for a question, true/false for an approval, or an advice decision."""
+class ReviewedPhase(FrozenModel):
+    """One phase as the user left it at the ``phase_review`` interrupt."""
 
-    value: StrictStr | StrictBool | AdviceResume
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    name: PhaseName
+    goal: PhaseText
+    exit_criteria: PhaseText
+
+
+class PhaseReviewResume(FrozenModel):
+    """The answer to a ``phase_review`` interrupt: the phases to write tasks for, in order.
+
+    Approving the proposal as it is means sending the proposed list back.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    phases: tuple[ReviewedPhase, ...] = Field(min_length=1, max_length=MAX_REVIEWED_PHASES)
+
+
+ResumeValue = StrictStr | StrictBool | AdviceResume | PhaseReviewResume
+
+
+class ResumeBody(BaseModel):
+    """The user's answer: text for a question, true/false for an approval, or a decision."""
+
+    value: ResumeValue
 
 
 class StartRunBody(BaseModel):
