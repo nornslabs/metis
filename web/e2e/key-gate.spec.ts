@@ -196,6 +196,7 @@ test.describe("research skipped notice", () => {
       const notices = page.getByRole("list", { name: "Notices" });
       await expect(notices).toContainText("Research is skipped: Exa isn't set up.");
       await expect(notices.getByRole("link", { name: "Add an Exa key for a new run" })).toBeVisible();
+      await page.getByRole("button", { name: /^Skipped 1 step/ }).click();
       await expect(page.getByRole("list", { name: "Steps" }).getByRole("listitem")).toHaveCount(1);
       await expect(page.getByRole("list", { name: "Steps" })).toContainText("(skipped)");
       await expect(page.getByText("Run finished.")).toBeVisible();

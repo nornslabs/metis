@@ -42,6 +42,41 @@ describe("runReducer, scores", () => {
     expect(state.scoreRunId).toBe("s-2");
   });
 
+  test("seeds a pending question with its options from the run view", () => {
+    const state = initialRunState({
+      status: "awaiting_user",
+      error: null,
+      pending_interrupt: {
+        type: "question",
+        question: "Who?",
+        multi: true,
+        options: [{ id: "o1", label: "A", recommended: true }],
+        allow_free_text: false,
+        index: 1,
+        total: 3,
+      },
+    });
+    expect(state.interrupt).toEqual({
+      kind: "question",
+      text: "Who?",
+      multi: true,
+      options: [{ id: "o1", label: "A", recommended: true }],
+      allowFreeText: false,
+      index: 1,
+      total: 3,
+    });
+  });
+
+  test("shows a note instead of a question when the pending question cannot be read", () => {
+    const state = initialRunState({
+      status: "awaiting_user",
+      error: null,
+      pending_interrupt: { type: "question", question: "Who?", options: "A" },
+    });
+    expect(state.interrupt).toBeNull();
+    expect(state.notices.map((notice) => notice.code)).toEqual(["interrupt.unreadable"]);
+  });
+
   test("seeds a pending advice decision from the run view", () => {
     const state = initialRunState({
       status: "awaiting_user",

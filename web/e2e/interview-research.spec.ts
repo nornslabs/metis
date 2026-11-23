@@ -109,7 +109,9 @@ test.describe("interview in the chat", () => {
 
     await expect.poll(() => bodies).toEqual([{ value: "Freelancers" }]);
     await expect(page.getByText("Freelancers", { exact: true })).toBeVisible();
-    await expect(composer(page)).toBeDisabled();
+    // The run is about to move on: the dock shows the working bar, not the composer.
+    await expect(page.getByRole("button", { name: "Stop" })).toBeVisible();
+    await expect(composer(page)).toHaveCount(0);
   });
 
   test("Shift+Enter adds a line and sends nothing", async ({ page }) => {
@@ -329,6 +331,7 @@ test.describe("research view", () => {
       return calls === 1 ? fulfillProblem(route, 404, "research.not_found", "No research yet") : fulfillJson(route, RESEARCH);
     });
     await page.goto(`/ideas/${idea.id}`);
+    await page.locator('[data-pane="research"]').click();
     await expect(page.getByText("2 competitors · 1 fact")).toBeVisible();
   });
 
@@ -336,6 +339,7 @@ test.describe("research view", () => {
     const { idea } = await fakeRun(page, { events: RESEARCH_DONE });
     await page.route(`**/v1/ideas/${idea.id}/research`, (route) => fulfillJson(route, RESEARCH));
     await page.goto(`/ideas/${idea.id}`);
+    await page.locator('[data-pane="research"]').click();
 
     const panel = page.locator("details", { hasText: "Research" });
     await expect(panel.getByText("2 competitors · 1 fact")).toBeVisible();
@@ -359,6 +363,7 @@ test.describe("research view", () => {
     const { idea } = await fakeRun(page, { events: RESEARCH_DONE });
     await page.route(`**/v1/ideas/${idea.id}/research`, (route) => fulfillJson(route, RESEARCH));
     await page.goto(`/ideas/${idea.id}`);
+    await page.locator('[data-pane="research"]').click();
 
     const summary = page.locator("summary");
     await summary.focus();
@@ -377,6 +382,7 @@ test.describe("research view", () => {
     await expect(page.getByText("Could not load the research.")).toBeVisible();
     failing = false;
     await page.getByRole("button", { name: "Retry" }).click();
+    await page.locator('[data-pane="research"]').click();
     await expect(page.getByText("2 competitors · 1 fact")).toBeVisible();
   });
 
@@ -385,6 +391,7 @@ test.describe("research view", () => {
     const unsafe = { ...RESEARCH, items: [{ ...RESEARCH.items[0], url: "javascript:alert(1)" }], competitors: [] };
     await page.route(`**/v1/ideas/${idea.id}/research`, (route) => fulfillJson(route, unsafe));
     await page.goto(`/ideas/${idea.id}`);
+    await page.locator('[data-pane="research"]').click();
 
     await expect(page.getByText("No source")).toBeVisible();
     await expect(page.locator('a[href^="javascript:"]')).toHaveCount(0);
@@ -395,6 +402,7 @@ test.describe("research view", () => {
     const { idea } = await fakeRun(page, { events: RESEARCH_DONE });
     await page.route(`**/v1/ideas/${idea.id}/research`, (route) => fulfillJson(route, RESEARCH));
     await page.goto(`/ideas/${idea.id}`);
+    await page.locator('[data-pane="research"]').click();
 
     await expect(page.getByText("Overlap 62%")).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);

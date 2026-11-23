@@ -2,13 +2,15 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
-import { AdviceDecision } from "@/components/chat/advice-decision";
-import { ApprovalPrompt } from "@/components/chat/approval-prompt";
-import { Composer, type ComposerAction } from "@/components/chat/composer";
+import { Composer } from "@/components/chat/composer";
 import { ConversationLayout } from "@/components/chat/conversation-layout";
+import { Dock } from "@/components/chat/dock";
+import { OutputCards } from "@/components/chat/output-cards";
+import { RunApprovals } from "@/components/chat/run-approvals";
+import { RunDock } from "@/components/chat/run-dock";
 import { KeyGateNotice } from "@/components/chat/key-gate-notice";
 import { InterviewMessages } from "@/components/chat/interview-messages";
 import { QuickReplies } from "@/components/chat/quick-replies";
@@ -16,21 +18,23 @@ import { RunNote, StartRunButton } from "@/components/chat/run-notice";
 import { RunMessageBody } from "@/components/chat/run-message";
 import { UserBubble } from "@/components/chat/user-bubble";
 import { useAnswerActions } from "@/components/chat/use-answer-actions";
+import { useRunPrompts } from "@/components/chat/use-run-prompts";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
-import { ResearchSection } from "@/components/research/research-section";
-import { ScoreSection } from "@/components/score/score-section";
 import { queryKeys } from "@/lib/api/queries/keys";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useInterview } from "@/lib/api/queries/use-interview";
+import { useResearch } from "@/lib/api/queries/use-research";
 import { useSuggestions } from "@/lib/api/queries/use-suggestions";
 import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
-import { RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps } from "@/lib/events/activity";
+import { pickedLabel } from "@/lib/chat/choice";
+import { RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
 import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
 import { useRunEvents } from "@/lib/events/use-run-events";
+import { stepCounter } from "@/lib/events/work-summary";
 import { buildInterviewThread } from "@/lib/interview/thread";
-import { answerSchema, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
+import { answerSchema, pickValue, textValue, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
 import { acceptedFor } from "@/lib/scores/decision";
 
 type Idea = components["schemas"]["Idea"];
@@ -122,22 +126,25 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
 
   const form = useForm<AnswerFormValues>({ resolver: zodResolver(answerSchema), defaultValues: { text: "" } });
   const text = useWatch({ control: form.control, name: "text" });
+  // "Something else" opens the composer for this interrupt only; the next question starts on options.
+  const [otherSeq, setOtherSeq] = useState<number | null>(null);
 
   const streamLost = stream === "failed";
   const active = isActiveStatus(state.status) && !streamLost;
-  const awaiting = state.status === "awaiting_user" && !streamLost;
   const canContinue = isTerminalStatus(state.status);
   const canSubmitPrompt = canContinue && !starting;
-  // Wait for the turns: a replayed old question must not look pending before they say it is answered.
-  const question = awaiting && !turns.isPending ? thread.pendingQuestion : null;
-  const decided = answers.decisions.some((decision) => decision.seq === seq);
-  const approval = awaiting && interrupt?.kind === "approval" && !decided ? interrupt : null;
-  const adviceDecided = answers.adviceChoices.some((choice) => choice.seq === seq);
-  const advice = awaiting && interrupt?.kind === "advice_decision" && !adviceDecided ? interrupt : null;
+  const { awaiting, question, offered, approval, advice, answeredHere, mode } = useRunPrompts({
+    state,
+    streamLost,
+    turnsPending: turns.isPending,
+    pendingQuestion: thread.pendingQuestion,
+    answers,
+    otherSeq,
+  });
   const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
-  const action: ComposerAction =
-    question !== null || canContinue || !active ? "send" : stopping ? "stopping" : "stop";
+  const researcherStarted = state.steps.some((step) => step.node === RESEARCHER_NODE);
+  const sourceCount = useResearch(idea.id, researcherStarted).data?.items.length ?? null;
 
   const placeholder = composerPlaceholder({
     answering: question !== null,
@@ -148,11 +155,17 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     active,
   });
 
+  const pick = (ids: readonly string[]) => {
+    if (offered === null) return;
+    answers.answer(seq, offered.text, { text: pickedLabel(offered.options, ids), value: pickValue(ids), picked: true });
+  };
+
   const submit = form.handleSubmit((values) => {
     const answerText = toAnswer(values);
     if (question !== null) {
       // The text goes back into the box if the call fails, so nothing typed is lost.
-      answers.answer(seq, question, answerText, () => form.setValue("text", answerText));
+      const value = textValue(answerText, offered !== null);
+      answers.answer(seq, question, { text: answerText, value }, () => form.setValue("text", answerText));
       form.reset();
       return;
     }
@@ -162,38 +175,45 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     }
   });
 
+  const formError = form.formState.errors.text?.message ?? answers.error ?? stopError ?? startError;
   const composer = (
     <Composer
+      frameBand={false}
       label="Reply to Metis"
       textarea={{
         ...form.register("text"),
         disabled: question === null && !canSubmitPrompt,
         placeholder,
       }}
-      action={action}
+      action={question !== null || canContinue || !active ? "send" : stopping ? "stopping" : "stop"}
       canSend={(question !== null ? canAnswer : canSubmitPrompt) && text.trim() !== ""}
       onSubmit={submit}
       onStop={stop}
-      error={form.formState.errors.text?.message ?? answers.error ?? stopError ?? startError}
+      onBack={offered !== null ? () => setOtherSeq(null) : undefined}
+      error={formError}
       above={
-        question !== null ? (
+        question !== null && offered === null ? (
           <QuickReplies
             disabled={answers.pending}
-            onReply={(value) => answers.answer(seq, question, value)}
+            onReply={(value) => answers.answer(seq, question, { text: value, value: textValue(value, false) })}
             onStop={stop}
             stopping={stopping}
           />
-          ) : canContinue ? (
-            // Retry or continue starts a new run, so the LLM-key block applies here too.
+        ) : canContinue ? (
+          // Retry or continue starts a new run, so the LLM-key block applies here too.
           <KeyGateNotice gate={gate} includeExa={false} />
         ) : null
       }
     />
   );
 
+  const waiting = awaiting && !answeredHere;
+  const owl = waiting ? "waiting" : mode === "busy" ? "working" : "idle";
   return (
     <ConversationLayout
       idea={idea}
+      owl={owl}
+      sentCount={answers.sent.length + answers.decisions.length + answers.adviceChoices.length}
       scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}`}
       interview={
         <>
@@ -201,41 +221,48 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           {run.user_prompt ? <UserBubble text={run.user_prompt} /> : null}
         </>
       }
-      composer={composer}
+      composer={
+        <RunDock
+          mode={mode}
+          working={{ label: runActivity(state), counter: stepCounter(state.steps), onStop: stop, stopping }}
+          choice={{
+            question: offered,
+            disabled: answers.pending,
+            onPick: pick,
+            onOther: () => setOtherSeq(seq),
+            onStop: stop,
+            stopping,
+          }}
+          composer={composer}
+          error={answers.error ?? stopError ?? startError}
+        />
+      }
       body={
         <RunMessageBody
           state={state}
           streamLost={streamLost}
+          sourceCount={sourceCount}
           retry={<StartRunButton label="Retry" pending={starting} onClick={() => start()} blocked={gate.llmBlock !== null} />}
-          research={<ResearchSection ideaId={idea.id} researchStarted={state.steps.some((step) => step.node === RESEARCHER_NODE)} />}
-          score={
-            <ScoreSection
+          outputs={
+            <OutputCards
               ideaId={idea.id}
               runActive={active || state.status === "awaiting_user"}
               scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
+              researchStarted={researcherStarted}
             />
           }
           approval={
-            <>
-              {advice ? (
-                <AdviceDecision
-                  interrupt={advice}
-                  ideaText={idea.raw_text}
-                  accepted={acceptedFor(suggestions.data ?? [], advice.scoreRunId)}
-                  disabled={answers.pending}
-                  onDecide={(value, decision) => answers.advise(seq, value, decision)}
-                />
-              ) : null}
-              {answers.adviceChoices.map((choice) => (
-                <UserBubble key={choice.seq} text={choice.label} />
-              ))}
-              {approval ? (
-                <ApprovalPrompt interrupt={approval} disabled={answers.pending} onDecide={(approved) => answers.decide(seq, approved)} />
-              ) : null}
-              {answers.decisions.map((decision) => (
-                <UserBubble key={decision.seq} text={decision.approved ? "Approved" : "Rejected"} />
-              ))}
-            </>
+            <RunApprovals
+              advice={advice}
+              approval={approval}
+              ideaText={idea.raw_text}
+              accepted={acceptedFor(suggestions.data ?? [], advice?.scoreRunId ?? "")}
+              adviceChoices={answers.adviceChoices}
+              decisions={answers.decisions}
+              disabled={answers.pending}
+              onAdvise={(value, decision) => answers.advise(seq, value, decision)}
+              onDecide={(approved) => answers.decide(seq, approved)}
+            />
           }
         />
       }
@@ -251,16 +278,19 @@ export function NoRunConversation({ idea }: { idea: Idea }) {
     <ConversationLayout
       idea={idea}
       composer={
-        <Composer
-          label="Reply to Metis"
-          textarea={{ disabled: true, placeholder: NO_ANSWER_PLACEHOLDER }}
-          action="send"
-          canSend={false}
-          onSubmit={(event) => event.preventDefault()}
-          onStop={NOOP}
-          error={error}
-          above={<KeyGateNotice gate={gate} includeExa />}
-        />
+        <Dock mode="text">
+          <Composer
+            frameBand={false}
+            label="Reply to Metis"
+            textarea={{ disabled: true, placeholder: NO_ANSWER_PLACEHOLDER }}
+            action="send"
+            canSend={false}
+            onSubmit={(event) => event.preventDefault()}
+            onStop={NOOP}
+            error={error}
+            above={<KeyGateNotice gate={gate} includeExa />}
+          />
+        </Dock>
       }
       body={
         <div className="flex items-center gap-2">

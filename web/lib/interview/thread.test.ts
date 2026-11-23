@@ -132,4 +132,28 @@ describe("buildInterviewThread", () => {
     ]);
     expect(thread.pendingQuestion).toBe("Who pays?");
   });
+
+  it("marks an answer picked from options, also after the saved turn replaces the sent one", () => {
+    const sent = [{ seq: 1, question: "Who?", text: "Solo freelancers; Small agencies", picked: true }];
+    const pending = buildInterviewThread({ turns: [], interrupt: ask("Who?"), interruptSeq: 1, sent });
+    expect(pending.messages.at(-1)).toMatchObject({ role: "user", text: "Solo freelancers; Small agencies", picked: true });
+
+    const saved = buildInterviewThread({
+      turns: [turn("1", "Who?", "Solo freelancers; Small agencies")],
+      interrupt: null,
+      interruptSeq: 1,
+      sent,
+    });
+    expect(saved.messages.at(-1)).toMatchObject({ role: "user", picked: true });
+  });
+
+  it("does not mark a typed answer as picked", () => {
+    const thread = buildInterviewThread({
+      turns: [turn("1", "Who?", "Students")],
+      interrupt: null,
+      interruptSeq: 1,
+      sent: [{ seq: 1, question: "Who?", text: "Students" }],
+    });
+    expect(thread.messages.at(-1)).toEqual({ role: "user", key: "1:a", text: "Students" });
+  });
 });

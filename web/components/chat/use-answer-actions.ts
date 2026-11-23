@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
 import { useResumeRun } from "@/lib/api/mutations/use-resume-run";
 import type { SentAnswer } from "@/lib/interview/thread";
+import type { QuestionResumeValue } from "@/lib/schemas/answer";
 import { DECISION_LABELS, type AdviceDecision, type AdviceResume } from "@/lib/scores/decision";
 
 const INVALID_STATE = "run.invalid_state";
@@ -23,6 +24,13 @@ function messageFor(caught: unknown): string {
   }
   return describeError(caught);
 }
+
+/** One answer to a question: what the thread shows, what the server gets, and whether it was a pick. */
+export type AnsweredQuestion = {
+  readonly text: string;
+  readonly value: QuestionResumeValue;
+  readonly picked?: boolean;
+};
 
 /** The user's choice on one advice decision, shown in the thread. */
 export type AdviceChoice = { readonly seq: number; readonly label: string };
@@ -46,13 +54,17 @@ export function useAnswerActions(runId: string, onMovedOn: () => void) {
     if (caught instanceof ApiError && caught.code === INVALID_STATE) onMovedOn();
   };
 
-  /** `onRejected` runs when the call fails, e.g. to put the typed text back. */
-  const answer = (seq: number, question: string, text: string, onRejected?: () => void) => {
+  /**
+   * `text` is what the thread shows as the user's answer; `value` is what the server gets (a pick
+   * sends ids, the thread shows their labels). `onRejected` runs when the call fails, e.g. to put
+   * the typed text back.
+   */
+  const answer = (seq: number, question: string, answered: AnsweredQuestion, onRejected?: () => void) => {
     setError(null);
-    const entry: SentAnswer = { seq, question, text };
+    const entry: SentAnswer = { seq, question, text: answered.text, ...(answered.picked && { picked: true }) };
     setSent((current) => [...current, entry]);
     resume.mutate(
-      { runId, value: text },
+      { runId, value: answered.value },
       {
         onError: (caught) =>
           fail(caught, () => {

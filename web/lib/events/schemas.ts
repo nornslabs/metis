@@ -35,11 +35,34 @@ export type RunError = z.infer<typeof runErrorSchema>;
 
 const scoreBandSchema = z.enum(["build", "promising", "advise"]);
 
+/** One answer the user can pick for a question; `id` is what the resume call sends. */
+export type QuestionOption = {
+  readonly id: string;
+  readonly label: string;
+  readonly detail?: string;
+  readonly recommended: boolean;
+};
+
+/**
+ * A question the run waits on. A plain question has only `text`; one with `options` is answered
+ * with a pick (`multi`: several) or, when `allowFreeText`, with typed text. `index` and `total` give
+ * "Question n of m".
+ */
+export type QuestionInterrupt = {
+  kind: "question";
+  text: string;
+  options?: readonly QuestionOption[];
+  multi?: boolean;
+  allowFreeText?: boolean;
+  index?: number;
+  total?: number;
+};
+
 /**
  * A question, approval or advice decision the run waits on, reduced to what the page shows. For an
  * advice decision `text` is the score run's id, so two decisions are never taken for the same one.
  */
-export type PromptInterrupt = { kind: "question" | "approval"; text: string; details?: string };
+export type ApprovalInterrupt = { kind: "approval"; text: string; details?: string };
 export type AdviceInterrupt = {
   kind: "advice_decision";
   text: string;
@@ -47,11 +70,50 @@ export type AdviceInterrupt = {
   total: number;
   band: z.infer<typeof scoreBandSchema>;
 };
-export type RunInterrupt = PromptInterrupt | AdviceInterrupt;
+export type RunInterrupt = QuestionInterrupt | ApprovalInterrupt | AdviceInterrupt;
+
+const questionOptionSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  detail: z.string().nullish(),
+  recommended: z.boolean().default(false),
+});
+
+const questionPayloadSchema = z.object({
+  type: z.literal("question"),
+  question: z.string(),
+  multi: z.boolean().optional(),
+  options: z.array(questionOptionSchema).optional(),
+  allow_free_text: z.boolean().optional(),
+  index: z.number().int().positive().optional(),
+  total: z.number().int().positive().optional(),
+});
+
+type QuestionPayload = z.infer<typeof questionPayloadSchema>;
+
+/** Only the fields the server sent: a plain `{type, question}` stays `{kind, text}`. */
+function toQuestionInterrupt(value: QuestionPayload): QuestionInterrupt {
+  return {
+    kind: "question",
+    text: value.question,
+    ...(value.options && {
+      options: value.options.map(({ id, label, detail, recommended }) => ({
+        id,
+        label,
+        recommended,
+        ...(detail ? { detail } : {}),
+      })),
+    }),
+    ...(value.multi !== undefined && { multi: value.multi }),
+    ...(value.allow_free_text !== undefined && { allowFreeText: value.allow_free_text }),
+    ...(value.index !== undefined && { index: value.index }),
+    ...(value.total !== undefined && { total: value.total }),
+  };
+}
 
 export const interruptSchema = z
   .union([
-    z.object({ type: z.literal("question"), question: z.string() }),
+    questionPayloadSchema,
     z.object({ type: z.literal("approval"), action: z.string(), details: z.unknown().optional() }),
     z.object({
       type: z.literal("advice_decision"),
@@ -61,7 +123,7 @@ export const interruptSchema = z
     }),
   ])
   .transform((value): RunInterrupt => {
-    if (value.type === "question") return { kind: "question", text: value.question };
+    if (value.type === "question") return toQuestionInterrupt(value);
     if (value.type === "advice_decision") {
       return { kind: "advice_decision", text: value.score_run_id, scoreRunId: value.score_run_id, total: value.total, band: value.band };
     }
@@ -103,6 +165,14 @@ const envelopeSchema = z.object({
   ts: z.string(),
 });
 
+/** The note shown when the run waits on a question this page cannot read. */
+export const UNREADABLE_PAUSE_CODE = "interrupt.unreadable";
+export const UNREADABLE_PAUSE_TEXT = "Metis asked something this page could not read. Stop the run and try again.";
+
+export function unreadablePauseNotice(): RunEvent {
+  return { type: "notice", code: UNREADABLE_PAUSE_CODE, text: UNREADABLE_PAUSE_TEXT };
+}
+
 function isRunEventType(name: string): name is RunEventType {
   return (RUN_EVENT_TYPES as readonly string[]).includes(name);
 }
@@ -124,5 +194,7 @@ export function parseRunEvent(name: string, raw: string): RunEvent | null {
   const envelope = envelopeSchema.safeParse(parseJson(raw));
   if (!envelope.success || envelope.data.type !== name) return null;
   const payload = payloadSchemas[name].safeParse(envelope.data.data);
-  return payload.success ? (payload.data as RunEvent) : null;
+  if (payload.success) return payload.data as RunEvent;
+  // A pause the page cannot read must not look like a run that is simply quiet.
+  return name === "interrupt" ? unreadablePauseNotice() : null;
 }

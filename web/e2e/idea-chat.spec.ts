@@ -33,6 +33,12 @@ async function createIdea(page: Page, label: string): Promise<{ id: string; work
   return response.json();
 }
 
+/** The chat keeps one collapsed line for finished work; the steps show once it is expanded. */
+async function expandWork(page: Page) {
+  const summary = page.getByRole("button", { name: /^(Worked through|Researched|Skipped)/ });
+  if ((await summary.getAttribute("aria-expanded")) !== "true") await summary.click();
+}
+
 function steps(page: Page) {
   return page.getByRole("list", { name: "Steps" }).getByRole("listitem");
 }
@@ -48,6 +54,7 @@ test.describe("idea chat", () => {
     await expect(page.getByText(text.split("\n")[0])).toBeVisible();
     await expect(page.getByRole("log", { name: "Conversation" })).toHaveAttribute("aria-live", "polite");
     await expect(page.getByText("Run finished.")).toBeVisible({ timeout: RUN_TIMEOUT });
+    await expandWork(page);
     await expect(steps(page).first()).toBeVisible();
     const count = await steps(page).count();
     expect(count).toBeGreaterThan(1);
@@ -55,6 +62,7 @@ test.describe("idea chat", () => {
 
     await page.reload();
     await expect(page.getByText("Run finished.")).toBeVisible();
+    await expandWork(page);
     await expect(steps(page)).toHaveCount(count);
   });
 
@@ -102,6 +110,7 @@ test.describe("idea chat", () => {
 
     await page.goto(`/ideas/${idea.id}`);
     await expect(page.getByRole("alert").filter({ hasText: "Model call failed" })).toBeVisible();
+    await expandWork(page);
     await expect(steps(page)).toHaveCount(1);
     await expect(steps(page).first()).toContainText("ask_user");
 
