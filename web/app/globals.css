@@ -96,6 +96,9 @@
 
   /* Panel transitions: ease-panel with duration-250 */
   --ease-panel: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Touch target: voice input button minimum size */
+  --touch-target: 44px;
 }
 
 /*
@@ -113,6 +116,12 @@
 
 @utility grid-cols-split {
   grid-template-columns: 1.1fr 1fr;
+}
+
+/* Voice input button: ≥44px touch target */
+@utility size-touch {
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
 }
 
 @utility grid-cols-score-row {

@@ -36,7 +36,11 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
   const [errorToasted, setErrorToasted] = useState(false);
 
   const handleStart = useCallback(async () => {
-    await start();
+    try {
+      await start();
+    } catch {
+      // start() sets error internally; handled by the error toast effect
+    }
   }, [start]);
 
   const handleStop = useCallback(async () => {
@@ -101,7 +105,7 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
             onClick={recording ? handleStop : handleStart}
             disabled={!recording && error !== null}
             aria-label={recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}
-            className="size-6.5 min-h-[44px] min-w-[44px]" // ≥44px touch target
+            className="size-touch" // ≥44px touch target (globals.css: --touch-target)
           >
             {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
           </Button>

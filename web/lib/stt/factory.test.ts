@@ -42,7 +42,7 @@ describe("getSTTServerConfig", () => {
   });
 
   it("throws for unknown provider", () => {
-    process.env.STT_PROVIDER = "bogus" as any;
+    process.env.STT_PROVIDER = "bogus";
     expect(() => getSTTServerConfig()).toThrow();
   });
 
@@ -81,7 +81,7 @@ describe("getSTTProvider", () => {
   });
 
   it("throws a clear error for unknown provider (via config validation)", () => {
-    process.env.STT_PROVIDER = "bogus" as any;
+    process.env.STT_PROVIDER = "bogus";
     expect(() => getSTTProvider()).toThrow();
   });
 

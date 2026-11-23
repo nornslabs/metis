@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { VoiceRecorder, type VoiceRecorderOptions } from "@/lib/stt/voice-recorder";
 
@@ -12,6 +12,7 @@ export function useVoiceRecorder(options: VoiceRecorderOptions = {}) {
   const [blob, setBlob] = useState<Blob | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
 
+  // Lazy init: create VoiceRecorder once (idempotent, runs on first render only)
   if (!recorderRef.current) {
     recorderRef.current = new VoiceRecorder(options);
   }
@@ -41,16 +42,16 @@ export function useVoiceRecorder(options: VoiceRecorderOptions = {}) {
     }
   }, [recorder.recording, recorder.audioLevel]);
 
-  if (recording !== recorder.recording) {
-    setRecording(recorder.recording);
+  useEffect(() => {
     if (recorder.recording) {
       rafRef.current = requestAnimationFrame(poll);
     } else {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     }
-  }
-  if (error !== recorder.error) setError(recorder.error);
-  if (blob !== recorder.blob) setBlob(recorder.blob);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [recorder.recording, poll]);
 
   return {
     recording,

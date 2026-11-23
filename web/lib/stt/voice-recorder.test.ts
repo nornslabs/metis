@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { VoiceRecorder } from "./voice-recorder";
 
-const originalMediaDevices = (navigator as any).mediaDevices;
+const originalMediaDevices = navigator.mediaDevices as MediaDevices | undefined;
 
 function createMockRecorder() {
   return {
@@ -39,7 +39,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  Object.defineProperty(navigator, "mediaDevices", { value: originalMediaDevices, configurable: true });
+  if (originalMediaDevices) {
+    Object.defineProperty(navigator, "mediaDevices", { value: originalMediaDevices, configurable: true });
+  }
   vi.useRealTimers();
 });
 
@@ -56,6 +58,10 @@ function mockMediaDevices(override: Partial<MediaDevices> = {}) {
 
   return { stream: mockStream, track: mockTrack };
 }
+
+type VoiceRecorderInternals = {
+  mediaRecorder: MediaRecorder | null;
+};
 
 describe("VoiceRecorder", () => {
   it("starts idle with no error", () => {
@@ -83,9 +89,9 @@ describe("VoiceRecorder", () => {
     await voiceRecorder.start();
 
     const fakeBlob = new Blob(["audio"], { type: "audio/webm" });
-    const mrec = voiceRecorder as any;
-    mrec.mediaRecorder.ondataavailable?.({ data: fakeBlob });
-    mrec.mediaRecorder.onstop?.();
+    const internals = voiceRecorder as unknown as VoiceRecorderInternals;
+    internals.mediaRecorder?.ondataavailable?.({ data: fakeBlob } as unknown as BlobEvent);
+    internals.mediaRecorder?.onstop?.(null as unknown as Event);
 
     const blob = await voiceRecorder.stop();
 
@@ -113,8 +119,8 @@ describe("VoiceRecorder", () => {
 
     vi.advanceTimersByTime(150);
     // Silence timer fired mediaRecorder.stop(); simulate browser firing onstop
-    const mrec = voiceRecorder as any;
-    mrec.mediaRecorder.onstop?.();
+    const internals = voiceRecorder as unknown as VoiceRecorderInternals;
+    internals.mediaRecorder?.onstop?.(null as unknown as Event);
 
     expect(voiceRecorder.recording).toBe(false);
   });
@@ -126,9 +132,9 @@ describe("VoiceRecorder", () => {
     await voiceRecorder.start();
 
     const fakeBlob = new Blob(["audio"], { type: "audio/webm" });
-    const mrec = voiceRecorder as any;
-    mrec.mediaRecorder.ondataavailable?.({ data: fakeBlob });
-    mrec.mediaRecorder.onstop?.();
+    const internals = voiceRecorder as unknown as VoiceRecorderInternals;
+    internals.mediaRecorder?.ondataavailable?.({ data: fakeBlob } as unknown as BlobEvent);
+    internals.mediaRecorder?.onstop?.(null as unknown as Event);
 
     await voiceRecorder.stop();
 

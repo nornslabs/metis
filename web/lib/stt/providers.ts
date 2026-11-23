@@ -53,9 +53,10 @@ export class SarvamSTTProvider implements STTProvider {
 /** Browser Web Speech API provider. Uses window.SpeechRecognition natively. */
 export class WebSpeechSTTProvider implements STTProvider {
   async transcribe(_audioBlob: Blob): Promise<string> {
+    // Check window once (SSR-safe), then look for either SpeechRecognition variant
     const SpeechRecognition =
-      (typeof window !== "undefined" && window.SpeechRecognition) ||
-      (typeof window !== "undefined" && window.webkitSpeechRecognition);
+      typeof window !== "undefined" &&
+      (window.SpeechRecognition || window.webkitSpeechRecognition);
 
     if (!SpeechRecognition) {
       throw new Error("Web Speech API is not available in this browser");

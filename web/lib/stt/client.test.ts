@@ -6,6 +6,12 @@ import { WebSpeechSTTProvider } from "./providers";
 const originalWindow = globalThis.window;
 const originalNavigator = globalThis.navigator;
 
+type MockWindow = {
+  SpeechRecognition?: new () => unknown;
+  webkitSpeechRecognition?: new () => unknown;
+  [key: string]: unknown;
+};
+
 beforeEach(() => {
   vi.restoreAllMocks();
 });
@@ -18,7 +24,7 @@ afterEach(() => {
 describe("getSTTClientProvider", () => {
   it("returns WebSpeechSTTProvider when SpeechRecognition is available", () => {
     Object.defineProperty(globalThis, "window", {
-      value: { SpeechRecognition: class {} } as any,
+      value: { SpeechRecognition: class {} } as MockWindow,
       configurable: true,
     });
     const provider = getSTTClientProvider();
@@ -27,7 +33,7 @@ describe("getSTTClientProvider", () => {
 
   it("returns WebSpeechSTTProvider when webkitSpeechRecognition is available", () => {
     Object.defineProperty(globalThis, "window", {
-      value: { webkitSpeechRecognition: class {} } as any,
+      value: { webkitSpeechRecognition: class {} } as MockWindow,
       configurable: true,
     });
     const provider = getSTTClientProvider();
@@ -35,7 +41,7 @@ describe("getSTTClientProvider", () => {
   });
 
   it("throws when Web Speech API is unavailable", () => {
-    Object.defineProperty(globalThis, "window", { value: {} as any, configurable: true });
+    Object.defineProperty(globalThis, "window", { value: {} as MockWindow, configurable: true });
     expect(() => getSTTClientProvider()).toThrow("Web Speech API is not available");
   });
 

@@ -3,6 +3,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { getSTTClientProvider } from "./config";
 import { WebSpeechSTTProvider } from "./providers";
 
+type SpeechRecognitionMock = {
+  continuous: boolean;
+  interimResults: boolean;
+  onresult?: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null;
+  onerror?: ((event: { error: string }) => void) | null;
+  onend?: (() => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
 const originalWindow = globalThis.window;
 
 beforeEach(() => {
@@ -16,7 +26,7 @@ afterEach(() => {
 describe("voice transcription flow", () => {
   it("getSTTClientProvider returns a provider with transcribe", () => {
     Object.defineProperty(globalThis, "window", {
-      value: { SpeechRecognition: class {} } as any,
+      value: { SpeechRecognition: class {} } as Record<string, unknown>,
       configurable: true,
     });
     const provider = getSTTClientProvider();
@@ -24,29 +34,37 @@ describe("voice transcription flow", () => {
   });
 
   it("WebSpeechSTTProvider.transcribe returns transcript from SpeechRecognition onresult", async () => {
-    let onresultHandler: any = null;
-    let onerrorHandler: any = null;
+    let onresultHandler: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null = null;
+    let onerrorHandler: ((event: { error: string }) => void) | null = null;
 
     Object.defineProperty(globalThis, "window", {
       value: {
         SpeechRecognition: class {
           continuous = false;
           interimResults = false;
-          set onresult(h: any) { onresultHandler = h; }
-          get onresult() { return onresultHandler; }
-          set onerror(h: any) { onerrorHandler = h; }
-          get onerror() { return onerrorHandler; }
-          onend: any = null;
+          set onresult(h: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null) {
+            onresultHandler = h;
+          }
+          get onresult() {
+            return onresultHandler;
+          }
+          set onerror(h: ((event: { error: string }) => void) | null) {
+            onerrorHandler = h;
+          }
+          get onerror() {
+            return onerrorHandler;
+          }
+          onend: (() => void) | null = null;
           start() {
             setTimeout(() => {
               onresultHandler?.({
                 results: [[{ transcript: "hello world" }]],
-              });
+              } as { results: { [index: number]: { [index: number]: { transcript: string } } } });
             }, 10);
           }
           stop() {}
         },
-      } as any,
+      } as Record<string, unknown>,
       configurable: true,
     });
 
@@ -56,17 +74,21 @@ describe("voice transcription flow", () => {
   });
 
   it("WebSpeechSTTProvider.transcribe rejects when SpeechRecognition errors", async () => {
-    let onerrorHandler: any = null;
+    let onerrorHandler: ((event: { error: string }) => void) | null = null;
 
     Object.defineProperty(globalThis, "window", {
       value: {
         SpeechRecognition: class {
           continuous = false;
           interimResults = false;
-          onresult: any = null;
-          set onerror(h: any) { onerrorHandler = h; }
-          get onerror() { return onerrorHandler; }
-          onend: any = null;
+          onresult: ((event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => void) | null = null;
+          set onerror(h: ((event: { error: string }) => void) | null) {
+            onerrorHandler = h;
+          }
+          get onerror() {
+            return onerrorHandler;
+          }
+          onend: (() => void) | null = null;
           start() {
             setTimeout(() => {
               onerrorHandler?.({ error: "no-speech" });
@@ -74,7 +96,7 @@ describe("voice transcription flow", () => {
           }
           stop() {}
         },
-      } as any,
+      } as Record<string, unknown>,
       configurable: true,
     });
 
@@ -85,12 +107,7 @@ describe("voice transcription flow", () => {
   });
 
   it("throws when Web Speech API is unavailable", () => {
-    Object.defineProperty(globalThis, "window", { value: {} as any, configurable: true });
+    Object.defineProperty(globalThis, "window", { value: {} as Record<string, unknown>, configurable: true });
     expect(() => getSTTClientProvider()).toThrow("Web Speech API is not available");
-  });
-
-  it("empty transcript is treated as no-op", () => {
-    const transcript = "";
-    expect(transcript.trim()).toBe("");
   });
 });
