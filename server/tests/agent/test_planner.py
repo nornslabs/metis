@@ -104,7 +104,7 @@ async def test_approving_the_phases_saves_a_valid_draft_plan_and_reaches_plannin
         ("Launch", "Task c", 2),
     ]
     assert await stored_dep_count(engine, run) == 2
-    assert await idea_stage(engine, run) == "planning"
+    assert await idea_stage(engine, run) == "exported"  # the stubs after the Planner finish
     assert "planner" in finished(await events_of(redis, run))
     assert llm.calls == 2
 
