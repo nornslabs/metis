@@ -13,7 +13,7 @@ interface AgentMessageProps {
 /** Metis's reply: a 22px bordered owl and plain text, no bubble (ui-context.md, AgentMessage). */
 export function AgentMessage({ aside, owl = "idle", children }: AgentMessageProps) {
   return (
-    <div className="flex gap-2.5 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1.5">
+    <div className="flex gap-2.5 motion-safe:animate-in motion-safe:duration-250 motion-safe:fade-in motion-safe:slide-in-from-bottom-1.5">
       <div aria-hidden="true" className="grid size-5.5 shrink-0 place-items-center border">
         <OwlMark state={owl} className="size-4" />
       </div>

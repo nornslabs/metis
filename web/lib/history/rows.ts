@@ -1,4 +1,6 @@
 import type { components } from "@/lib/api/schema";
+import { stageLabel } from "@/lib/events/labels";
+import { BAND_LABELS } from "@/lib/scores/view";
 
 type Idea = components["schemas"]["Idea"];
 type IdeaScoreSummary = components["schemas"]["IdeaScoreSummary"];
@@ -31,4 +33,10 @@ export function toHistoryRow(idea: Idea, summary: IdeaScoreSummary | undefined):
     band: summary?.band ?? null,
     totals,
   };
+}
+
+/** The row's accessible name: "Title, score 63 Promising, Spec draft". */
+export function rowLabel(row: HistoryRow): string {
+  const score = row.score === null ? "not scored" : `score ${row.score}${row.band ? ` ${BAND_LABELS[row.band]}` : ""}`;
+  return `${row.title}, ${score}, ${stageLabel(row.stage)}`;
 }

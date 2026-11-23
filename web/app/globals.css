@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* A short window (the empty state drops its owl): `short:hidden` */
+@custom-variant short (@media (max-height: 640px));
 
 @theme inline {
   --color-background: var(--background);
@@ -71,6 +73,11 @@
   --text-title: 17px;
   --text-score: 28px;
   --text-total: 40px;
+  /* The ASCII owl's characters: one cell is 6px wide, so the type is 9px (6px on phones) */
+  --text-ascii: 9px;
+  --text-ascii--line-height: 9px;
+  --text-ascii-phone: 6px;
+  --text-ascii-phone--line-height: 6px;
   --text-display: clamp(1.5rem, 2.6vw, 2rem);
   --text-display--line-height: 1.12;
   --text-display--letter-spacing: -0.03em;
@@ -80,6 +87,8 @@
   --tracking-divider: 0.08em;
   --tracking-label: 0.06em;
   --tracking-score: -0.04em;
+  --tracking-ascii: 0.6px;
+  --tracking-ascii-phone: 0.4px;
 
   /* Fixed sizes: h-control, h-badge, h-track, size-tick */
   --spacing-control: 30px;

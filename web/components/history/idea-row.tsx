@@ -3,6 +3,7 @@
 import { MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 
+import { BAND_SQUARE } from "@/components/history/band-square";
 import { ScoreSpark } from "@/components/score/score-spark";
 import {
   DropdownMenu,
@@ -13,19 +14,7 @@ import {
 import { cn } from "@/lib/cn";
 import { stageLabel } from "@/lib/events/labels";
 import { relativeTime } from "@/lib/history/relative-time";
-import type { HistoryRow } from "@/lib/history/rows";
-import { BAND_LABELS, type ScoreBand } from "@/lib/scores/view";
-
-const BAND_SQUARE: Readonly<Record<ScoreBand, string>> = {
-  build: "bg-success",
-  promising: "bg-warning",
-  advise: "bg-destructive",
-};
-
-function rowLabel(row: HistoryRow): string {
-  const score = row.score === null ? "not scored" : `score ${row.score}${row.band ? ` ${BAND_LABELS[row.band]}` : ""}`;
-  return `${row.title}, ${score}, ${stageLabel(row.stage)}`;
-}
+import { rowLabel, type HistoryRow } from "@/lib/history/rows";
 
 interface IdeaRowProps {
   row: HistoryRow;
