@@ -220,7 +220,11 @@ async def _token_request(
         body["client_secret"] = client.client_secret.get_secret_value()
     request = httpx.Request("POST", token_endpoint, data=body)
     async with make_client({}) as http:
-        answer = _parse(_TokenAnswer, await send(http, provider, request), provider)
+        answer = _parse(
+            _TokenAnswer,
+            await send(http, provider, request, classify_server_errors=True),
+            provider,
+        )
     if answer.token_type.lower() != "bearer":
         raise provider_error(provider, FailureReason.BAD_RESPONSE)
     expires_at = (

@@ -80,10 +80,18 @@ async def capped(provider: str) -> AsyncGenerator[None]:
         raise provider_error(provider, FailureReason.TIMEOUT) from None
 
 
-async def send(http: httpx.AsyncClient, provider: str, request: httpx.Request) -> Any:
+async def send(
+    http: httpx.AsyncClient,
+    provider: str,
+    request: httpx.Request,
+    *,
+    classify_server_errors: bool = False,
+) -> Any:
     """Send ``request`` and return its JSON body, or raise a safe ``UpstreamError``.
 
-    The whole call, body included, is capped at ``PROVIDER_TIMEOUT_SECONDS``.
+    The whole call, body included, is capped at ``PROVIDER_TIMEOUT_SECONDS``. With
+    ``classify_server_errors``, 429 and 5xx are ``rate_limited`` / ``server_error`` (transient)
+    instead of ``bad_response``.
     """
     try:
         async with capped(provider):
@@ -93,6 +101,10 @@ async def send(http: httpx.AsyncClient, provider: str, request: httpx.Request) -
         raise provider_error(provider, FailureReason.UNREACHABLE) from None
     if response.status_code in UNAUTHORIZED_STATUSES:
         raise provider_error(provider, FailureReason.UNAUTHORIZED)
+    if classify_server_errors and response.status_code == 429:
+        raise provider_error(provider, FailureReason.RATE_LIMITED)
+    if classify_server_errors and response.status_code >= 500:
+        raise provider_error(provider, FailureReason.SERVER_ERROR)
     if not response.is_success:
         raise provider_error(provider, FailureReason.BAD_RESPONSE)
     try:

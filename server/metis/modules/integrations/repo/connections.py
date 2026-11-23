@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, null, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -121,7 +121,8 @@ async def _set_status(
         "updated_at": func.now(),
     }
     if wipe:
-        values.update(sealed_tokens=None, expires_at=None, scopes=[])
+        # ``null()``, not ``None``: a JSONB column would store the JSON value ``null`` otherwise.
+        values.update(sealed_tokens=null(), expires_at=None, scopes=[])
     await session.execute(
         update(McpConnectionRow)
         .where(McpConnectionRow.id == row_id)
