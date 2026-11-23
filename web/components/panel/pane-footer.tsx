@@ -4,7 +4,7 @@ interface PaneFooterProps {
   /** The pane's actions, left. */
   children?: ReactNode;
   /** A muted line, right ("Updated today"). */
-  meta?: string;
+  meta?: ReactNode;
 }
 
 /** The footer a pane registers: actions on the left, a muted meta line on the right. */

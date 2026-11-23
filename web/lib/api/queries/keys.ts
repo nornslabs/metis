@@ -29,6 +29,8 @@ export const queryKeys = {
   /** One stored score run, for comparing two. Immutable, so never stale. */
   scoreRun: (workspaceId: string | null, ideaId: string, scoreRunId: string) =>
     ["ideas", workspaceId, ideaId, "scores", "run", scoreRunId] as const,
+  /** The idea's latest and confirmed spec versions (also under the idea key). */
+  spec: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId, "spec"] as const,
   suggestions: (workspaceId: string | null, ideaId: string) =>
     ["ideas", workspaceId, ideaId, "suggestions"] as const,
 };

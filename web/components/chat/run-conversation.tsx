@@ -29,7 +29,7 @@ import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { pickedLabel } from "@/lib/chat/choice";
-import { RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
+import { ARCHITECT_NODE, RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
 import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { stepCounter } from "@/lib/events/work-summary";
@@ -37,6 +37,7 @@ import { buildInterviewThread } from "@/lib/interview/thread";
 import { answerSchema, pickValue, textValue, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
 import { acceptedFor } from "@/lib/scores/decision";
 import { useReportRunBusy } from "@/lib/workspace/run-activity";
+import { useWorkspacePanels } from "@/lib/workspace/workspace-panels";
 
 type Idea = components["schemas"]["Idea"];
 type RunView = components["schemas"]["RunView"];
@@ -45,11 +46,14 @@ const NO_ANSWER_PLACEHOLDER = "Nothing to answer right now";
 const WORKING_PLACEHOLDER = "Metis is working…";
 const APPROVAL_PLACEHOLDER = "Approve or reject above";
 const ADVICE_PLACEHOLDER = "Decide above";
+const SPEC_REVIEW_PLACEHOLDER = "Confirm the spec above";
+/** From the spec draft on, the idea has a spec to read. */
+const SPEC_STAGES: ReadonlySet<string> = new Set(["spec_draft", "spec_confirmed", "planning", "exported"]);
 const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
 /** Refetches the interview turns, the research and the scores when the run produces something new for them. */
-function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number, scoreRunId: string | null) {
+function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number, scoreRunId: string | null, specVersionId: string | null) {
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   useEffect(() => {
@@ -65,22 +69,29 @@ function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDo
     void queryClient.invalidateQueries({ queryKey: queryKeys.scoreHistory(workspaceId, ideaId) });
     void queryClient.invalidateQueries({ queryKey: queryKeys.suggestions(workspaceId, ideaId) });
   }, [queryClient, workspaceId, ideaId, scoreRunId]);
+  // The Architect saved a draft and waits for the review: no event carries the spec, so read it.
+  useEffect(() => {
+    if (specVersionId === null) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.spec(workspaceId, ideaId) });
+  }, [queryClient, workspaceId, ideaId, specVersionId]);
 }
 
 type PlaceholderInput = {
   answering: boolean;
   approval: boolean;
   advice: boolean;
+  specReview: boolean;
   canContinue: boolean;
   starting: boolean;
   active: boolean;
 };
 
 /** What the composer says: what it takes now, or why it waits. */
-function composerPlaceholder({ answering, approval, advice, canContinue, starting, active }: PlaceholderInput): string {
+function composerPlaceholder({ answering, approval, advice, specReview, canContinue, starting, active }: PlaceholderInput): string {
   if (answering) return ANSWER_PLACEHOLDER;
   if (approval) return APPROVAL_PLACEHOLDER;
   if (advice) return ADVICE_PLACEHOLDER;
+  if (specReview) return SPEC_REVIEW_PLACEHOLDER;
   if (canContinue) return starting ? "Sending…" : "Continue this chat…";
   return active ? WORKING_PLACEHOLDER : NO_ANSWER_PLACEHOLDER;
 }
@@ -123,7 +134,9 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     [turns.data, interrupt, seq, answers.sent],
   );
   const researchDone = finishedResearchSteps(state);
-  useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId);
+  const specReviewId = interrupt?.kind === "spec_review" ? interrupt.specVersionId : null;
+  useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId, specReviewId);
+  const { openOutput } = useWorkspacePanels();
 
   const form = useForm<AnswerFormValues>({ resolver: zodResolver(answerSchema), defaultValues: { text: "" } });
   const text = useWatch({ control: form.control, name: "text" });
@@ -134,7 +147,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const active = isActiveStatus(state.status) && !streamLost;
   const canContinue = isTerminalStatus(state.status);
   const canSubmitPrompt = canContinue && !starting;
-  const { awaiting, question, offered, approval, advice, answeredHere, mode } = useRunPrompts({
+  const { awaiting, question, offered, approval, advice, specReview, answeredHere, mode } = useRunPrompts({
     state,
     streamLost,
     turnsPending: turns.isPending,
@@ -145,12 +158,15 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
   const researcherStarted = state.steps.some((step) => step.node === RESEARCHER_NODE);
+  const specStarted =
+    specReviewId !== null || SPEC_STAGES.has(idea.stage) || state.steps.some((step) => step.node === ARCHITECT_NODE);
   const sourceCount = useResearch(idea.id, researcherStarted).data?.items.length ?? null;
 
   const placeholder = composerPlaceholder({
     answering: question !== null,
     approval: approval !== null,
     advice: advice !== null,
+    specReview: specReview !== null,
     canContinue,
     starting,
     active,
@@ -252,12 +268,15 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
               runActive={active || state.status === "awaiting_user"}
               scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
               researchStarted={researcherStarted}
+              specStarted={specStarted}
             />
           }
           approval={
             <RunApprovals
               advice={advice}
               approval={approval}
+              specReview={specReview}
+              ideaId={idea.id}
               ideaText={idea.raw_text}
               accepted={acceptedFor(suggestions.data ?? [], advice?.scoreRunId ?? "")}
               adviceChoices={answers.adviceChoices}
@@ -265,6 +284,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
               disabled={answers.pending}
               onAdvise={(value, decision) => answers.advise(seq, value, decision)}
               onDecide={(approved) => answers.decide(seq, approved)}
+              onOpenSpec={() => openOutput("spec")}
             />
           }
         />

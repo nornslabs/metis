@@ -70,7 +70,9 @@ export type AdviceInterrupt = {
   total: number;
   band: z.infer<typeof scoreBandSchema>;
 };
-export type RunInterrupt = QuestionInterrupt | ApprovalInterrupt | AdviceInterrupt;
+/** The run paused for the user to confirm the spec; `text` is the draft's version id. */
+export type SpecReviewInterrupt = { kind: "spec_review"; text: string; specVersionId: string; number: number };
+export type RunInterrupt = QuestionInterrupt | ApprovalInterrupt | AdviceInterrupt | SpecReviewInterrupt;
 
 const questionOptionSchema = z.object({
   id: z.string().min(1),
@@ -121,11 +123,15 @@ export const interruptSchema = z
       total: z.number(),
       band: scoreBandSchema,
     }),
+    z.object({ type: z.literal("spec_review"), spec_version_id: z.string(), number: z.number().int().positive() }),
   ])
   .transform((value): RunInterrupt => {
     if (value.type === "question") return toQuestionInterrupt(value);
     if (value.type === "advice_decision") {
       return { kind: "advice_decision", text: value.score_run_id, scoreRunId: value.score_run_id, total: value.total, band: value.band };
+    }
+    if (value.type === "spec_review") {
+      return { kind: "spec_review", text: value.spec_version_id, specVersionId: value.spec_version_id, number: value.number };
     }
     const details = typeof value.details === "string" && value.details.trim() !== "" ? value.details : undefined;
     return { kind: "approval", text: value.action, ...(details && { details }) };
