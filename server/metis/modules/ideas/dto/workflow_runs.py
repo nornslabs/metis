@@ -23,6 +23,7 @@ from metis.modules.ideas.dto.ideas import MAX_RAW_TEXT_LENGTH, MIN_RAW_TEXT_LENG
 
 MAX_CONTINUATION_PROMPT_LENGTH = 10_000
 MAX_ACCEPTED = 5
+MAX_ANSWER_OPTIONS = 5  # the most options a question offers (``agent/tools/question_options``)
 # The planning module's phase limits (``ideas`` cannot import ``planning``); the Planner checks
 # the reviewed list against planning's own rules again when it saves the plan.
 MAX_REVIEWED_PHASES = 12
@@ -171,11 +172,24 @@ class PhaseReviewResume(FrozenModel):
     phases: tuple[ReviewedPhase, ...] = Field(min_length=1, max_length=MAX_REVIEWED_PHASES)
 
 
-ResumeValue = StrictStr | StrictBool | AdviceResume | PhaseReviewResume
+class QuestionAnswer(FrozenModel):
+    """The answer to a ``question`` interrupt that offered options.
+
+    Exactly one of ``option_ids`` (ids from the pending question's options) or ``text`` (free
+    text) is given; the check against the pending interrupt is in ``check_resume_value``.
+    """
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    option_ids: tuple[StrictStr, ...] = Field(default=(), max_length=MAX_ANSWER_OPTIONS)
+    text: StrictStr | None = None
+
+
+ResumeValue = StrictStr | StrictBool | AdviceResume | PhaseReviewResume | QuestionAnswer
 
 
 class ResumeBody(BaseModel):
-    """The user's answer: text for a question, true/false for an approval, or a decision."""
+    """The user's answer: text or options (question), true/false (approval) or a decision."""
 
     value: ResumeValue
 

@@ -12,22 +12,29 @@ from metis.agent.tools.ask_user import (
     SPEC_REVIEW,
 )
 from metis.core.errors import InvalidInputError
-from metis.modules.ideas.dto.workflow_runs import AdviceResume, PhaseReviewResume, ResumeValue
+from metis.modules.ideas.dto.workflow_runs import (
+    AdviceResume,
+    PhaseReviewResume,
+    QuestionAnswer,
+    ResumeValue,
+)
 
 MAX_ANSWER_LENGTH = 10_000
+OPTION_SEPARATOR = "; "
 
 
 def check_resume_value(
     pending_interrupt: dict[str, Any] | None, value: ResumeValue
 ) -> str | bool | dict[str, Any]:
-    """The value to resume with: trimmed text for a question, a boolean for an approval, a
-    JSON-safe dict for an advice decision or a phase review.
+    """The value to resume with: trimmed text for a question (the picked labels joined, or the
+    typed text), a boolean for an approval, a JSON-safe dict for an advice decision or a phase
+    review.
 
     Raises ``InvalidInputError`` (422) when the value does not fit the pending interrupt.
     """
     kind = (pending_interrupt or {}).get("type")
     if kind == QUESTION:
-        return _answer(value)
+        return _answer(value, pending_interrupt or {})
     if kind == APPROVAL:
         return _decision(value)
     if kind == ADVICE_DECISION:
@@ -51,8 +58,52 @@ def _phases(value: ResumeValue) -> dict[str, Any]:
     raise _invalid("A phase review needs {phases: [{name, goal, exit_criteria}]}")
 
 
-def _answer(value: ResumeValue) -> str:
-    if isinstance(value, str) and (text := value.strip()) and len(text) <= MAX_ANSWER_LENGTH:
+def _answer(value: ResumeValue, pending: dict[str, Any]) -> str:
+    options: list[dict[str, Any]] = pending.get("options") or []
+    if isinstance(value, QuestionAnswer):
+        return _structured_answer(value, pending, options)
+    if isinstance(value, str):
+        _require_free_text(pending, options)
+        return _text(value)
+    raise _invalid(f"An answer is 1 to {MAX_ANSWER_LENGTH} characters of text")
+
+
+def _structured_answer(
+    value: QuestionAnswer, pending: dict[str, Any], options: list[dict[str, Any]]
+) -> str:
+    if value.option_ids and value.text is not None:
+        raise _invalid("Answer with option_ids or text, not both")
+    if value.text is not None:
+        _require_free_text(pending, options)
+        return _text(value.text)
+    if not value.option_ids:
+        raise _invalid("An answer needs option_ids or text")
+    return _picked_labels(value.option_ids, pending, options)
+
+
+def _picked_labels(
+    ids: tuple[str, ...], pending: dict[str, Any], options: list[dict[str, Any]]
+) -> str:
+    if not options:
+        raise _invalid("This question has no options; answer with text")
+    if len(set(ids)) != len(ids):
+        raise _invalid("option_ids must not repeat an option")
+    known = {str(option["id"]) for option in options}
+    if unknown := [i for i in ids if i not in known]:
+        raise _invalid(f"Unknown option_ids: {', '.join(unknown)}")
+    if len(ids) > 1 and not pending.get("multi"):
+        raise _invalid("This question takes one option")
+    picked = set(ids)
+    return OPTION_SEPARATOR.join(str(o["label"]) for o in options if str(o["id"]) in picked)
+
+
+def _require_free_text(pending: dict[str, Any], options: list[dict[str, Any]]) -> None:
+    if options and not pending.get("allow_free_text", True):
+        raise _invalid("This question takes an option; free text is not allowed")
+
+
+def _text(value: str) -> str:
+    if (text := value.strip()) and len(text) <= MAX_ANSWER_LENGTH:
         return text
     raise _invalid(f"An answer is 1 to {MAX_ANSWER_LENGTH} characters of text")
 

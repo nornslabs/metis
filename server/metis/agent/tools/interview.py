@@ -24,7 +24,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.agent.tools.ask_user import QUESTION
+from metis.agent.tools.question_options import OptionArgs, check_options, question_payload
 from metis.core.errors import QuestionAlreadyOpenError
 from metis.modules import ideas
 from metis.modules.ideas import (
@@ -75,6 +75,14 @@ class InterviewScope:
 class AskUserArgs(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
     topic: InterviewTopic = Field(description=TOPICS_HELP)
+    options: list[OptionArgs] = Field(
+        default_factory=list,
+        description="2 to 5 likely answers; leave empty for an open question the user types.",
+    )
+    multi: bool = Field(default=False, description="True when the user may pick several options.")
+    allow_free_text: bool = Field(
+        default=True, description="Whether the user may type an answer instead of picking."
+    )
 
 
 class SaveTurnArgs(BaseModel):
@@ -93,7 +101,16 @@ def interview_tools(scope: InterviewScope) -> list[BaseTool]:
 
 
 def _ask_user(scope: InterviewScope) -> BaseTool:
-    async def ask_user(question: str, topic: InterviewTopic) -> str:
+    async def ask_user(
+        question: str,
+        topic: InterviewTopic,
+        options: list[OptionArgs] | None = None,
+        multi: bool = False,
+        allow_free_text: bool = True,
+    ) -> str:
+        proposed = options or []
+        if proposed and (problem := check_options(proposed, multi=multi)):
+            return problem
         async with scope.session() as session:
             try:
                 turn = await ideas.open_question(
@@ -101,11 +118,23 @@ def _ask_user(scope: InterviewScope) -> BaseTool:
                 )
             except QuestionAlreadyOpenError:
                 return ONE_AT_A_TIME
-        if isinstance(turn, QuestionRefusal):
-            return REFUSED[turn]
+            if isinstance(turn, QuestionRefusal):
+                return REFUSED[turn]
+            coverage = await ideas.interview_coverage(
+                session, scope.workspace_id, scope.idea_id, scope.run_id
+            )
         if turn.answer is not None:
             return turn.answer
-        answer = str(interrupt({"type": QUESTION, "question": question}))
+        index, total = ideas.question_progress(coverage, topic)
+        payload = question_payload(
+            question,
+            proposed,
+            multi=multi,
+            allow_free_text=allow_free_text,
+            index=index,
+            total=total,
+        )
+        answer = str(interrupt(payload))
         async with scope.session() as session:
             await ideas.answer_question(session, scope.workspace_id, turn.id, answer)
         return answer
@@ -113,7 +142,10 @@ def _ask_user(scope: InterviewScope) -> BaseTool:
     return StructuredTool.from_function(
         coroutine=ask_user,
         name=ASK_USER,
-        description="Ask the user one short question about one topic and wait for the answer.",
+        description=(
+            "Ask the user one short question about one topic and wait for the answer. "
+            "Offer options when a few distinct answers are likely."
+        ),
         args_schema=AskUserArgs,
     )
 

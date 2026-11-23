@@ -46,3 +46,11 @@ def test_the_researcher_prompt_names_the_tools_it_may_use() -> None:
     prompt = load_prompt("researcher")
 
     assert all(tool in prompt for tool in ("kb_lookup", "save_research_item", "finish_research"))
+
+
+def test_the_interviewer_prompt_offers_options_and_the_older_version_is_kept() -> None:
+    latest = load_prompt("interviewer")
+
+    assert "`options`" in latest
+    assert latest == load_prompt("interviewer", 3)
+    assert "`options`" not in load_prompt("interviewer", 2)

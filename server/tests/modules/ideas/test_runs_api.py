@@ -510,6 +510,115 @@ async def test_a_value_that_does_not_fit_the_interrupt_is_422(
     assert queue == []
 
 
+OPTIONS_QUESTION = {
+    "type": "question",
+    "question": "Who is it for?",
+    "multi": False,
+    "options": [
+        {"id": "o1", "label": "Solo freelancers", "recommended": True},
+        {"id": "o2", "label": "Small agencies", "recommended": False},
+        {"id": "o3", "label": "In-house teams", "recommended": False},
+    ],
+    "allow_free_text": True,
+    "index": 1,
+    "total": 5,
+}
+MULTI_QUESTION = {**OPTIONS_QUESTION, "multi": True}
+PICK_ONLY_QUESTION = {**OPTIONS_QUESTION, "allow_free_text": False}
+
+
+@pytest.mark.parametrize(
+    ("interrupt", "value", "answer"),
+    [
+        (OPTIONS_QUESTION, {"option_ids": ["o2"]}, "Small agencies"),
+        (MULTI_QUESTION, {"option_ids": ["o3", "o1"]}, "Solo freelancers; In-house teams"),
+        (OPTIONS_QUESTION, {"text": "  Students  "}, "Students"),
+        (OPTIONS_QUESTION, "  Students  ", "Students"),
+        (PICK_ONLY_QUESTION, {"option_ids": ["o1"]}, "Solo freelancers"),
+        (QUESTION, {"text": "Freelancers"}, "Freelancers"),
+    ],
+)
+async def test_resume_turns_a_picked_option_or_typed_text_into_the_answer(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    interrupt: dict[str, Any],
+    value: Any,
+    answer: str,
+) -> None:
+    ada, run_id = await _waiting(client, engine, interrupt)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert response.status_code == 202, response.text
+    [call] = queue
+    assert call["resume"] == answer
+
+
+@pytest.mark.parametrize(
+    ("interrupt", "value"),
+    [
+        (OPTIONS_QUESTION, {"option_ids": ["o9"]}),
+        (OPTIONS_QUESTION, {"option_ids": []}),
+        (OPTIONS_QUESTION, {}),
+        (OPTIONS_QUESTION, {"option_ids": ["o1", "o2"]}),
+        (MULTI_QUESTION, {"option_ids": ["o1", "o1"]}),
+        (MULTI_QUESTION, {"option_ids": ["o1", "o9"]}),
+        (OPTIONS_QUESTION, {"option_ids": ["o1"], "text": "Students"}),
+        (OPTIONS_QUESTION, {"text": "   "}),
+        (OPTIONS_QUESTION, {"text": "x" * 10_001}),
+        (OPTIONS_QUESTION, {"option_ids": ["o1"], "extra": 1}),
+        (PICK_ONLY_QUESTION, {"text": "Students"}),
+        (PICK_ONLY_QUESTION, "Students"),
+        (QUESTION, {"option_ids": ["o1"]}),
+    ],
+)
+async def test_a_question_answer_that_does_not_fit_is_422(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    interrupt: dict[str, Any],
+    value: Any,
+) -> None:
+    ada, run_id = await _waiting(client, engine, interrupt)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
+
+
+async def test_an_unknown_option_id_is_reported_on_the_value_field(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, OPTIONS_QUESTION)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"option_ids": ["o9"]})
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert response.json()["errors"][0]["field"] == "body.value"
+    assert queue == []
+
+
+@pytest.mark.parametrize("interrupt", [APPROVAL, ADVICE, PHASE_REVIEW])
+async def test_picked_options_do_not_answer_another_kind_of_interrupt(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    interrupt: dict[str, Any],
+) -> None:
+    ada, run_id = await _waiting(client, engine, interrupt)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"option_ids": ["o1"]})
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
+
+
 @pytest.mark.parametrize("status", ["queued", "running", *TERMINAL])
 async def test_resume_on_a_run_that_is_not_waiting_is_409(
     client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]], status: str

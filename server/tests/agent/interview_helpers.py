@@ -33,8 +33,9 @@ class Reply:
     calls: tuple[Call, ...] = ()
 
 
-def ask(question: str, topic: str) -> Reply:
-    return Reply(calls=(Call("ask_user", {"question": question, "topic": topic}),))
+def ask(question: str, topic: str, **extra: Any) -> Reply:
+    """An ``ask_user`` call; ``extra`` adds ``options``, ``multi`` or ``allow_free_text``."""
+    return Reply(calls=(Call("ask_user", {"question": question, "topic": topic, **extra}),))
 
 
 def note(topic: str, question: str, answer: str) -> Reply:
