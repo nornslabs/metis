@@ -6,6 +6,7 @@ RLS context can never widen a read. Archived ideas are never returned.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -57,15 +58,49 @@ async def list_page(
     *,
     after: tuple[datetime, UUID] | None,
     limit: int,
+    title_contains: str | None = None,
+    stages: Sequence[str] | None = None,
+    scored_only: bool = False,
 ) -> list[IdeaRow]:
-    """Up to ``limit`` ideas, newest first, strictly after the ``after`` position."""
+    """Up to ``limit`` ideas, most recently active first, strictly after ``after``.
+
+    ``title_contains`` is a case-insensitive literal substring; ``stages`` keeps only those
+    stages; ``scored_only`` keeps ideas with a current score.
+    """
     stmt = select(IdeaRow).where(
         IdeaRow.workspace_id == workspace_id, IdeaRow.archived_at.is_(None)
     )
+    if title_contains is not None:
+        stmt = stmt.where(IdeaRow.title.icontains(title_contains, autoescape=True))
+    if stages is not None:
+        stmt = stmt.where(IdeaRow.stage.in_(stages))
+    if scored_only:
+        stmt = stmt.where(IdeaRow.current_score.is_not(None))
     if after is not None:
-        stmt = stmt.where(tuple_(IdeaRow.created_at, IdeaRow.id) < tuple_(*after))
-    stmt = stmt.order_by(IdeaRow.created_at.desc(), IdeaRow.id.desc()).limit(limit)
+        stmt = stmt.where(tuple_(IdeaRow.updated_at, IdeaRow.id) < tuple_(*after))
+    stmt = stmt.order_by(IdeaRow.updated_at.desc(), IdeaRow.id.desc()).limit(limit)
     return list((await session.scalars(stmt)).all())
+
+
+async def live_ids(
+    session: AsyncSession, workspace_id: UUID, idea_ids: Sequence[UUID]
+) -> set[UUID]:
+    """The ids among ``idea_ids`` that are unarchived ideas of the workspace."""
+    stmt = select(IdeaRow.id).where(
+        IdeaRow.workspace_id == workspace_id,
+        IdeaRow.archived_at.is_(None),
+        IdeaRow.id.in_(idea_ids),
+    )
+    return set((await session.scalars(stmt)).all())
+
+
+async def touch(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> None:
+    """Mark activity on the idea (``updated_at`` only; ``version`` is not bumped)."""
+    await session.execute(
+        update(IdeaRow)
+        .where(IdeaRow.id == idea_id, IdeaRow.workspace_id == workspace_id)
+        .values(updated_at=func.now())
+    )
 
 
 async def update_at_version(
@@ -133,8 +168,8 @@ async def set_current_score(
 ) -> bool:
     """Store the idea's current score; ``False`` when no such (unarchived) idea.
 
-    ``version`` is not bumped: the score is the scorer's output, and a user's edit of the
-    title or text must not conflict with it.
+    ``updated_at`` moves (last activity) but ``version`` is not bumped: the score is the
+    scorer's output, and a user's edit of the title or text must not conflict with it.
     """
     stmt = (
         update(IdeaRow)
@@ -143,7 +178,7 @@ async def set_current_score(
             IdeaRow.workspace_id == workspace_id,
             IdeaRow.archived_at.is_(None),
         )
-        .values(current_score=score)
+        .values(current_score=score, updated_at=func.now())
         .returning(IdeaRow.id)
     )
     return (await session.scalars(stmt)).one_or_none() is not None

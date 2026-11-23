@@ -12,12 +12,15 @@ from uuid import UUID
 from fastapi import APIRouter, Query, Response, status
 
 from metis.core.db import SessionDep
+from metis.core.errors import InvalidInputError
 from metis.modules.auth import CurrentUserDep
 from metis.modules.ideas import service
 from metis.modules.ideas.dto import (
     DEFAULT_PAGE_SIZE,
     MAX_PAGE_SIZE,
+    MAX_SEARCH_LENGTH,
     Idea,
+    IdeaFilter,
     IdeaPage,
     IdeaPatch,
     InterviewTurnList,
@@ -42,9 +45,21 @@ async def list_ideas(
     workspace: CurrentWorkspaceDep,
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
+    q: str | None = None,
+    filter: IdeaFilter = IdeaFilter.ALL,  # noqa: A002 - the query parameter name
 ) -> IdeaPage:
-    """The workspace's ideas, newest first; pass ``next_cursor`` as ``cursor`` for the next page."""
-    return await service.ideas.list_ideas(session, workspace.workspace.id, cursor, limit)
+    """The workspace's ideas, most recently active first (``updated_at``).
+
+    ``q`` searches titles; ``filter`` is ``all``, ``in_progress`` or ``scored``. Pass
+    ``next_cursor`` as ``cursor`` for the next page.
+    """
+    search = (q or "").strip()
+    if len(search) > MAX_SEARCH_LENGTH:
+        message = f"Search is at most {MAX_SEARCH_LENGTH} characters"
+        raise InvalidInputError(message, errors=[{"field": "query.q", "message": message}])
+    return await service.ideas.list_ideas(
+        session, workspace.workspace.id, cursor, limit, q=search or None, filter=filter
+    )
 
 
 @router.get("/{idea_id}", response_model=Idea)

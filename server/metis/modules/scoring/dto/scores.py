@@ -95,6 +95,20 @@ class ScoreRunSummary(FrozenModel):
     created_at: datetime
 
 
+class IdeaScoreSummary(FrozenModel):
+    """One idea's score trend: run totals oldest first and the newest run's band."""
+
+    idea_id: UUID
+    band: ScoreBand
+    totals: tuple[int, ...]
+
+
+class IdeaScoreSummaryList(FrozenModel):
+    """Summaries of the scored ideas among those asked for (any order)."""
+
+    items: tuple[IdeaScoreSummary, ...]
+
+
 class ScoreRun(ScoreRunSummary):
     """A score run with the rubric weights and its six parameters, in rubric order."""
 

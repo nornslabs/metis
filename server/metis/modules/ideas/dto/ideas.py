@@ -18,6 +18,7 @@ MIN_RAW_TEXT_LENGTH = 10
 MAX_RAW_TEXT_LENGTH = 10_000
 DEFAULT_PAGE_SIZE = 20
 MAX_PAGE_SIZE = 100
+MAX_SEARCH_LENGTH = 100
 
 
 class Stage(StrEnum):
@@ -32,6 +33,25 @@ class Stage(StrEnum):
     SPEC_CONFIRMED = "spec_confirmed"
     PLANNING = "planning"
     EXPORTED = "exported"
+
+
+class IdeaFilter(StrEnum):
+    """Which ideas ``GET /v1/ideas`` lists: all, those before ``spec_confirmed``, or scored."""
+
+    ALL = "all"
+    IN_PROGRESS = "in_progress"
+    SCORED = "scored"
+
+
+# Stages the ``in_progress`` filter lists: every stage before the spec is confirmed.
+IN_PROGRESS_STAGES = (
+    Stage.INTAKE,
+    Stage.INTERVIEWING,
+    Stage.RESEARCHING,
+    Stage.SCORING,
+    Stage.ADVISING,
+    Stage.SPEC_DRAFT,
+)
 
 
 class IdeaKind(StrEnum):
@@ -106,7 +126,7 @@ class Idea(FrozenModel):
 
 
 class IdeaPage(FrozenModel):
-    """One page of ideas, newest first; ``next_cursor`` is ``None`` on the last page."""
+    """One page of ideas, latest activity first; ``next_cursor`` is ``None`` on the last page."""
 
     items: list[Idea]
     next_cursor: str | None

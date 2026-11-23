@@ -45,6 +45,7 @@ from metis.modules.ideas.helpers.spec_markdown import render_markdown as render_
 from metis.modules.ideas.service.ideas import (
     apply_revision,
     get_idea,
+    live_idea_ids,
     set_current_score,
     transition,
 )
@@ -128,6 +129,7 @@ __all__ = [
     "finish_interview",
     "create_run",
     "get_idea",
+    "live_idea_ids",
     "get_interview_brief",
     "get_run",
     "interview_coverage",

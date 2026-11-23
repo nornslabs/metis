@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+import pytest
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -191,3 +192,106 @@ async def test_unknown_foreign_or_archived_score_runs_are_not_found(
         response = await _get(client, caller, f"/v1/scores/{target}")
         assert response.status_code == 404
         assert _code(response) == "score.run_not_found"
+
+
+# ------------------------------------------------------------------ summaries
+
+
+SUMMARIES_URL = "/v1/scores/summaries"
+
+
+async def test_summaries_give_totals_oldest_first_and_the_latest_band(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada = await owner(client, engine)
+    idea = await create(client, ada)
+    await _score(engine, app_sessions, ada, idea["id"], marks(5))
+    await _score(engine, app_sessions, ada, idea["id"], marks(9))
+
+    response = await _get(client, ada, f"{SUMMARIES_URL}?idea_ids={idea['id']}")
+
+    assert response.status_code == 200, response.text
+    assert response.json() == {
+        "items": [{"idea_id": idea["id"], "band": "build", "totals": [50, 90]}]
+    }
+
+
+async def test_summaries_match_the_score_history_of_each_idea(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada = await owner(client, engine)
+    first = await create(client, ada, title="First idea")
+    second = await create(client, ada, title="Second idea")
+    for raw in (3, 6, 8):
+        await _score(engine, app_sessions, ada, first["id"], marks(raw))
+    await _score(engine, app_sessions, ada, second["id"], marks(4))
+
+    response = await _get(
+        client, ada, f"{SUMMARIES_URL}?idea_ids={first['id']},{second['id']},{first['id']}"
+    )
+
+    by_idea = {item["idea_id"]: item for item in response.json()["items"]}
+    for idea in (first, second):
+        history = (await _get(client, ada, f"{IDEAS_URL}/{idea['id']}/scores")).json()["items"]
+        assert by_idea[idea["id"]]["totals"] == [i["total"] for i in reversed(history)]
+        assert by_idea[idea["id"]]["band"] == history[0]["band"]
+    assert len(by_idea) == 2
+
+
+async def test_summaries_leave_out_unscored_unknown_foreign_and_archived_ideas(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada = await owner(client, engine)
+    grace = await owner(client, engine, "grace")
+    scored = await create(client, ada, title="Scored idea")
+    unscored = await create(client, ada, title="Unscored idea")
+    archived = await create(client, ada, title="Archived idea")
+    foreign = await create(client, grace, title="Foreign idea")
+    for idea, caller in ((scored, ada), (archived, ada), (foreign, grace)):
+        await _score(engine, app_sessions, caller, idea["id"])
+    await client.delete(f"{IDEAS_URL}/{archived['id']}", headers=ada.headers)
+    ids = ",".join([scored["id"], unscored["id"], archived["id"], foreign["id"], str(uuid7())])
+
+    response = await _get(client, ada, f"{SUMMARIES_URL}?idea_ids={ids}")
+
+    assert [i["idea_id"] for i in response.json()["items"]] == [scored["id"]]
+
+
+async def test_a_score_moves_the_idea_to_the_top_of_the_list_without_a_new_version(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada = await owner(client, engine)
+    older = await create(client, ada, title="Older idea")
+    await create(client, ada, title="Newer idea")
+
+    await _score(engine, app_sessions, ada, older["id"])
+
+    first = (await _get(client, ada, IDEAS_URL)).json()["items"][0]
+    assert first["id"] == older["id"]
+    assert first["version"] == older["version"]
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "",
+        "idea_ids=",
+        "idea_ids=nope",
+        f"idea_ids={uuid7()},nope",
+        "idea_ids=" + ",".join(str(uuid7()) for _ in range(51)),
+    ],
+)
+async def test_summaries_reject_missing_malformed_or_too_many_ids(
+    client: httpx.AsyncClient, engine: AsyncEngine, query: str
+) -> None:
+    ada = await owner(client, engine)
+
+    response = await _get(client, ada, f"{SUMMARIES_URL}?{query}")
+
+    assert response.status_code == 422, response.text
+
+
+async def test_summaries_need_a_session(client: httpx.AsyncClient) -> None:
+    response = await client.get(f"{SUMMARIES_URL}?idea_ids={uuid7()}")
+
+    assert response.status_code == 401, response.text

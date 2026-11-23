@@ -179,7 +179,10 @@ export interface paths {
         };
         /**
          * List Ideas
-         * @description The workspace's ideas, newest first; pass ``next_cursor`` as ``cursor`` for the next page.
+         * @description The workspace's ideas, most recently active first (``updated_at``).
+         *
+         *     ``q`` searches titles; ``filter`` is ``all``, ``in_progress`` or ``scored``. Pass
+         *     ``next_cursor`` as ``cursor`` for the next page.
          */
         get: operations["list_ideas_v1_ideas_get"];
         put?: never;
@@ -644,6 +647,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/scores/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Score Summaries
+         * @description Score totals per version (oldest first) and the latest band, for several ideas at once.
+         */
+        get: operations["get_score_summaries_v1_scores_summaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/scores/{score_run_id}": {
         parameters: {
             query?: never;
@@ -977,13 +1000,19 @@ export interface components {
             workspace_id: string;
         };
         /**
+         * IdeaFilter
+         * @description Which ideas ``GET /v1/ideas`` lists: all, those before ``spec_confirmed``, or scored.
+         * @enum {string}
+         */
+        IdeaFilter: "all" | "in_progress" | "scored";
+        /**
          * IdeaKind
          * @enum {string}
          */
         IdeaKind: "software" | "other";
         /**
          * IdeaPage
-         * @description One page of ideas, newest first; ``next_cursor`` is ``None`` on the last page.
+         * @description One page of ideas, latest activity first; ``next_cursor`` is ``None`` on the last page.
          */
         IdeaPage: {
             /** Items */
@@ -1006,6 +1035,28 @@ export interface components {
             title?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * IdeaScoreSummary
+         * @description One idea's score trend: run totals oldest first and the newest run's band.
+         */
+        IdeaScoreSummary: {
+            band: components["schemas"]["ScoreBand"];
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Totals */
+            totals: number[];
+        };
+        /**
+         * IdeaScoreSummaryList
+         * @description Summaries of the scored ideas among those asked for (any order).
+         */
+        IdeaScoreSummaryList: {
+            /** Items */
+            items: components["schemas"]["IdeaScoreSummary"][];
         };
         /**
          * InterviewTopic
@@ -2046,6 +2097,8 @@ export interface operations {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                q?: string | null;
+                filter?: components["schemas"]["IdeaFilter"];
             };
             header?: {
                 "X-Workspace-Id"?: string | null;
@@ -3001,6 +3054,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_score_summaries_v1_scores_summaries_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated idea ids, 1 to 50 */
+                idea_ids: string;
+            };
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaScoreSummaryList"];
                 };
             };
             /** @description Validation Error */
