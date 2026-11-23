@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, MicOff } from "lucide-react";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -32,8 +32,14 @@ interface VoiceButtonProps {
 
 export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel = false }: VoiceButtonProps) {
   const { recording, error, audioLevel, start, stop } = useVoiceRecorder(options);
-  const [webSpeechSupported, setWebSpeechSupported] = useState(true);
-  const [errorToasted, setErrorToasted] = useState(false);
+
+  // Initialize with correct value (not in useEffect)
+  const [webSpeechSupported] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
+  });
+
+  const errorToastedRef = useRef(false);
 
   const handleStart = useCallback(async () => {
     try {
@@ -50,24 +56,17 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
     }
   }, [stop, onBlob]);
 
-  // Check Web Speech API support on mount
-  useEffect(() => {
-    const supported = typeof window !== "undefined" &&
-      ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
-    setWebSpeechSupported(supported);
-  }, []);
-
   // Show error toast on permission deny (only once per error, not on every render)
   useEffect(() => {
-    if (error && !recording && !errorToasted) {
+    if (error && !recording && !errorToastedRef.current) {
       toast.error(
         error.message.includes("microphone")
           ? VOICE_STRINGS.micDenied
           : VOICE_STRINGS.transcriptionFailed,
       );
-      setErrorToasted(true);
+      errorToastedRef.current = true;
     } else if (!error) {
-      setErrorToasted(false);
+      errorToastedRef.current = false;
     }
   }, [error, recording]);
 
@@ -83,7 +82,7 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
               size="icon-xs"
               disabled
               aria-label={VOICE_STRINGS.notSupported}
-              className="size-6.5 opacity-50 min-h-[44px] min-w-[44px]"
+              className="size-6.5 opacity-50 size-touch"
             />
           }
         >
@@ -105,7 +104,7 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
             onClick={recording ? handleStop : handleStart}
             disabled={!recording && error !== null}
             aria-label={recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}
-            className="size-touch" // ≥44px touch target (globals.css: --touch-target)
+            className="size-touch"
           >
             {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
           </Button>
