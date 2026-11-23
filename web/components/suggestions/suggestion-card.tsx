@@ -5,11 +5,13 @@ import { PARAM_LABELS, SUGGESTION_KIND_LABELS, type Suggestion } from "@/lib/sco
 interface SuggestionCardProps {
   suggestion: Suggestion;
   disabled: boolean;
+  /** The version that applied this accepted suggestion, once one exists. */
+  appliedIn: number | null;
   onStatus: (status: Suggestion["status"]) => void;
 }
 
 /** One improvement idea: kind, rationale, the parameters it lifts, its sources, and Accept / Dismiss. */
-export function SuggestionCard({ suggestion, disabled, onStatus }: SuggestionCardProps) {
+export function SuggestionCard({ suggestion, disabled, appliedIn, onStatus }: SuggestionCardProps) {
   const { status } = suggestion;
   return (
     <li className="flex flex-col gap-1.5 border px-2.5 py-2">
@@ -24,7 +26,10 @@ export function SuggestionCard({ suggestion, disabled, onStatus }: SuggestionCar
         Lifts: {suggestion.target_params.map((param) => PARAM_LABELS[param]).join(", ")}
       </p>
       {suggestion.expected_impact ? (
-        <p className="text-meta break-words text-muted-foreground">Expected impact: {suggestion.expected_impact}</p>
+        <p className="font-mono text-meta break-words text-success">
+          <span className="sr-only">Expected impact: </span>
+          {suggestion.expected_impact}
+        </p>
       ) : null}
       <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
         {suggestion.evidence.map((item) => (
@@ -46,6 +51,9 @@ export function SuggestionCard({ suggestion, disabled, onStatus }: SuggestionCar
         ) : (
           <>
             <span className="text-control font-medium">{status === "accepted" ? "Accepted" : "Dismissed"}</span>
+            {appliedIn !== null ? (
+              <span className="inline-flex h-badge items-center bg-secondary px-2 text-micro font-medium">Applied in v{appliedIn}</span>
+            ) : null}
             <Button type="button" variant="ghost" size="sm" disabled={disabled} onClick={() => onStatus("open")}>
               Undo
             </Button>

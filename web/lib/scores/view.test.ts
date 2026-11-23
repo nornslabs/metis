@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { barPercent, chartPoints, daysAgoLabel, formatPoints, groupByScoreRun, type ScoreRunSummary, type Suggestion } from "./view";
+import { barPercent, chartPoints, daysAgoLabel, formatPoints, groupByScoreRun, updatedAgoLabel, type ScoreRunSummary, type Suggestion } from "./view";
 
 const NOW = new Date("2026-11-20T12:00:00Z");
 
@@ -63,5 +63,20 @@ describe("groupByScoreRun", () => {
     const make = (id: string, scoreRunId: string) => ({ id, score_run_id: scoreRunId }) as Suggestion;
     const groups = groupByScoreRun([make("1", "new"), make("2", "new"), make("3", "old")]);
     expect(groups.map((group) => group.map((entry) => entry.id))).toEqual([["1", "2"], ["3"]]);
+  });
+});
+
+describe("updatedAgoLabel", () => {
+  const now = new Date("2026-11-20T12:00:00Z");
+
+  test("counts minutes, hours, then days", () => {
+    expect(updatedAgoLabel("2026-11-20T11:59:40Z", now)).toBe("just now");
+    expect(updatedAgoLabel("2026-11-20T11:55:00Z", now)).toBe("5 min ago");
+    expect(updatedAgoLabel("2026-11-20T09:00:00Z", now)).toBe("3 h ago");
+    expect(updatedAgoLabel("2026-11-18T12:00:00Z", now)).toBe("2 days ago");
+  });
+
+  test("is empty for an unreadable date", () => {
+    expect(updatedAgoLabel("nope", now)).toBe("");
   });
 });
