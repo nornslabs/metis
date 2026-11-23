@@ -7,7 +7,11 @@ export const queryKeys = {
   settings: (workspaceId: string | null) => ["settings", workspaceId] as const,
   /** Prefix of every idea query (list, ideas, runs), for invalidation after a write. */
   allIdeas: () => ["ideas"] as const,
-  ideas: (workspaceId: string | null) => ["ideas", workspaceId, "list"] as const,
+  ideas: (workspaceId: string | null, q = "", filter = "all") =>
+    ["ideas", workspaceId, "list", q, filter] as const,
+  /** Score trends of the ideas in one list page (`GET /v1/scores/summaries`). */
+  scoreSummaries: (workspaceId: string | null, ideaIds: readonly string[]) =>
+    ["ideas", workspaceId, "score-summaries", ...ideaIds] as const,
   idea: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId] as const,
   latestRun: (workspaceId: string | null, ideaId: string) =>
     ["ideas", workspaceId, ideaId, "latest-run"] as const,

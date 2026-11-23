@@ -6,6 +6,7 @@ import { EdgeToggle } from "@/components/chat/edge-toggle";
 import { HistoryPanel } from "@/components/history/history-panel";
 import { OutputPanel } from "@/components/panel/output-panel";
 import { OutputRegistryProvider } from "@/lib/workspace/output-registry";
+import { RunActivityProvider } from "@/lib/workspace/run-activity";
 import { useNarrow } from "@/lib/workspace/use-narrow";
 import { WorkspacePanelsProvider, useWorkspacePanels } from "@/lib/workspace/workspace-panels";
 
@@ -52,9 +53,11 @@ function WorkspaceRow({ children }: { children: ReactNode }) {
 export function WorkspaceLayout({ children }: { children: ReactNode }) {
   return (
     <OutputRegistryProvider>
-      <WorkspacePanelsProvider>
-        <WorkspaceRow>{children}</WorkspaceRow>
-      </WorkspacePanelsProvider>
+      <RunActivityProvider>
+        <WorkspacePanelsProvider>
+          <WorkspaceRow>{children}</WorkspaceRow>
+        </WorkspacePanelsProvider>
+      </RunActivityProvider>
     </OutputRegistryProvider>
   );
 }
