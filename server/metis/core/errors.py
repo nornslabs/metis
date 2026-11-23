@@ -126,6 +126,11 @@ class ErrorCode(StrEnum):
 
     # -------------------------------------------------------------------------- mcp
     MCP_NOT_CONNECTED = "mcp.not_connected"
+    MCP_EXPIRED = "mcp.expired"
+    MCP_NOT_FOUND = "mcp.not_found"
+    MCP_PROVIDER_UNSUPPORTED = "mcp.provider_unsupported"
+    MCP_OAUTH_STATE_INVALID = "mcp.oauth_state_invalid"
+    MCP_OAUTH_FAILED = "mcp.oauth_failed"
     MCP_UPSTREAM_ERROR = "mcp.upstream_error"
     MCP_TOOL_NOT_FOUND = "mcp.tool_not_found"
 
@@ -513,8 +518,33 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ),
     # mcp
     ErrorCode.MCP_NOT_CONNECTED: ErrorSpec(
-        status=503,
-        title="MCP Service Not Connected",
+        status=409,
+        title="Integration Not Connected",
+        retryable=False,
+    ),
+    ErrorCode.MCP_EXPIRED: ErrorSpec(
+        status=409,
+        title="Integration Expired",
+        retryable=False,
+    ),
+    ErrorCode.MCP_NOT_FOUND: ErrorSpec(
+        status=404,
+        title="Integration Not Found",
+        retryable=False,
+    ),
+    ErrorCode.MCP_PROVIDER_UNSUPPORTED: ErrorSpec(
+        status=422,
+        title="Integration Not Available",
+        retryable=False,
+    ),
+    ErrorCode.MCP_OAUTH_STATE_INVALID: ErrorSpec(
+        status=400,
+        title="Connect Link Invalid",
+        retryable=False,
+    ),
+    ErrorCode.MCP_OAUTH_FAILED: ErrorSpec(
+        status=502,
+        title="Connect Failed",
         retryable=True,
     ),
     ErrorCode.MCP_UPSTREAM_ERROR: ErrorSpec(
@@ -734,6 +764,42 @@ class ProviderKeyNotFoundError(NotFoundError):
     code: ErrorCode = ErrorCode.PROVIDER_KEY_NOT_FOUND
 
 
+class IntegrationNotConnectedError(ConflictError):
+    """409: the workspace has not connected that MCP provider; ``meta {provider}`` names it."""
+
+    code: ErrorCode = ErrorCode.MCP_NOT_CONNECTED
+
+
+class IntegrationExpiredError(ConflictError):
+    """409: the MCP connection's tokens no longer work; the owner must reconnect."""
+
+    code: ErrorCode = ErrorCode.MCP_EXPIRED
+
+
+class IntegrationNotFoundError(NotFoundError):
+    """404: nothing to disconnect for that provider."""
+
+    code: ErrorCode = ErrorCode.MCP_NOT_FOUND
+
+
+class IntegrationProviderUnsupportedError(InvalidInputError):
+    """422: that MCP provider cannot be connected (yet)."""
+
+    code: ErrorCode = ErrorCode.MCP_PROVIDER_UNSUPPORTED
+
+
+class IntegrationOAuthStateInvalidError(MetisError):
+    """The connect callback's ``state`` is missing, unknown, expired, used or not the caller's."""
+
+    code: ErrorCode = ErrorCode.MCP_OAUTH_STATE_INVALID
+
+
+class IntegrationOAuthFailedError(MetisError):
+    """The MCP provider's OAuth flow failed or its answer did not verify."""
+
+    code: ErrorCode = ErrorCode.MCP_OAUTH_FAILED
+
+
 class RunNotFoundError(NotFoundError):
     """404: no such run in the caller's workspace."""
 
@@ -897,6 +963,12 @@ __all__ = [
     "MemberUserNotFoundError",
     "AlreadyMemberError",
     "WorkspaceNotFoundError",
+    "IntegrationNotConnectedError",
+    "IntegrationExpiredError",
+    "IntegrationNotFoundError",
+    "IntegrationProviderUnsupportedError",
+    "IntegrationOAuthStateInvalidError",
+    "IntegrationOAuthFailedError",
     "RunNotFoundError",
     "IllegalRunTransition",
     "RunAlreadyRunningError",

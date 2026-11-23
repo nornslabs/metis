@@ -57,6 +57,8 @@ Vendor adapters live in `metis/adapters/` and build on the shared plumbing in `m
 - `helpers/pricing.py`: `ModelPrice`, `cost_usd(price, input_tokens, output_tokens)` (`None` without a price).
 - `helpers/mcp.py`: `open_mcp_session(http, url, provider)` connects to a remote MCP server over streamable HTTP with a caller-built client (auth headers on the client), runs the handshake and yields a `ClientSession`; any failure becomes `UpstreamError` (`unauthorized` for HTTP 401/403, `timeout`, `unreachable`, else `bad_response`). Shared by every MCP-backed provider.
 - `adapters/mcp/exa.py`: `ExaMcpClient(make_client, api_key).check()` calls Exa's hosted MCP server (`https://mcp.exa.ai/mcp`, key in `x-api-key`): one `web_search_exa` call with `numResults: 1` (`query` and `objective` are required). Exa also serves keyless searches, so only a tool call proves a key; a bad key comes back as a tool `isError` with `(401)` in its text → `unauthorized`. No `exa-py`.
+- `adapters/mcp/oauth.py`: OAuth 2.1 for remote MCP servers with `httpx` only: `discover` (protected-resource metadata, RFC 9728, then authorization-server metadata, RFC 8414; every endpoint must be https, `localhost` only in development), `register_client` (dynamic registration, RFC 7591, public client when the server allows `none`), `authorization_url` (PKCE `S256`, `resource`), `exchange_code`, `refresh`, `revoke` (best effort). Tokens and the client secret are `SecretStr`; failures are `UpstreamError` with `meta {provider, reason}`, never carrying a code, token or body.
+- `adapters/mcp/linear.py`: `LinearMcpClient(make_client, access_token).list_tools()` → `[ToolInfo{name, description}]` over `open_mcp_session` (`Authorization: Bearer`); `SERVER_URL = https://mcp.linear.app/mcp`. `adapters/mcp/client.py`: `build_mcp_client({name: McpServer(url, access_token)})` → `MultiServerMCPClient` (streamable HTTP, bearer header), the agent's tool loader (SHIP-233).
 
 ## Domain Primitives
 
@@ -94,7 +96,7 @@ Immutable, versioned: score runs, spec versions, research snapshots.
 | `research`      | snapshots, items, competitor KB, signals         |
 | `scoring`       | score runs, params, suggestions, rubric versions |
 | `planning`      | HLD, phases, tasks, task deps, plan diffs        |
-| `integrations`  | MCP connections, export jobs, external refs      |
+| `integrations`  | MCP connections (OAuth), external refs, export jobs |
 | `memory`        | memories (pgvector), guidance versions           |
 | `notifications` | in-app notifications                             |
 
@@ -152,6 +154,14 @@ Planning (SHIP-230, `modules/planning/`, `planning` schema, migration `0021_plan
   - Edits (draft only, any member; each takes the plan `version`, claims it with one conditional update, so two edits on one version cannot both win: stale → `PlanConflictError` 409 `plan.conflict`; ready → `PlanNotEditableError` 409 `plan.invalid_transition`): `edit_phases(…, ops, version)` applies `rename` / `reorder` (every phase once) / `add` (`position?`) / `remove` (`move_tasks_to` needed when the phase has tasks; the only phase cannot go) in order, all or none, and bumps `version` once; `edit_task(…, task_id, TaskPatch{title?, description?, estimate?, labels?, phase_id?, position?}, version)` (dependencies are not editable here; a move keeps them).
   - `mark_ready(session, workspace_id, plan_id)`: re-checks the stored graph, sets `status = ready`, `ready_at`, bumps `version` and adds `PlanReady` `{idea_id, plan_id, spec_version_id, version}` to the outbox; a plan already ready is returned unchanged with no second event (a conditional update decides the winner under a race). It does not move the idea's stage.
   - Routes (any member, `current_workspace`): `GET /v1/ideas/{id}/plan?spec_version_id=` → `Plan`; `PATCH /v1/plans/{id}/phases` `{version, ops}` → `Plan`; `PATCH /v1/plans/{id}/tasks/{task_id}` `{version, …patch}` → `Plan`; `POST /v1/plans/{id}/ready` → `200 Plan`. Unknown/archived/foreign idea → `idea.not_found`; unknown or foreign plan, phase or task → `plan.not_found`. No route saves a plan.
+
+Integrations (SHIP-231, `modules/integrations/`, `integrations` schema, migration `0023_integrations`; public surface `router`, `get_mcp_client`, `IntegrationProvider`, `IntegrationStatus`, `IntegrationView`). `integrations` is a peer of `research`, `scoring` and `planning` above `ideas`; it uses only the public surface of `identity` and `auth`.
+  - Tables (tenant, RLS, `metis_app` SELECT/INSERT/UPDATE/DELETE): `mcp_connections` (one row per `(workspace_id, provider)`; `provider` ∈ `linear`, `notion`; `status` ∈ `connected`, `expired`, `revoked`; `sealed_tokens` JSONB, `NULL` exactly when revoked; `scopes`, `expires_at`, `created_by`, `version`, `connected_at`) and `external_refs` (`(workspace_id, provider, local_kind, local_id)` → `external_id`, `external_url`; nothing writes it yet). `sealed_tokens` is one secret sealed with the workspace id as AAD: `{access_token, refresh_token?, client_id, client_secret?, token_endpoint, revocation_endpoint?}`; it never leaves the module.
+  - Only `linear` is connectable (`IntegrationProviderUnsupportedError` for `notion`). Owners connect and disconnect (`PermissionDeniedError`); any member reads status and tools.
+  - Connect: `service.oauth.start_connect` discovers, registers a fresh client and stores `PendingConnect{workspace_id, user_id, provider, client_id, sealed client secret, token_endpoint, revocation_endpoint, code_verifier, redirect_to}` at Redis `integrations:oauth:{state}` (600 s, `GETDEL`, single use) before returning the consent URL. `finish_connect` takes it back (missing, unknown, expired, reused or corrupt → `IntegrationOAuthStateInvalidError`), requires the signed-in user to be the one who started it and still an owner, exchanges the code and upserts the row `connected` (`version + 1`), then checks it with one tool listing (a failure is logged, not raised). Redirect URI: `{WEB_BASE_URL}/v1/integrations/{provider}/callback`, through the web `/v1` rewrite so the session cookie is present.
+  - Tokens: `service.tokens.get_fresh_token` refreshes when `expires_at` is within 60 s (or when forced), under the row lock so a single-use refresh token is spent once. A refresh the provider rejects (401/403 or a bad answer), or an expiring token with no refresh token, marks the row `expired` (`IntegrationExpiredError`); a transient failure (timeout, 5xx, unreachable) raises `UpstreamError` and changes nothing. Callers commit right after a refresh.
+  - `service.connections`: `list_integrations(session, workspace_id)` (one entry per supported provider; revoked reads `not_connected`; no token or secret in any field), `list_tools(session, make_client, workspace_id, provider)` → `ToolListing{tools, error}` (a 401 from the server refreshes once, then marks `expired`; the error is returned, not raised, so the mark commits), `disconnect(session, make_client, membership, provider)` (best-effort revocation at the provider, tokens wiped, row kept `revoked`; none → `IntegrationNotFoundError`), `get_mcp_client(session, make_client, workspace_id, providers)` → `MultiServerMCPClient` with a fresh bearer per provider (`IntegrationNotConnectedError` / `IntegrationExpiredError`, `meta {provider}`); the only way agent code gets an MCP client, workers only.
+  - Routes (`/v1/integrations`): `GET` → `{items: [{provider, status: not_connected|connected|expired, scopes, expires_at, connected_at, connected_by, version}]}`; `POST /{provider}/connect` `{redirect_to?}` → `{authorize_url}` (`redirect_to` is a same-site path, default `/?settings=integrations`); `GET /{provider}/callback?code=&state=&error=` (session cookie, no workspace header; commits only on success; answers `302` to `WEB_BASE_URL + redirect_to` with `integration=<provider>`, or to `/?settings=integrations&integration_error=<code>` on any failure, or to `/sign-in` without a session); `GET /{provider}/tools` → `{items: [{name, description}]}` (409 `mcp.not_connected` / `mcp.expired`); `DELETE /{provider}` → 204.
 
 ## Auth and Request Scope
 
@@ -281,6 +291,12 @@ Services raise domain errors from `core/errors.py`; API maps them to HTTP.
 | `SpecNotEditableError` (`spec.invalid_transition`) | 409 |
 | `spec.invalid_submission` (set by the Architect node as the run's `last_error`; no exception class) | 422 |
 | `plan.invalid_submission` (set by the Planner node as the run's `last_error`; no exception class) | 422 |
+| `IntegrationNotConnectedError` (`mcp.not_connected`; `meta {provider}`) | 409 |
+| `IntegrationExpiredError` (`mcp.expired`; `meta {provider}`) | 409 |
+| `IntegrationNotFoundError` (`mcp.not_found`) | 404 |
+| `IntegrationProviderUnsupportedError` (`mcp.provider_unsupported`) | 422 |
+| `IntegrationOAuthStateInvalidError` (`mcp.oauth_state_invalid`) | 400 |
+| `IntegrationOAuthFailedError` (`mcp.oauth_failed`; `meta {provider, reason}`) | 502 |
 | `PlanNotFoundError` (`plan.not_found`) | 404 |
 | `PlanConflictError` (`plan.conflict`) | 409 |
 | `PlanNotEditableError` (`plan.invalid_transition`) | 409 |

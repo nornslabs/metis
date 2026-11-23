@@ -11,7 +11,8 @@ Nothing in this module logs plaintext or key material.
 from __future__ import annotations
 
 import os
-from base64 import urlsafe_b64decode
+from base64 import b64decode, b64encode, urlsafe_b64decode
+from typing import Any
 from uuid import UUID
 
 from cryptography.exceptions import InvalidTag
@@ -44,6 +45,26 @@ class SealedSecret(BaseModel):
     nonce: bytes
     wrapped_key: bytes
     key_version: int
+
+
+_SEALED_BYTES_FIELDS = ("ciphertext", "nonce", "wrapped_key")
+
+
+def seal_to_json(sealed: SealedSecret) -> dict[str, Any]:
+    """Storage form of a sealed secret (a JSONB column): byte fields as base64 text."""
+    stored: dict[str, Any] = {
+        name: b64encode(getattr(sealed, name)).decode() for name in _SEALED_BYTES_FIELDS
+    }
+    return {**stored, "key_version": sealed.key_version}
+
+
+def seal_from_json(stored: dict[str, Any]) -> SealedSecret:
+    """Inverse of ``seal_to_json``; a malformed value fails like a tampered one."""
+    try:
+        fields = {name: b64decode(stored[name]) for name in _SEALED_BYTES_FIELDS}
+        return SealedSecret(**fields, key_version=int(stored["key_version"]))
+    except (KeyError, TypeError, ValueError):
+        raise SecretDecryptError(_DECRYPT_FAILED_DETAIL) from None
 
 
 def encrypt(plaintext: str, aad: str | UUID) -> SealedSecret:
