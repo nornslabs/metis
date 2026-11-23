@@ -853,3 +853,19 @@ async def test_unauthenticated_get_is_401(client: httpx.AsyncClient) -> None:
     response = await client.get(f"/v1/runs/{uuid4()}", headers={"X-Metis-Client": "web"})
 
     assert_problem(response, 401, ErrorCode.NOT_SIGNED_IN)
+
+
+async def test_starting_a_run_moves_the_idea_to_the_top_of_the_list_without_a_new_version(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, idea_id = await _ready(client, engine)
+    other = await create(client, ada, title="Created after the first idea")
+    before = (await client.get("/v1/ideas", headers=ada.headers)).json()["items"]
+    assert [i["id"] for i in before][0] == other["id"]
+    version = next(i["version"] for i in before if i["id"] == idea_id)
+
+    assert (await _start(client, ada, idea_id)).status_code == 202
+
+    after = (await client.get("/v1/ideas", headers=ada.headers)).json()["items"]
+    assert [i["id"] for i in after][0] == idea_id
+    assert next(i["version"] for i in after if i["id"] == idea_id) == version

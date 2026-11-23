@@ -36,6 +36,7 @@ import { stepCounter } from "@/lib/events/work-summary";
 import { buildInterviewThread } from "@/lib/interview/thread";
 import { answerSchema, pickValue, textValue, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
 import { acceptedFor } from "@/lib/scores/decision";
+import { useReportRunBusy } from "@/lib/workspace/run-activity";
 
 type Idea = components["schemas"]["Idea"];
 type RunView = components["schemas"]["RunView"];
@@ -207,6 +208,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     />
   );
 
+  useReportRunBusy(idea.id, mode === "busy");
   const waiting = awaiting && !answeredHere;
   const owl = waiting ? "waiting" : mode === "busy" ? "working" : "idle";
   return (

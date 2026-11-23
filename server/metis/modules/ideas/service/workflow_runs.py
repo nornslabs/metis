@@ -71,6 +71,7 @@ async def create_run(
         idempotency_key=idempotency_key,
         user_prompt=user_prompt,
     )
+    await repo.ideas.touch(session, workspace_id, idea_id)
     logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id))
     return WorkflowRun.model_validate(row)
 
@@ -155,6 +156,7 @@ async def _start_run(
         if known is not None:
             return known
         raise RunAlreadyRunningError()
+    await repo.ideas.touch(session, workspace_id, idea_id)
     logger.info("run.created", run_id=str(row.id), idea_id=str(idea_id), kind=kind.value)
     return WorkflowRun.model_validate(row)
 

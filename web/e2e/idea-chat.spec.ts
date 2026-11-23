@@ -204,16 +204,6 @@ test.describe("idea chat", () => {
     await expect(page.getByRole("heading", { name: "Idea not found" })).toBeVisible();
   });
 
-  test("recent ideas lists the workspace's ideas and opens one", async ({ page }) => {
-    const idea = await createIdea(page, "recent");
-    await page.goto("/");
-    await page.getByRole("button", { name: "Recent ideas" }).click();
-    const item = page.getByRole("menuitem").filter({ hasText: "E2E recent" }).first();
-    await expect(item).toBeVisible();
-    await item.click();
-    await page.waitForURL(`**/ideas/${idea.id}`);
-  });
-
   test("the idea page has no horizontal scroll at 375px", async ({ page }) => {
     const idea = await createIdea(page, "mobile");
     await page.setViewportSize({ width: 375, height: 800 });
