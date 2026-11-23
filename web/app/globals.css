@@ -59,6 +59,7 @@
   --breakpoint-compact: 700px;
   --breakpoint-stacked: 900px;
   --breakpoint-guides: 820px;
+  --breakpoint-narrow: 520px;
 
   /* Font sizes */
   --text-micro: 10px;
@@ -90,6 +91,8 @@
   --container-headline: 460px;
   --container-lead: 400px;
   --container-card: 320px;
+  --container-crumb: 260px;
+  --container-crumb-narrow: 120px;
 }
 
 @utility grid-cols-split {
@@ -121,6 +124,52 @@
 @utility band-advise {
   background: color-mix(in oklch, var(--destructive) 18%, transparent);
   color: color-mix(in oklch, var(--destructive) 70%, var(--foreground));
+}
+
+/* The owl mark (ui-context.md, Brand): lids blink and pupils scan only while an agent works. */
+.owl .owl-lid {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  transform: scaleY(0);
+}
+.owl .owl-pupils {
+  transform-box: view-box;
+}
+.owl[data-state="waiting"] .owl-pupils {
+  transform: translateY(var(--owl-wait-offset));
+  transition: transform var(--owl-wait-transition);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .owl[data-state="working"] .owl-lid {
+    animation: owl-blink var(--owl-blink) ease-in-out infinite;
+  }
+  .owl[data-state="working"] .owl-pupils {
+    animation: owl-scan var(--owl-scan) ease-in-out infinite;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .owl .owl-pupils {
+    transition: none;
+  }
+}
+@keyframes owl-blink {
+  0%,
+  88%,
+  100% {
+    transform: scaleY(0);
+  }
+  93% {
+    transform: scaleY(1);
+  }
+}
+@keyframes owl-scan {
+  0%,
+  100% {
+    transform: translateX(calc(var(--owl-scan-offset) * -1));
+  }
+  50% {
+    transform: translateX(var(--owl-scan-offset));
+  }
 }
 
 /* Agent work in progress (ui-context.md, Shimmer): muted text with a moving highlight. */
@@ -203,6 +252,11 @@
   --col: 760px;
   --header-h: 44px;
   --footer-h: 32px;
+  --owl-blink: 2.6s;
+  --owl-scan: 1.6s;
+  --owl-wait-offset: 1.4px;
+  --owl-scan-offset: 1.2px;
+  --owl-wait-transition: 0.3s;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -253,7 +307,8 @@
   }
 }
 
-@media (max-width: 820px) {
+/* Under 1080px the frame is at most 920px wide, and the column fills it (the sample's rule). */
+@media (max-width: 1080px) {
   :root {
     --col: 100%;
   }

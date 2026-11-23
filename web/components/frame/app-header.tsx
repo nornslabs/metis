@@ -1,9 +1,11 @@
-import { Layers, SquarePen } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { AccountMenu } from "@/components/account/account-menu";
+import { BrandMark } from "@/components/brand/brand-mark";
 import { ThemeToggle } from "@/components/auth/theme-toggle";
+import { HeaderCrumb } from "@/components/frame/header-crumb";
 import { RecentIdeas } from "@/components/frame/recent-ideas";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,22 +15,23 @@ import { cn } from "@/lib/utils";
 
 export function AppHeader() {
   return (
-    <header className="relative z-20 h-(--header-h) shrink-0 border-b">
+    <header data-frame="header" className="relative z-20 h-(--header-h) shrink-0 border-b">
       <div className="mx-auto flex h-full w-(--frame) items-center justify-between px-4">
-        <div className="flex items-center gap-2 font-semibold tracking-tight">
-          <span
-            aria-hidden="true"
-            className="grid size-5 place-items-center bg-primary text-primary-foreground"
-          >
-            <Layers size={12} strokeWidth={2} />
-          </span>
-          Metis
-          <Badge
-            variant="outline"
-            className="h-badge px-1.5 text-meta font-medium text-muted-foreground max-compact:hidden"
-          >
-            Beta
-          </Badge>
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex items-center gap-2 font-semibold tracking-tight">
+            <BrandMark />
+            Metis
+            <Badge
+              variant="outline"
+              className="h-badge px-1.5 text-meta font-medium text-muted-foreground max-compact:hidden"
+            >
+              Beta
+            </Badge>
+          </div>
+          {/* Route params are request data: read them behind a boundary so the header still prerenders. */}
+          <Suspense fallback={null}>
+            <HeaderCrumb />
+          </Suspense>
         </div>
         <div className="flex items-center gap-0.5">
           <Tooltip>

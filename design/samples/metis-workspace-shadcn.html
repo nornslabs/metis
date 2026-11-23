@@ -1,0 +1,2110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Metis Workspace</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20fill%3D%22%23171717%22/%3E%3Cg%20fill%3D%22%23fafafa%22%20transform%3D%22translate%283%203%29%20scale%28.75%29%22%3E%3Cpath%20fill-rule%3D%22evenodd%22%20d%3D%22M3%202.5%209%206h6l6-3.5V14l-9%207.5L3%2014Z%20M8.5%207.8a3.2%203.2%200%201%200%200%206.4a3.2%203.2%200%201%200%200-6.4Z%20M15.5%207.8a3.2%203.2%200%201%200%200%206.4a3.2%203.2%200%201%200%200-6.4Z%20M10.6%2015h2.8L12%2017.6Z%22/%3E%3Ccircle%20cx%3D%228.5%22%20cy%3D%2211%22%20r%3D%221.3%22/%3E%3Ccircle%20cx%3D%2215.5%22%20cy%3D%2211%22%20r%3D%221.3%22/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* shadcn/ui neutral theme tokens (oklch), sharp: radius 0 */
+:root{
+  --radius:0px;
+  --frame:min(1280px, calc(100% - 160px));
+  --header-h:56px;
+  --footer-h:40px;
+  --background:oklch(1 0 0);
+  --foreground:oklch(.145 0 0);
+  --card:oklch(1 0 0);
+  --muted:oklch(.97 0 0);
+  --muted-foreground:oklch(.556 0 0);
+  --primary:oklch(.205 0 0);
+  --primary-foreground:oklch(.985 0 0);
+  --secondary:oklch(.97 0 0);
+  --accent:oklch(.97 0 0);
+  --border:oklch(.922 0 0);
+  --input:oklch(.922 0 0);
+  --ring:oklch(.708 0 0);
+  --success:oklch(.627 .17 149);
+  --warning:oklch(.75 .15 70);
+  --shadow:0 1px 2px oklch(0 0 0 / .05), 0 8px 24px -12px oklch(0 0 0 / .12);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --background:oklch(.145 0 0);--foreground:oklch(.985 0 0);--card:oklch(.205 0 0);
+    --muted:oklch(.269 0 0);--muted-foreground:oklch(.708 0 0);
+    --primary:oklch(.922 0 0);--primary-foreground:oklch(.205 0 0);
+    --secondary:oklch(.269 0 0);--accent:oklch(.269 0 0);
+    --border:oklch(1 0 0 / 10%);--input:oklch(1 0 0 / 15%);--ring:oklch(.556 0 0);
+    --shadow:0 1px 2px oklch(0 0 0 / .3), 0 8px 24px -12px oklch(0 0 0 / .6);
+  }
+}
+:root[data-theme="dark"]{
+  --background:oklch(.145 0 0);--foreground:oklch(.985 0 0);--card:oklch(.205 0 0);
+  --muted:oklch(.269 0 0);--muted-foreground:oklch(.708 0 0);
+  --primary:oklch(.922 0 0);--primary-foreground:oklch(.205 0 0);
+  --secondary:oklch(.269 0 0);--accent:oklch(.269 0 0);
+  --border:oklch(1 0 0 / 10%);--input:oklch(1 0 0 / 15%);--ring:oklch(.556 0 0);
+  --shadow:0 1px 2px oklch(0 0 0 / .3), 0 8px 24px -12px oklch(0 0 0 / .6);
+}
+
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{
+  font-family:Geist,ui-sans-serif,system-ui,sans-serif;
+  background:var(--background);color:var(--foreground);
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  display:flex;flex-direction:column;
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+svg{flex-shrink:0}
+
+/* Frame: side rails + safe area. Borders run edge to edge. */
+.bg{position:fixed;inset:0;z-index:0;pointer-events:none;background:var(--background)}
+.rail{position:absolute;top:0;bottom:0;width:calc((100% - var(--frame)) / 2);overflow:hidden;color:var(--foreground)}
+.rail.l{left:0}
+.rail.r{right:0;transform:scaleX(-1)}
+.rail svg{position:absolute;inset:0;width:100%;height:100%}
+.rail circle{fill:none;stroke:currentColor;stroke-opacity:.09;stroke-width:1;vector-effect:non-scaling-stroke}
+.safe{position:absolute;top:0;bottom:0;left:50%;width:var(--frame);transform:translateX(-50%);
+  background:var(--background);border-left:1px solid var(--border);border-right:1px solid var(--border)}
+.tick{position:absolute;width:9px;height:9px;transform:translate(-50%,-50%);z-index:1}
+.tick::before,.tick::after{content:"";position:absolute;background:var(--muted-foreground);opacity:.6}
+.tick::before{left:4px;top:0;width:1px;height:9px}
+.tick::after{top:4px;left:0;height:1px;width:9px}
+.tick.tl,.tick.bl{left:calc(50% - var(--frame) / 2)}
+.tick.tr,.tick.br{left:calc(50% + var(--frame) / 2)}
+.tick.tl,.tick.tr{top:var(--header-h)}
+.tick.bl,.tick.br{top:calc(100% - var(--footer-h))}
+header,main,.dock,footer{position:relative;z-index:1}
+.wrap{max-width:var(--frame);margin:0 auto;padding:0 24px;height:100%}
+
+/* Header */
+header{height:var(--header-h);border-bottom:1px solid var(--border);flex-shrink:0;z-index:5}
+header .wrap{display:flex;align-items:center;justify-content:space-between}
+footer{min-height:var(--footer-h);border-top:1px solid var(--border);flex-shrink:0}
+footer .wrap{display:flex;padding-block:8px;align-items:center;justify-content:center;font-size:12px;color:var(--muted-foreground);text-align:center}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.01em}
+.logo{width:28px;height:28px;border-radius:0;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center}
+.badge{font-size:12px;font-weight:500;padding:1px 8px;border-radius:0;border:1px solid var(--border);color:var(--muted-foreground)}
+.hstack{display:flex;align-items:center;gap:4px}
+.btn-icon{width:36px;height:36px;border-radius:0;display:grid;place-items:center;color:var(--muted-foreground);transition:background .15s,color .15s}
+.btn-icon:hover{background:var(--accent);color:var(--foreground)}
+.avatar{width:32px;height:32px;border-radius:0;background:var(--muted);display:grid;place-items:center;font-size:12px;font-weight:500;margin-left:4px}
+
+/* Main / scroller */
+main{flex:1;overflow-y:auto;scroll-behavior:smooth}
+.col{max-width:820px;margin:0 auto;padding:0 16px}
+
+/* Empty state */
+.hero{min-height:calc(100dvh - var(--header-h) - var(--footer-h) - 150px);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;gap:10px;padding:48px 0 24px}
+.hero h1{font-size:clamp(26px,5vw,34px);font-weight:600;letter-spacing:-.025em;line-height:1.15}
+.hero p{color:var(--muted-foreground);max-width:440px}
+body.chatting .hero{display:none}
+
+/* Thread */
+.thread{display:flex;flex-direction:column;gap:24px;padding:24px 0 16px}
+.msg{display:flex;gap:12px;animation:in .25s ease-out}
+.msg.user{justify-content:flex-end}
+.bubble{
+  max-width:min(80%,560px);padding:10px 14px;border-radius:0;
+  background:var(--secondary);white-space:pre-wrap;word-wrap:break-word;
+}
+.msg.ai .who{width:28px;height:28px;border-radius:0;border:1px solid var(--border);display:grid;place-items:center;margin-top:2px;flex-shrink:0}
+.ghost{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px}
+.ghost .name{font-size:12px;color:var(--muted-foreground);font-weight:500}
+.ghost .text p+p{margin-top:8px}
+.ghost .text strong{font-weight:600}
+.caret::after{content:"";display:inline-block;width:7px;height:15px;margin-left:2px;vertical-align:-2px;background:var(--foreground);animation:blink 1s steps(2) infinite}
+
+/* Shimmer */
+.shimmer{
+  font-size:13px;font-weight:500;width:max-content;
+  background:linear-gradient(90deg,var(--muted-foreground) 0%,var(--muted-foreground) 40%,var(--foreground) 50%,var(--muted-foreground) 60%,var(--muted-foreground) 100%);
+  background-size:300% 100%;-webkit-background-clip:text;background-clip:text;color:transparent;
+  animation:shimmer 1.8s linear infinite;
+}
+
+/* Steps (Task) */
+.steps{border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;display:flex;flex-direction:column;gap:6px;font-size:13px}
+.step{display:flex;align-items:center;gap:8px;color:var(--muted-foreground)}
+.step.done{color:var(--foreground)}
+.step .ic{width:16px;height:16px;display:grid;place-items:center}
+.spin{width:12px;height:12px;border:2px solid var(--border);border-top-color:currentColor;border-radius:0;animation:spin .7s linear infinite}
+
+/* Sources */
+.sources{display:flex;flex-wrap:wrap;gap:6px}
+.source{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:2px 8px 2px 4px;border:1px solid var(--border);border-radius:0;color:var(--muted-foreground);text-decoration:none}
+.source .fav{width:16px;height:16px;border-radius:0;background:var(--muted);display:grid;place-items:center;font-size:9px;font-weight:600;color:var(--foreground)}
+
+/* Score card */
+.score{border:1px solid var(--border);border-radius:var(--radius);background:var(--card);padding:16px;display:grid;gap:12px}
+.score-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.score-num{font-size:32px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.score-num small{font-size:14px;color:var(--muted-foreground);font-weight:400}
+.pill{font-size:12px;font-weight:500;padding:2px 10px;border-radius:0;background:color-mix(in oklch,var(--warning) 18%,transparent);color:color-mix(in oklch,var(--warning) 70%,var(--foreground))}
+.bars{display:grid;gap:8px}
+.bar{display:grid;grid-template-columns:minmax(0,130px) 1fr 28px;align-items:center;gap:10px;font-size:12px}
+.bar span:first-child{color:var(--muted-foreground);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track{height:6px;border-radius:0;background:var(--muted);overflow:hidden}
+.fill{height:100%;background:var(--primary);border-radius:inherit;width:0;transition:width .8s cubic-bezier(.2,.7,.2,1)}
+.bar b{font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Actions */
+.actions{display:flex;gap:2px;margin-left:-8px}
+.actions .btn-icon{width:28px;height:28px}
+
+/* Composer */
+.dock{padding:12px 0 20px;flex-shrink:0}
+.suggest{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
+body.chatting .suggest{justify-content:flex-start}
+.chip{font-size:13px;padding:6px 12px;border:1px solid var(--border);border-radius:0;background:var(--background);transition:background .15s;box-shadow:0 1px 2px oklch(0 0 0 / .03)}
+.chip:hover{background:var(--accent)}
+.composer{
+  border:1px solid var(--input);border-radius:0;background:var(--card);
+  box-shadow:var(--shadow);padding:10px 10px 10px 16px;transition:border-color .15s,box-shadow .15s;
+}
+.composer:focus-within{border-color:var(--ring);box-shadow:var(--shadow),0 0 0 3px color-mix(in oklch,var(--ring) 25%,transparent)}
+textarea{
+  width:100%;resize:none;border:0;outline:0;background:transparent;color:inherit;font:inherit;font-size:15px;
+  line-height:1.5;min-height:48px;max-height:200px;padding:4px 0;
+}
+textarea:focus-visible{outline:none}
+textarea::placeholder{color:var(--muted-foreground)}
+.bar-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:4px}
+.ghost-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:0;font-size:13px;color:var(--muted-foreground);border:1px solid var(--border);transition:background .15s}
+.ghost-btn:hover{background:var(--accent);color:var(--foreground)}
+.send{width:36px;height:36px;border-radius:0;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;transition:opacity .15s,transform .1s}
+.send:disabled{opacity:.35;cursor:not-allowed}
+.send:not(:disabled):active{transform:scale(.94)}
+
+/* Account popover */
+.acct{position:relative}
+.avatar{cursor:pointer;border:1px solid transparent;transition:border-color .15s}
+.avatar:hover,.avatar[aria-expanded="true"]{border-color:var(--ring)}
+.pop{position:absolute;right:0;top:calc(100% + 10px);width:280px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);z-index:30;padding:4px;display:none;animation:pop .14s ease-out}
+.pop.open{display:block}
+.pop-head{display:flex;gap:10px;align-items:center;padding:10px 10px 12px}
+.pop-head .avatar{margin:0;width:36px;height:36px;cursor:default}
+.pop-head b{display:block;font-weight:500;line-height:1.3}
+.pop-head small{color:var(--muted-foreground);font-size:12px}
+.sep{height:1px;background:var(--border);margin:4px -4px}
+.label{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);padding:8px 10px 4px}
+.item{width:100%;display:flex;align-items:center;gap:10px;padding:7px 10px;font-size:13px;text-align:left;text-decoration:none;color:inherit}
+.item svg{color:var(--muted-foreground)}
+.item:hover,.item:focus-visible{background:var(--accent);outline:none}
+.item kbd{margin-left:auto;font-family:"Geist Mono",ui-monospace,monospace;font-size:11px;color:var(--muted-foreground)}
+.item.danger:hover{color:oklch(.577 .245 27)}
+.item .meta{margin-left:auto;font-size:12px;color:var(--muted-foreground);display:flex;align-items:center;gap:4px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);margin:4px 10px 8px}
+.seg button{font-size:12px;padding:5px 0;color:var(--muted-foreground);display:flex;align-items:center;justify-content:center;gap:5px}
+.seg button+button{border-left:1px solid var(--border)}
+.seg button[aria-pressed="true"]{background:var(--foreground);color:var(--background)}
+
+/* Settings sheet (right sidebar) */
+.scrim{position:fixed;inset:0;background:oklch(0 0 0 / .4);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
+.scrim.open{opacity:1;pointer-events:auto}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--background);border-left:1px solid var(--border);z-index:41;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.7,.2,1)}
+.sheet.open{transform:none}
+.sheet-head{height:var(--header-h);display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 20px;border-bottom:1px solid var(--border);flex-shrink:0}
+.sheet-head h2{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto}
+.tab{flex:1;padding:10px 12px;font-size:13px;color:var(--muted-foreground);border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--foreground);border-bottom-color:var(--foreground)}
+.tab:hover{color:var(--foreground)}
+.sheet-body{flex:1;overflow-y:auto}
+.panel{display:none;padding:20px}
+.panel.active{display:grid;gap:24px}
+.group{display:grid;gap:14px}
+.group h3{font-size:13px;font-weight:600}
+.group > p.hint{font-size:12px;color:var(--muted-foreground);margin-top:-10px}
+.field{display:grid;gap:6px}
+.field label{font-size:13px;font-weight:500}
+.field .hint{font-size:12px;color:var(--muted-foreground)}
+.input{height:36px;width:100%;border:1px solid var(--input);background:transparent;color:inherit;font:inherit;font-size:13px;padding:0 10px;outline:0;transition:border-color .15s,box-shadow .15s}
+.input:focus{border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 25%,transparent)}
+.input[readonly]{background:var(--muted);color:var(--muted-foreground)}
+.input.mono{font-family:"Geist Mono",ui-monospace,monospace;font-size:12px}
+.inrow{display:flex}
+.inrow .input{flex:1}
+.inrow .btn{border-left:0}
+select.input{appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted-foreground) 50%),linear-gradient(135deg,var(--muted-foreground) 50%,transparent 50%);background-position:calc(100% - 15px) 15px,calc(100% - 10px) 15px;background-size:5px 5px;background-repeat:no-repeat}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:36px;padding:0 14px;font-size:13px;font-weight:500;border:1px solid var(--border);background:var(--background);transition:background .15s,opacity .15s;white-space:nowrap;text-decoration:none;color:inherit}
+.btn:hover{background:var(--accent)}
+.btn.primary{background:var(--primary);color:var(--primary-foreground);border-color:var(--primary)}
+.btn.primary:hover{opacity:.9}
+.btn.destructive{color:oklch(.577 .245 27);border-color:color-mix(in oklch,oklch(.577 .245 27) 40%,transparent)}
+.btn.sm{height:30px;padding:0 10px;font-size:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.row .t b{display:block;font-size:13px;font-weight:500}
+.row .t small{font-size:12px;color:var(--muted-foreground)}
+.switch{width:36px;height:20px;border:1px solid var(--input);background:var(--muted);position:relative;flex-shrink:0;transition:background .15s}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;background:var(--background);box-shadow:0 1px 2px oklch(0 0 0 / .2);transition:transform .15s}
+.switch[aria-checked="true"]{background:var(--primary);border-color:var(--primary)}
+.switch[aria-checked="true"]::after{transform:translateX(16px)}
+.tile{border:1px solid var(--border);padding:14px;display:flex;align-items:center;gap:12px}
+.tile .mark{width:32px;height:32px;display:grid;place-items:center;border:1px solid var(--border);font-weight:600;font-size:13px;flex-shrink:0}
+.tile .t{flex:1;min-width:0}
+.tile .t b{display:block;font-size:13px;font-weight:500}
+.tile .t small{font-size:12px;color:var(--muted-foreground)}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted-foreground)}
+.status::before{content:"";width:6px;height:6px;background:var(--success)}
+.danger-zone{border:1px solid color-mix(in oklch,oklch(.577 .245 27) 35%,transparent);padding:14px}
+.sheet-foot{border-top:1px solid var(--border);padding:12px 20px;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;height:var(--footer-h);box-sizing:content-box;align-items:center}
+.toast{position:fixed;bottom:64px;left:50%;transform:translate(-50%,8px);background:var(--foreground);color:var(--background);font-size:13px;padding:8px 14px;opacity:0;transition:opacity .2s,transform .2s;z-index:60;pointer-events:none}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@keyframes pop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes blink{to{opacity:0}}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:0 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+@media (max-width:1040px){:root{--frame:calc(100% - 64px)}}
+@media (max-width:700px){:root{--frame:100%}.rail,.tick{display:none}.safe{width:100%;border:0}.wrap{padding:0 16px}}
+@media (max-width:520px){.hide-sm{display:none}.bar{grid-template-columns:96px 1fr 24px}}
+/* ===== Compact, Linear-style density ===== */
+:root{--header-h:44px;--footer-h:32px}
+body{font-size:13px;line-height:1.5}
+.wrap{padding:0 16px}
+.brand{gap:8px;font-size:13px}
+.logo{width:20px;height:20px}
+.logo svg{width:15px;height:15px}
+.badge{font-size:11px;padding:0 6px;line-height:18px}
+.hstack{gap:2px}
+.btn-icon{width:28px;height:28px}
+.btn-icon svg{width:15px;height:15px}
+.avatar{width:24px;height:24px;font-size:10px;margin-left:6px}
+footer .wrap{font-size:11px;padding-block:6px}
+.col{max-width:760px;padding:0 12px}
+.hero{gap:6px;padding:32px 0 16px;min-height:calc(100dvh - var(--header-h) - var(--footer-h) - 130px)}
+.hero h1{font-size:clamp(20px,3vw,24px);letter-spacing:-.02em}
+.hero p{font-size:13px;max-width:400px}
+.thread{gap:16px;padding:16px 0 8px}
+.msg{gap:10px}
+.bubble{padding:6px 10px;font-size:13px}
+.msg.ai .who{width:22px;height:22px;margin-top:0}
+.msg.ai .who svg{width:12px;height:12px}
+.ghost{gap:8px}
+.ghost .name{font-size:11px;line-height:22px;margin-bottom:-4px}
+.ghost .text p+p{margin-top:6px}
+.caret::after{height:13px;width:6px}
+.shimmer{font-size:12px}
+.steps{padding:6px 10px;gap:2px;font-size:12px}
+.step{gap:6px}
+.step .ic{width:14px;height:14px}
+.source{font-size:11px;padding:1px 6px 1px 3px;gap:5px}
+.source .fav{width:14px;height:14px;font-size:8px}
+.sources{gap:4px}
+.score{padding:12px;gap:10px}
+.score-num{font-size:24px}
+.score-num small{font-size:12px}
+.pill{font-size:11px;padding:1px 6px}
+.bars{gap:5px}
+.bar{grid-template-columns:minmax(0,120px) 1fr 24px;font-size:11px;gap:8px}
+.track{height:4px}
+.actions{margin-left:-6px;gap:0}
+.actions .btn-icon{width:24px;height:24px}
+.actions .btn-icon svg{width:13px;height:13px}
+.dock{padding:8px 0 12px}
+.suggest{gap:6px;margin-bottom:8px}
+.chip{font-size:12px;padding:0 8px;line-height:24px;box-shadow:none}
+.composer{padding:8px 8px 6px 12px;box-shadow:0 1px 2px oklch(0 0 0 / .05)}
+.composer:focus-within{box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 20%,transparent)}
+textarea{font-size:13px;min-height:22px;max-height:180px;padding:2px 0 6px}
+.bar-row{margin-top:2px}
+.tools{display:flex;align-items:center;gap:2px}
+.tool{width:26px;height:26px;display:grid;place-items:center;color:var(--muted-foreground);position:relative;transition:background .12s,color .12s}
+.tool:hover{background:var(--accent);color:var(--foreground)}
+.tool.toggle[aria-pressed="true"]{color:var(--foreground);background:var(--accent)}
+.vsep{width:1px;height:14px;background:var(--border);margin:0 4px}
+.hint{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--muted-foreground);margin-right:8px}
+.send{width:26px;height:26px}
+[data-tip]{position:relative}
+[data-tip]:hover::after,[data-tip]:focus-visible::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);white-space:nowrap;background:var(--foreground);color:var(--background);font-size:11px;font-weight:500;line-height:1;padding:5px 7px;pointer-events:none;z-index:20}
+/* popover */
+.pop{width:236px;top:calc(100% + 6px);padding:3px}
+.pop-head{padding:6px 8px 8px;gap:8px}
+.pop-head .avatar{width:28px;height:28px}
+.pop-head b{font-size:13px}
+.pop-head small{font-size:11px}
+.sep{margin:3px -3px}
+.label{font-size:10px;padding:6px 8px 3px}
+.item{padding:0 8px;height:28px;gap:8px;font-size:12.5px}
+.item svg{width:14px;height:14px}
+.item .meta,.item kbd{font-size:11px}
+.seg{margin:2px 8px 6px}
+.seg button{font-size:11px;padding:3px 0}
+/* settings sheet */
+.sheet{width:min(400px,100%)}
+.sheet-head{padding:0 8px 0 16px}
+.sheet-head h2{font-size:13px}
+.tab{padding:7px 10px;font-size:12px;flex:0 0 auto}
+.tabs{padding:0 8px}
+.panel{padding:14px 16px}
+.panel.active{gap:18px}
+.group{gap:10px}
+.group h3{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.group > p.hint{font-size:11.5px;margin-top:-6px;font-family:inherit;margin-right:0}
+.field{gap:4px}
+.field label{font-size:12px}
+.field .hint{font-size:11px;font-family:inherit;margin-right:0}
+.input{height:30px;font-size:12.5px;padding:0 8px}
+.input.mono{font-size:11.5px}
+select.input{background-position:calc(100% - 13px) 12px,calc(100% - 8px) 12px}
+.btn{height:30px;padding:0 10px;font-size:12px;gap:6px}
+.btn.sm{height:26px;padding:0 8px;font-size:11.5px}
+.row{gap:12px}
+.row .t b,.tile .t b{font-size:12.5px}
+.row .t small,.tile .t small{font-size:11px}
+.switch{width:28px;height:16px}
+.switch::after{width:10px;height:10px}
+.switch[aria-checked="true"]::after{transform:translateX(12px)}
+.tile{padding:10px;gap:10px}
+.tile .mark{width:26px;height:26px;font-size:12px}
+.status{font-size:11px}
+.danger-zone{padding:10px}
+.sheet-foot{padding:8px 16px;height:auto}
+.toast{font-size:12px;padding:6px 10px;bottom:48px}
+@media (max-width:520px){.bar{grid-template-columns:90px 1fr 22px}}
+/* ===== Inner grid: column guides + input band, edge to edge ===== */
+:root{--col:760px}
+html,body{overflow-x:clip}
+.col{max-width:var(--col);padding:0}
+.guide{position:absolute;top:0;bottom:0;width:1px;background:var(--border)}
+.guide.l{left:calc(50% - var(--col) / 2)}
+.guide.r{left:calc(50% + var(--col) / 2 - 1px)}
+.tick.gtl,.tick.gbl{left:calc(50% - var(--col) / 2)}
+.tick.gtr,.tick.gbr{left:calc(50% + var(--col) / 2)}
+.tick.gtl,.tick.gtr{top:var(--header-h)}
+.tick.gbl,.tick.gbr{top:calc(100% - var(--footer-h))}
+.thread{padding:16px 20px 8px}
+.hero{padding-left:20px;padding-right:20px}
+.dock{padding:0}
+.suggest{padding:0 20px;margin-bottom:12px}
+.composer{position:relative;border:0;box-shadow:none;background:var(--card);padding:12px 10px 8px 20px}
+.composer::before{content:"";position:absolute;top:-1px;left:-100vw;right:-100vw;height:1px;background:var(--border);pointer-events:none}
+.composer:focus-within{box-shadow:inset 0 0 0 1px var(--ring)}
+.composer .x{position:absolute;width:9px;height:9px;transform:translate(-50%,-50%);pointer-events:none;z-index:2}
+.composer .x::before,.composer .x::after{content:"";position:absolute;background:var(--muted-foreground);opacity:.6}
+.composer .x::before{left:4px;top:0;width:1px;height:9px}
+.composer .x::after{top:4px;left:0;height:1px;width:9px}
+.composer .xl{left:0;top:-1px}.composer .xr{left:100%;top:-1px}
+/* frame-edge crossings of the input line */
+.composer .fl{left:calc(var(--col) / 2 - var(--frame-px) / 2);top:-1px}
+.composer .fr{left:calc(var(--col) / 2 + var(--frame-px) / 2);top:-1px}
+
+footer .wrap{position:relative}
+@media (max-width:820px){
+  :root{--col:100%}
+  .guide,.tick.gtl,.tick.gtr,.tick.gbl,.tick.gbr,.composer .x{display:none}
+  .thread{padding:16px 16px 8px}.suggest{padding:0 16px}.composer{padding:10px 8px 6px 16px}
+}
+
+/* ===================== Workspace: chat + side panel ===================== */
+:root{--panel-w:clamp(360px,36vw,500px)}
+.composer::before{display:none}
+.composer .x{display:none}
+.guide.l,.guide.r{left:var(--gl,-9px)}
+.guide.r{left:var(--gr,-9px)}
+.guide.p{left:var(--pl,-9px);display:none}
+body.panel-open .guide.p{display:block}
+.hline{position:absolute;left:var(--band-x,0px);height:1px;background:var(--border);top:var(--band-y,-9px);width:calc(var(--band-w,100%) - var(--band-x,0px))}
+.guide.h{left:var(--hl,-9px);display:none}
+body.hist-open .guide.h{display:block}
+
+/* ---------- History panel (left) ---------- */
+:root{--hist-w:264px}
+.hpanel{width:0;overflow:hidden;display:flex;flex-direction:column;background:var(--background);transition:width .25s cubic-bezier(.2,.7,.2,1);flex-shrink:0}
+body.hist-open .hpanel{width:var(--hist-w)}
+.hist-inner{width:var(--hist-w);display:flex;flex-direction:column;height:100%;min-height:0}
+.h-head{display:flex;align-items:center;gap:6px;padding:0 8px 0 12px;height:38px;border-bottom:1px solid var(--border);flex-shrink:0}
+.h-head .ttl{flex:1;font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.h-head .btn-icon{width:26px;height:26px}
+.h-search{display:flex;align-items:center;gap:8px;padding:0 12px;height:36px;border-bottom:1px solid var(--border);color:var(--muted-foreground);flex-shrink:0}
+.h-search input{flex:1;min-width:0;border:0;outline:0;background:transparent;color:var(--foreground);font:inherit;font-size:12.5px}
+.h-search input::placeholder{color:var(--muted-foreground)}
+.h-search kbd{font-family:"Geist Mono",ui-monospace,monospace;font-size:10px;border:1px solid var(--border);padding:0 4px;line-height:16px}
+.h-filters{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.h-filters button{flex:1;font-size:11.5px;color:var(--muted-foreground);padding:6px 0}
+.h-filters button+button{border-left:1px solid var(--border)}
+.h-filters button[aria-pressed="true"]{color:var(--foreground);background:var(--accent)}
+.h-list{flex:1;overflow-y:auto;min-height:0;padding:4px 0 8px}
+.h-group{font-size:10.5px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);padding:10px 12px 4px}
+.h-item{width:100%;display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:7px 12px;text-align:left;position:relative;transition:background .12s}
+.h-item:hover,.h-item:focus-visible{background:var(--accent);outline:none}
+.h-item[aria-current="true"]{background:var(--accent)}
+.h-item[aria-current="true"]::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--foreground)}
+.h-item .nm{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-item .sc{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;display:flex;align-items:center;gap:5px}
+.h-item .sc::before{content:"";width:6px;height:6px;background:var(--muted-foreground)}
+.h-item .sc.build::before{background:var(--success)}
+.h-item .sc.promising::before{background:var(--warning)}
+.h-item .sc.advise::before{background:var(--destructive,oklch(.577 .245 27))}
+.h-item .sc.none{color:var(--muted-foreground);font-weight:400}
+.h-item .mt{grid-column:1 / -1;font-size:11px;color:var(--muted-foreground);display:flex;gap:6px}
+.h-item .mt .live{color:var(--foreground)}
+.h-empty{padding:24px 12px;font-size:12px;color:var(--muted-foreground);text-align:center}
+.h-foot{border-top:1px solid var(--border);padding:8px 12px;font-size:11px;color:var(--muted-foreground);display:flex;justify-content:space-between;flex-shrink:0}
+@media (max-width:820px){
+  .guide.h{display:none!important}
+  .hpanel{position:fixed;top:0;left:0;bottom:0;z-index:46;width:min(320px,88%)!important;transform:translateX(-100%);transition:transform .25s cubic-bezier(.2,.7,.2,1);border-right:1px solid var(--border);box-shadow:var(--shadow)}
+  body.hist-open .hpanel{transform:none}
+  .hist-inner{width:100%}
+  .h-scrim{position:fixed;inset:0;background:oklch(0 0 0 / .4);z-index:44;display:none}
+  body.hist-open .h-scrim{display:block}
+}
+@media (min-width:821px){.h-scrim{display:none}}
+
+#ticks .tick{position:absolute}
+
+.work{flex:1;min-height:0;display:flex;width:100%;max-width:var(--frame);margin:0 auto;position:relative;z-index:1}
+.chatpane{flex:1;min-width:0;display:flex;flex-direction:column}
+.chatpane main{flex:1;min-height:0}
+.col{max-width:var(--col-px,760px);min-height:100%;display:flex;flex-direction:column}
+.hero{flex:1;min-height:0}
+/* bottom-anchored thread */
+.thread{flex:1;display:flex;flex-direction:column;justify-content:flex-end;gap:14px;padding:16px 20px 14px}
+body:not(.chatting) .thread{display:none}
+
+/* header breadcrumb + stage */
+.crumb{display:flex;align-items:center;gap:8px;min-width:0;font-size:12.5px;color:var(--muted-foreground)}
+.crumb .slash{opacity:.5}
+.crumb .title{color:var(--foreground);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.stage{display:inline-flex;align-items:center;gap:6px;font-size:11px;border:1px solid var(--border);padding:0 6px;line-height:18px;white-space:nowrap}
+.stage::before{content:"";width:6px;height:6px;background:var(--muted-foreground)}
+.stage.live::before{background:var(--success);animation:pulse 1.4s ease-in-out infinite}
+header .wrap > .left{display:flex;align-items:center;gap:12px;min-width:0}
+body:not(.chatting) .crumb{display:none}
+.btn-icon[aria-pressed="true"]{background:var(--accent);color:var(--foreground)}
+.btn-icon:disabled{opacity:.35;cursor:not-allowed}
+.btn-icon .dot{position:absolute;top:5px;right:5px;width:5px;height:5px;background:var(--foreground)}
+.btn-icon{position:relative}
+
+/* messages */
+.msg{animation:in .22s ease-out}
+.bubble.pick{display:flex;align-items:center;gap:6px}
+.bubble.pick svg{color:var(--muted-foreground)}
+.ghost .text .q{font-weight:500}
+.ghost .text .q::before{content:"Q";font-family:"Geist Mono",ui-monospace,monospace;font-size:10px;font-weight:500;border:1px solid var(--border);color:var(--muted-foreground);padding:0 4px;margin-right:6px;vertical-align:1px}
+
+/* collapsed work summary */
+.worked{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted-foreground);width:max-content;padding:2px 0}
+.worked:hover{color:var(--foreground)}
+.worked svg.chev{transition:transform .15s}
+.worked[aria-expanded="true"] svg.chev{transform:rotate(90deg)}
+.steps.hidden{display:none}
+
+/* artifact cards (open the side panel) */
+.card-link{display:flex;align-items:center;gap:10px;border:1px solid var(--border);background:var(--card);padding:8px 10px;text-align:left;width:100%;max-width:420px;transition:border-color .15s,background .15s}
+.card-link:hover{border-color:var(--ring)}
+.card-link.active{border-color:var(--foreground)}
+.card-link .ico{width:28px;height:28px;border:1px solid var(--border);display:grid;place-items:center;flex-shrink:0;color:var(--muted-foreground)}
+.card-link .t{flex:1;min-width:0}
+.card-link .t b{display:block;font-size:12.5px;font-weight:500}
+.card-link .t small{font-size:11px;color:var(--muted-foreground)}
+.card-link .go{font-size:11px;color:var(--muted-foreground);display:flex;align-items:center;gap:4px;white-space:nowrap}
+.card-link .num{font-size:18px;font-weight:600;letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin-right:4px}
+
+/* ---------- Dock modes ---------- */
+.dock{position:relative}
+.dock > .col{min-height:0}
+.mode{display:none}
+.dock[data-mode="text"] .mode.text,
+.dock[data-mode="choice"] .mode.choice,
+.dock[data-mode="busy"] .mode.busy{display:block}
+.mode.text .back{display:none}
+.dock.answering .mode.text .back{display:grid}
+
+/* choice mode */
+.choices{background:var(--card)}
+.ch-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px 6px 20px;border-bottom:1px solid var(--border)}
+.ch-head .lbl{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.ch-head .hint{margin:0}
+.opts{display:grid}
+.opt{display:grid;grid-template-columns:22px 1fr auto;align-items:center;gap:10px;padding:7px 12px 7px 20px;text-align:left;border-bottom:1px solid var(--border);position:relative;transition:background .12s}
+.opt:last-child{border-bottom:0}
+.opt:hover,.opt:focus-visible{background:var(--accent);outline:none}
+.opt:focus-visible{box-shadow:inset 2px 0 0 var(--foreground)}
+.opt .k{width:20px;height:20px;border:1px solid var(--border);display:grid;place-items:center;font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--muted-foreground)}
+.opt .l b{display:block;font-size:13px;font-weight:500;line-height:1.35}
+.opt .l small{display:block;font-size:11.5px;color:var(--muted-foreground);line-height:1.35}
+.opt .rec{font-size:10px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--foreground);padding:0 5px;line-height:16px}
+.opt.multi .k{font-size:0}
+.opt.multi[aria-checked="true"] .k{background:var(--foreground);border-color:var(--foreground);color:var(--background)}
+.opt.multi[aria-checked="true"] .k::after{content:"";width:8px;height:4px;border-left:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg) translate(1px,-1px)}
+.opt.multi[aria-checked="true"]{background:color-mix(in oklch,var(--accent) 70%,transparent)}
+.opt.other .l b{font-weight:400;color:var(--muted-foreground)}
+.ch-foot{display:none;justify-content:flex-end;gap:8px;padding:8px 12px;border-top:1px solid var(--border)}
+.choices.is-multi .ch-foot{display:flex}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* busy mode */
+.working{display:flex;align-items:center;gap:10px;padding:0 12px 0 20px;height:46px;background:var(--card)}
+.working .shimmer{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.working .count{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--muted-foreground)}
+
+/* ---------- Side panel ---------- */
+.side{width:0;overflow:hidden;border-left:1px solid transparent;display:flex;flex-direction:column;background:var(--background);transition:width .25s cubic-bezier(.2,.7,.2,1)}
+body.panel-open .side{width:var(--panel-w);border-left-color:transparent}
+.side-inner{width:var(--panel-w);display:flex;flex-direction:column;height:100%;min-height:0}
+.sp-head{display:flex;align-items:stretch;justify-content:space-between;border-bottom:1px solid var(--border);height:38px;flex-shrink:0}
+.sp-tabs{display:flex;overflow-x:auto}
+.sp-tab{display:flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;color:var(--muted-foreground);border-right:1px solid var(--border);white-space:nowrap;position:relative}
+.sp-tab:hover:not(:disabled){color:var(--foreground);background:var(--accent)}
+.sp-tab[aria-selected="true"]{color:var(--foreground);background:var(--background)}
+.sp-tab[aria-selected="true"]::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--background)}
+.sp-tab[aria-selected="true"]::before{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:var(--foreground)}
+.sp-tab:disabled{opacity:.4;cursor:not-allowed}
+.sp-tab .n{font-family:"Geist Mono",ui-monospace,monospace;font-size:10px;color:var(--muted-foreground)}
+.sp-head .btn-icon{height:38px;width:38px;border-left:1px solid var(--border)}
+.sp-body{flex:1;overflow-y:auto;min-height:0}
+.sp-pane{display:none}
+.sp-pane.active{display:block}
+.sp-sec{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sp-sec:last-child{border-bottom:0}
+.sp-sec h4{font-size:11px;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);margin-bottom:10px;display:flex;justify-content:space-between}
+.sp-foot{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:8px 12px;border-top:1px solid var(--border);flex-shrink:0;position:relative}
+.sp-foot .meta{font-size:11px;color:var(--muted-foreground)}
+.empty-pane{padding:40px 16px;text-align:center;color:var(--muted-foreground);font-size:12.5px}
+
+/* score pane */
+.sc-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.sc-num{font-size:40px;font-weight:600;letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}
+.sc-num small{font-size:13px;font-weight:400;color:var(--muted-foreground);letter-spacing:0}
+.sc-meta{display:grid;gap:6px;justify-items:end;font-size:11px;color:var(--muted-foreground)}
+.delta{font-family:"Geist Mono",ui-monospace,monospace;font-size:11px;color:var(--success)}
+.pill.build{background:color-mix(in oklch,var(--success) 18%,transparent);color:color-mix(in oklch,var(--success) 70%,var(--foreground))}
+.params{display:grid}
+.param{border-bottom:1px solid var(--border)}
+.param:last-child{border-bottom:0}
+.param > button{width:100%;display:grid;grid-template-columns:1fr 34px 110px 24px 14px;align-items:center;gap:10px;padding:8px 0;text-align:left;font-size:12.5px}
+.param > button:hover .pname{text-decoration:underline;text-underline-offset:3px}
+.param .w{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--muted-foreground);text-align:right}
+.param .v{font-weight:500;text-align:right;font-variant-numeric:tabular-nums}
+.param .chev{color:var(--muted-foreground);transition:transform .15s}
+.param.open .chev{transform:rotate(90deg)}
+.param .why{display:none;padding:0 0 10px;font-size:12px;color:var(--muted-foreground);gap:6px}
+.param.open .why{display:grid}
+.param .why .conf{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px}
+.param .why a{color:var(--foreground);text-underline-offset:3px}
+.param.weak .v{color:color-mix(in oklch,var(--warning) 75%,var(--foreground))}
+.hist{display:grid;gap:4px;font-size:12px}
+.hist div{display:grid;grid-template-columns:40px 1fr auto;gap:10px;align-items:center}
+.hist span:first-child{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--muted-foreground)}
+.hist b{font-weight:500;font-variant-numeric:tabular-nums}
+
+/* research pane */
+.comp{display:grid;grid-template-columns:28px 1fr auto;gap:10px;align-items:start;padding:8px 0;border-bottom:1px solid var(--border)}
+.comp:last-child{border-bottom:0}
+.comp .fav{width:28px;height:28px;border:1px solid var(--border);display:grid;place-items:center;font-size:11px;font-weight:600}
+.comp b{display:block;font-size:12.5px;font-weight:500}
+.comp small{display:block;font-size:11.5px;color:var(--muted-foreground)}
+.tag{font-size:10px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--border);padding:0 5px;line-height:16px;color:var(--muted-foreground);white-space:nowrap}
+.facts{display:grid;gap:8px;font-size:12.5px;padding:0;margin:0}
+.facts li{list-style:none;display:grid;grid-template-columns:1fr auto;gap:10px}
+.facts a{font-size:11px;color:var(--muted-foreground);text-underline-offset:3px}
+
+/* suggestions pane */
+.angle{border:1px solid var(--border);padding:10px 12px;display:grid;gap:6px;margin-bottom:8px}
+.angle:last-child{margin-bottom:0}
+.angle .top{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.angle b{font-size:12.5px;font-weight:500}
+.angle p{font-size:12px;color:var(--muted-foreground)}
+.angle .impact{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--success);white-space:nowrap}
+.angle.applied{border-color:var(--foreground)}
+
+/* spec pane */
+.spec h5{font-size:12.5px;font-weight:600;margin:0 0 4px}
+.spec p,.spec li{font-size:12.5px;color:var(--foreground)}
+.spec ul{padding-left:16px;display:grid;gap:2px}
+.spec .blk{margin-bottom:14px}
+.spec .blk:last-child{margin-bottom:0}
+.spec .hint-top{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-foreground);margin-bottom:12px}
+.spec [contenteditable]{outline:none;margin:0 -6px;padding:3px 6px;border:1px solid transparent;transition:border-color .12s,background .12s;cursor:text}
+.spec [contenteditable]:hover{border-color:var(--border)}
+.spec [contenteditable]:focus{border-color:var(--ring);background:var(--card)}
+.spec ul[contenteditable]{padding-left:22px}
+.spec [contenteditable]:empty::before{content:attr(data-ph);color:var(--muted-foreground)}
+.spec.locked [contenteditable]{cursor:default}
+.spec.locked [contenteditable]:hover{border-color:transparent}
+.spec.locked .hint-top{display:none}
+.spec.locked [contenteditable]:empty::before{content:"Not set"}
+.save{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-foreground)}
+.save::before{content:"";width:6px;height:6px;background:var(--success)}
+.save.saving::before{background:var(--warning);animation:pulse 1s ease-in-out infinite}
+
+/* export menu */
+.menu{position:absolute;bottom:calc(100% + 6px);left:12px;width:220px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);padding:3px;display:none;z-index:10}
+.menu.open{display:block;animation:pop .14s ease-out}
+.menu .item[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+
+@keyframes pulse{50%{opacity:.35}}
+
+/* phones and narrow screens: panel becomes an overlay */
+@media (max-width:820px){
+  .guide.p{display:none!important}
+  .work{z-index:auto}
+  .side{position:fixed;top:0;right:0;bottom:0;z-index:45;width:100%!important;transform:translateX(100%);transition:transform .25s cubic-bezier(.2,.7,.2,1);border-left:1px solid var(--border)}
+  body.panel-open .side{transform:none}
+  .side-inner{width:100%}
+  .crumb .title{max-width:120px}
+  .opt{padding-left:16px}.ch-head{padding-left:16px}.working{padding-left:16px}
+}
+@media (max-width:520px){.crumb .stage{display:none}.param > button{grid-template-columns:1fr 30px 70px 22px 12px}}
+/* Outer edges of the side panels: keep the frame line visible over the panel background */
+.side{border-left:0!important}
+.side-inner{border-right:1px solid var(--border);border-left:1px solid var(--border)}
+.hist-inner{border-left:1px solid var(--border);border-right:1px solid var(--border)}
+@media (max-width:820px){.side{border-left:0!important}.side-inner{border-right:0}.hist-inner{border-left:0;border-right:0}}
+
+/* Panel toggles float at the top corners of the chat area, just below the header */
+.chatpane{position:relative}
+.edge-btn{position:absolute;top:12px;z-index:6;width:28px;height:28px;display:grid;place-items:center;
+  background:var(--background);border:1px solid var(--border);color:var(--muted-foreground);transition:color .12s,border-color .12s,background .12s}
+.edge-btn.l{left:calc(var(--eb-l,0px) - 14px)}
+.edge-btn.r{right:calc(var(--eb-r,0px) - 14px)}
+.edge-btn:hover:not(:disabled){color:var(--foreground);border-color:var(--ring)}
+.edge-btn[aria-pressed="true"]{color:var(--foreground);background:var(--accent)}
+.edge-btn:disabled{opacity:.35;cursor:not-allowed}
+.edge-btn .dot{position:absolute;top:-3px;right:-3px;width:6px;height:6px;background:var(--foreground);border:1px solid var(--background)}
+.edge-btn[data-tip]:hover::after,.edge-btn[data-tip]:focus-visible::after{bottom:auto;top:calc(100% + 6px)}
+.edge-btn.l[data-tip]:hover::after,.edge-btn.l[data-tip]:focus-visible::after{left:0;transform:none}
+.edge-btn.r[data-tip]:hover::after,.edge-btn.r[data-tip]:focus-visible::after{left:auto;right:0;transform:none}
+@media (max-width:820px){.edge-btn{top:8px}.edge-btn.l{left:8px}.edge-btn.r{right:8px}}
+.chatpane{overflow:visible}
+
+/* ---------- Owl mark states ---------- */
+.owl .lid{transform-box:fill-box;transform-origin:50% 0;transform:scaleY(0)}
+.owl .pupils{transform-box:view-box}
+@keyframes owl-blink{0%,88%,100%{transform:scaleY(0)}93%{transform:scaleY(1)}}
+@keyframes owl-scan{0%,100%{transform:translateX(-1.2px)}50%{transform:translateX(1.2px)}}
+body[data-owl="work"] .msg.ai:last-child .who .owl .lid,.working .owl .lid{animation:owl-blink 2.6s ease-in-out infinite}
+body[data-owl="work"] .msg.ai:last-child .who .owl .pupils,.working .owl .pupils{animation:owl-scan 1.6s ease-in-out infinite}
+body[data-owl="wait"] .msg.ai:last-child .who .owl .pupils{transform:translateY(1.4px);transition:transform .3s}
+body[data-owl="work"] .msg.ai:last-child .who{border-color:var(--ring)}
+.owl-badge{width:22px;height:22px;display:grid;place-items:center;border:1px solid var(--border);background:var(--background);color:var(--foreground);flex-shrink:0}
+@media (prefers-reduced-motion:reduce){.owl .lid,.owl .pupils{animation:none!important}}
+/* ---------- Sparkline in history ---------- */
+.h-item .sc,.rc-item .sc{gap:6px}
+.spark{display:block;overflow:visible}
+.spark polyline{fill:none;stroke:var(--muted-foreground);stroke-width:1;vector-effect:non-scaling-stroke}
+.spark rect{fill:var(--background);stroke:var(--muted-foreground);stroke-width:1}
+.spark rect.last{fill:var(--foreground);stroke:var(--foreground)}
+.spark.up polyline{stroke:color-mix(in oklch,var(--success) 70%,var(--muted-foreground))}
+.spark.down polyline{stroke:color-mix(in oklch,var(--destructive,oklch(.577 .245 27)) 70%,var(--muted-foreground))}
+.h-item .sc .n{min-width:16px;text-align:right}
+.h-item .sc::before{order:1}.h-item .sc .n{order:2}
+/* ---------- Source chips ---------- */
+.cite{display:inline-grid;place-items:center;min-width:15px;height:15px;padding:0 3px;margin:0 1px;vertical-align:1px;
+  font-family:"Geist Mono",ui-monospace,monospace;font-size:9.5px;font-weight:500;line-height:1;color:var(--muted-foreground);
+  border:1px solid var(--border);background:var(--background);cursor:pointer;transition:color .12s,border-color .12s}
+.cite:hover,.cite:focus-visible{color:var(--foreground);border-color:var(--ring);outline:none}
+.cite.static{cursor:default;margin:0}
+.facts li{grid-template-columns:1fr}
+.srcs{list-style:none;margin:0;padding:0;display:grid}
+.srcs li{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:7px 4px;border-bottom:1px solid var(--border);transition:background .3s}
+.srcs li:last-child{border-bottom:0}
+.srcs .st{display:grid;gap:1px;min-width:0}
+.srcs b{font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srcs small{font-size:11px;color:var(--muted-foreground)}
+.srcs .ext{color:var(--muted-foreground);display:grid;place-items:center;width:20px;height:20px}
+.srcs .ext:hover{color:var(--foreground)}
+.srcs .ext[data-tip]:hover::after{left:auto;right:0;transform:none}
+@keyframes src-flash{0%,40%{background:var(--accent)}100%{background:transparent}}
+.srcs li.flash{animation:src-flash 1.6s ease-out}
+/* ---------- Empty state ---------- */
+.hero-owl{width:76px;height:76px;color:var(--muted-foreground);opacity:.55;margin-bottom:6px}
+.hero-owl .pupils{opacity:.8}
+.recent{width:100%;max-width:440px;margin-top:22px;border:1px solid var(--border);text-align:left;background:var(--background)}
+.rc-h{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid var(--border);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.rc-all{font-size:11px;letter-spacing:0;text-transform:none;color:var(--muted-foreground)}
+.rc-all:hover{color:var(--foreground);text-decoration:underline;text-underline-offset:3px}
+.rc-item{width:100%;display:grid;grid-template-columns:1fr auto 12px;grid-template-rows:auto auto;gap:1px 10px;align-items:center;padding:8px 12px;text-align:left;transition:background .12s}
+.rc-item + .rc-item{border-top:1px solid var(--border)}
+.rc-item:hover,.rc-item:focus-visible{background:var(--accent);outline:none}
+.rc-item .nm{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-item .mt{grid-column:1;grid-row:2;font-size:11px;color:var(--muted-foreground)}
+.rc-item .sc{grid-column:2;grid-row:1 / 3;display:flex;align-items:center;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.rc-item .sc::before{content:"";width:6px;height:6px;background:var(--muted-foreground);order:1}
+.rc-item .sc.build::before{background:var(--success)}.rc-item .sc.promising::before{background:var(--warning)}.rc-item .sc.advise::before{background:var(--destructive,oklch(.577 .245 27))}
+.rc-item .sc .n{order:2}
+.rc-item > svg{grid-column:3;grid-row:1 / 3;color:var(--muted-foreground)}
+@media (max-height:640px){.hero-owl{display:none}.recent{margin-top:14px}}
+
+/* ---------- ASCII owl behind the chat (only while chatting) ---------- */
+.chatpane main{position:relative;z-index:1}
+.ascii-bg{position:absolute;inset:0;display:grid;place-items:center;padding-bottom:140px;pointer-events:none;overflow:hidden;z-index:0;
+  opacity:0;transition:opacity .6s ease}
+body.chatting .ascii-bg{opacity:1}
+.ascii-bg pre{margin:0;font-family:"Geist Mono",ui-monospace,monospace;font-size:9px;line-height:9px;letter-spacing:.6px;white-space:pre;
+  color:var(--foreground);opacity:.075;user-select:none}
+.dark .ascii-bg pre,[data-theme="dark"] .ascii-bg pre{opacity:.09}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ascii-bg pre{opacity:.09}}
+@media (max-width:820px){.ascii-bg pre{font-size:6px;line-height:6px;letter-spacing:.4px}}
+
+/* Hide each edge toggle while its panel is open: the panel has its own close button */
+body.hist-open #histBtn,body.panel-open #panelBtn{opacity:0;visibility:hidden;pointer-events:none}
+.edge-btn{transition:color .12s,border-color .12s,background .12s,opacity .15s,visibility .15s}
+
+/* ===================== 32.1 Spec versions, compare, confirm ===================== */
+.vbar{display:flex;gap:6px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--border);position:relative}
+.vsel{position:relative;flex:1;min-width:0}
+.vsel #verBtn{max-width:100%;justify-content:space-between;gap:6px}
+.vmenu{position:absolute;top:calc(100% + 4px);left:0;min-width:260px;background:var(--card);border:1px solid var(--border);box-shadow:var(--shadow);padding:3px;display:none;z-index:12}
+.vmenu.open{display:block}
+.vmenu .mh{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);padding:6px 8px 4px}
+.vmenu .item{width:100%;display:grid;grid-template-columns:26px 1fr auto auto;gap:8px;align-items:center;padding:6px 8px;font-size:12px;text-align:left}
+.vmenu .item:hover,.vmenu .item:focus-visible{background:var(--accent);outline:none}
+.vmenu .item[aria-checked="true"]{background:var(--accent)}
+.vmenu .item[aria-checked="true"] .vn{font-weight:600}
+.vmenu .vn{font-family:"Geist Mono",ui-monospace,monospace;font-size:11px}
+.vmenu .va{font-size:11px;color:var(--muted-foreground);font-variant-numeric:tabular-nums}
+.vmenu .sep{height:1px;background:var(--border);margin:3px 0}
+.vmenu .item.demo{grid-template-columns:1fr;color:var(--muted-foreground);font-size:11px}
+.tag.ok{border-color:color-mix(in oklch,var(--success) 50%,var(--border));color:color-mix(in oklch,var(--success) 70%,var(--foreground))}
+#cmpBtn[aria-pressed="true"]{background:var(--accent)}
+.banner{display:grid;gap:8px;margin:10px 16px 0;padding:10px 12px;border:1px solid var(--border);background:var(--muted);font-size:12px}
+.banner.warn{border-color:color-mix(in oklch,var(--warning) 55%,var(--border));background:color-mix(in oklch,var(--warning) 10%,var(--background))}
+.banner .row{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-start}
+.spec .hint-top.lockd{color:var(--muted-foreground)}
+.spec li.none{color:var(--muted-foreground);list-style:none;margin-left:-16px}
+.cmp-h{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px}
+.cmp-h label{display:flex;align-items:center;gap:6px;color:var(--muted-foreground)}
+.cmp-h .arrow{color:var(--muted-foreground)}
+.cmp-h .muted,.muted{color:var(--muted-foreground)}
+.cmp-h .cnt{margin-left:auto;font-family:"Geist Mono",ui-monospace,monospace;font-size:11px}
+.sel{height:26px;border:1px solid var(--border);background:var(--background);color:var(--foreground);font:inherit;font-size:12px;padding:0 6px;border-radius:0}
+.diff del,.cmp-h del{background:color-mix(in oklch,var(--destructive,oklch(.577 .245 27)) 14%,transparent);color:color-mix(in oklch,var(--destructive,oklch(.577 .245 27)) 70%,var(--foreground));text-decoration:line-through;text-decoration-thickness:1px}
+.diff ins,.cmp-h ins{background:color-mix(in oklch,var(--success) 16%,transparent);color:color-mix(in oklch,var(--success) 55%,var(--foreground));text-decoration:none}
+.cmp-h del,.cmp-h ins{background:none;text-decoration:none}
+.diff li.del,.diff li.ins{list-style:none;margin-left:-14px;padding-left:14px;position:relative}
+.diff li.del::before{content:"−";position:absolute;left:0;color:var(--destructive,oklch(.577 .245 27))}
+.diff li.ins::before{content:"+";position:absolute;left:0;color:var(--success)}
+.diff .blk.same p,.diff .blk.same ul{display:none}
+.diff .blk.same h5{color:var(--muted-foreground);font-weight:500}
+.diff .unch{font-size:10.5px;font-weight:400;color:var(--muted-foreground);margin-left:8px}
+.save.err::before{background:var(--destructive,oklch(.577 .245 27))}
+/* confirm dialog */
+.dlg-scrim{position:fixed;inset:0;background:oklch(0 0 0 / .4);z-index:70;opacity:0;pointer-events:none;transition:opacity .15s}
+.dlg-scrim.open{opacity:1;pointer-events:auto}
+.dlg{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:71;width:min(380px,calc(100% - 32px));background:var(--background);border:1px solid var(--border);box-shadow:var(--shadow);padding:16px}
+.dlg h3{font-size:14px;font-weight:600;margin:0 0 6px}
+.dlg p{font-size:12.5px;color:var(--muted-foreground);margin:0 0 14px}
+.dlg .row{display:flex;justify-content:flex-end;gap:6px}
+/* wide panel */
+body.panel-wide{--panel-w:min(780px,58vw)}
+.sp-head .sp-wide{margin-left:auto}
+.sp-wide[aria-pressed="true"]{color:var(--foreground);background:var(--accent)}
+@media (max-width:820px){.sp-head .sp-wide{display:none}}
+.sp-tabs{overflow-x:auto;scrollbar-width:none}
+/* ===================== 32.2 Plan ===================== */
+.phs{display:grid;gap:8px}
+.ph{border:1px solid var(--border);background:var(--background)}
+.ph-h{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:6px 6px 6px 8px;border-bottom:1px solid var(--border)}
+.ix{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;border:1px solid var(--border);padding:0 4px;line-height:16px;color:var(--muted-foreground)}
+.ph .nm{font-size:12.5px;font-weight:600}
+.ph [contenteditable]{outline:none;padding:2px 4px;margin:0 -4px;border:1px solid transparent;min-width:40px}
+.ph [contenteditable]:hover{border-color:var(--border)}
+.ph [contenteditable]:focus{border-color:var(--ring);background:var(--card)}
+.ph [contenteditable]:empty::before{content:attr(data-ph);color:var(--muted-foreground)}
+.ph .ctl{display:flex}
+.ph .ic{width:24px;height:24px;display:grid;place-items:center;color:var(--muted-foreground)}
+.ph .ic:hover:not(:disabled){color:var(--foreground);background:var(--accent)}
+.ph .ic:disabled{opacity:.3;cursor:not-allowed}
+.ph-f{display:grid;grid-template-columns:72px 1fr;gap:8px;padding:6px 8px;font-size:12px}
+.ph-f + .ph-f{padding-top:0}
+.ph-f .lb{color:var(--muted-foreground);font-size:11px;padding-top:3px}
+.ph-add{display:flex;align-items:center;gap:6px;width:100%;margin-top:8px;padding:8px;border:1px dashed var(--border);font-size:12px;color:var(--muted-foreground);justify-content:center}
+.ph-add{border-style:solid}
+.ph-add:hover{color:var(--foreground);background:var(--accent)}
+.pl-sum{display:grid;grid-template-columns:repeat(4,1fr);padding:0}
+.pl-sum > div{display:grid;gap:2px;padding:12px 14px}
+.pl-sum > div + div{border-left:1px solid var(--border)}
+.pl-sum b{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.pl-sum span{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground)}
+.pl-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;border-bottom:1px solid var(--border)}
+.pl-seg{grid-template-columns:repeat(2,64px);margin:0}
+.pl-seg button:disabled{opacity:.4;cursor:not-allowed}
+.legend{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-foreground)}
+.legend i{width:10px;height:10px;border:1.5px solid var(--foreground)}
+.pl-phase{border-bottom:1px solid var(--border)}
+.pl-ph-h{display:flex;align-items:center;gap:8px;padding:10px 16px 6px;font-size:12.5px}
+.pl-ph-h .pts{margin-left:auto;font-family:"Geist Mono",ui-monospace,monospace;font-size:11px;color:var(--muted-foreground)}
+.tk{position:relative;transition:background .3s}
+.tk.crit::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--foreground)}
+.tk-row{width:100%;display:grid;grid-template-columns:30px 1fr auto 22px 12px;gap:8px;align-items:center;padding:6px 16px;text-align:left;font-size:12.5px;border-top:1px solid var(--border)}
+.tk-row:hover,.tk-row:focus-visible{background:var(--accent);outline:none}
+.tk .tid{font-family:"Geist Mono",ui-monospace,monospace;font-size:10.5px;color:var(--muted-foreground)}
+.tk .tt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk .deps{display:flex;gap:3px}
+.dep{font-family:"Geist Mono",ui-monospace,monospace;font-size:10px;border:1px solid var(--border);padding:0 4px;line-height:15px;color:var(--muted-foreground);cursor:pointer;white-space:nowrap}
+.dep:hover,.dep:focus-visible{color:var(--foreground);border-color:var(--ring);outline:none}
+.tk .est{font-family:"Geist Mono",ui-monospace,monospace;font-size:11px;text-align:center;border:1px solid var(--border);line-height:18px}
+.tk .chev{color:var(--muted-foreground);transition:transform .15s}
+.tk.open .tk-row .chev{transform:rotate(90deg)}
+.tk.open .tk-row{background:var(--accent)}
+.tk-more{display:grid;gap:8px;padding:8px 16px 12px 54px;font-size:12px;background:var(--background)}
+.tk-more p{color:var(--muted-foreground);margin:0}
+.fld{display:grid;grid-template-columns:72px 1fr;gap:8px;align-items:center}
+.fld > span:first-child{font-size:11px;color:var(--muted-foreground)}
+.inp{height:28px;border:1px solid var(--border);background:var(--background);color:var(--foreground);font:inherit;font-size:12.5px;padding:0 8px;border-radius:0;width:100%}
+.inp:focus,.sel:focus{outline:none;border-color:var(--ring);box-shadow:0 0 0 3px color-mix(in oklch,var(--ring) 22%,transparent)}
+.est-seg{display:inline-grid;grid-template-columns:repeat(5,28px);border:1px solid var(--border);width:max-content}
+.est-seg button{height:24px;font-family:"Geist Mono",ui-monospace,monospace;font-size:11px;color:var(--muted-foreground)}
+.est-seg button+button{border-left:1px solid var(--border)}
+.est-seg button[aria-checked="true"]{background:var(--foreground);color:var(--background)}
+.lbls{display:flex;flex-wrap:wrap;gap:4px}
+.tk-empty{padding:8px 16px 12px;font-size:12px;color:var(--muted-foreground)}
+@keyframes tk-flash{0%,40%{background:var(--accent)}100%{background:transparent}}
+.tk.flash{animation:tk-flash 1.6s ease-out}
+.pl-graph{overflow:auto;padding:12px 8px 16px;display:grid;justify-content:center}
+.pl-graph svg{display:block}
+.ge{fill:none;stroke:var(--ring);stroke-width:1;opacity:.7}
+.gh{fill:none;stroke:var(--ring);stroke-width:1;opacity:.7}
+.ge.crit,.gh.crit{stroke:var(--foreground);stroke-width:1.5;opacity:1}
+.gn{cursor:pointer;outline:none}
+.gn rect{fill:var(--background);stroke:var(--border);stroke-width:1;transition:stroke .12s,fill .12s}
+.gn.crit rect{stroke:var(--foreground);stroke-width:1.5}
+.gn:hover rect,.gn:focus-visible rect{fill:var(--accent);stroke:var(--ring)}
+.gn .gid{font:500 10px "Geist Mono",ui-monospace,monospace;fill:var(--muted-foreground)}
+.gn .gp{font:500 10px "Geist Mono",ui-monospace,monospace;fill:var(--foreground)}
+.gn .gt{font:500 11.5px "Geist",system-ui,sans-serif;fill:var(--foreground)}
+@media (max-width:520px){.pl-sum b{font-size:16px}.pl-sum > div{padding:10px}.tk-more{padding-left:16px}.tk .deps{display:none}}
+@media (prefers-reduced-motion:reduce){.tk.flash{animation:none}}
+#panePlan .hint-top{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted-foreground);margin-bottom:10px}
+</style>
+</head>
+<body>
+
+<div class="bg" aria-hidden="true">
+  <div class="rail l"><svg id="ringsL"></svg></div>
+  <div class="rail r"><svg id="ringsR"></svg></div>
+  <div class="safe"></div>
+  <div class="guide l"></div><div class="guide r"></div><div class="guide p"></div><div class="guide h"></div>
+  <div class="hline"></div>
+  <div id="ticks"></div>
+</div>
+
+<header><div class="wrap">
+  <div class="left"><div class="brand">
+    <div class="logo" aria-hidden="true">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 2.5 9 6h6l6-3.5V14l-9 7.5L3 14Z M8.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M15.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M10.6 15h2.8L12 17.6Z"/><circle cx="8.5" cy="11" r="1.3"/><circle cx="15.5" cy="11" r="1.3"/></svg>
+    </div>
+    Metis <span class="badge hide-sm">Beta</span>
+  </div>
+  <div class="crumb"><span class="slash">/</span><span class="title" id="ideaTitle">New idea</span><span class="stage" id="stage">Draft</span></div>
+  </div>
+  <div class="hstack">
+    <button class="btn-icon" id="newChat" aria-label="New idea" title="New idea">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a2 2 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>
+    </button>
+    <button class="btn-icon" id="theme" aria-label="Toggle theme" title="Toggle theme">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4"/></svg>
+    </button>
+    <div class="acct">
+      <button class="avatar" id="acctBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="acctPop" aria-label="Account">SB</button>
+      <div class="pop" id="acctPop" role="menu" aria-label="Account">
+        <div class="pop-head"><div class="avatar" aria-hidden="true">SB</div><div><b>sboy99</b><small>Signed in with Google</small></div></div>
+        <div class="sep"></div>
+        <button class="item" role="menuitem"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5M7 9l5-5 5 5"/></svg>Personal workspace<span class="meta">Switch</span></button>
+        <div class="sep"></div>
+        <button class="item" role="menuitem" data-open="account"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.2 2h-.4a2 2 0 0 0-2 2v.2a2 2 0 0 1-1 1.7l-.4.3a2 2 0 0 1-2 0l-.2-.1a2 2 0 0 0-2.7.7l-.2.4a2 2 0 0 0 .7 2.7l.2.1a2 2 0 0 1 1 1.7v.5a2 2 0 0 1-1 1.7l-.2.1a2 2 0 0 0-.7 2.7l.2.4a2 2 0 0 0 2.7.7l.2-.1a2 2 0 0 1 2 0l.4.3a2 2 0 0 1 1 1.7v.2a2 2 0 0 0 2 2h.4a2 2 0 0 0 2-2v-.2a2 2 0 0 1 1-1.7l.4-.3a2 2 0 0 1 2 0l.2.1a2 2 0 0 0 2.7-.7l.2-.4a2 2 0 0 0-.7-2.7l-.2-.1a2 2 0 0 1-1-1.7v-.5a2 2 0 0 1 1-1.7l.2-.1a2 2 0 0 0 .7-2.7l-.2-.4a2 2 0 0 0-2.7-.7l-.2.1a2 2 0 0 1-2 0l-.4-.3a2 2 0 0 1-1-1.7V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Settings<kbd>⌘ ,</kbd></button>
+        <button class="item" role="menuitem" data-open="keys"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6M15.5 7.5l3 3L22 7l-3-3"/></svg>API keys<span class="meta">2 saved</span></button>
+        <button class="item" role="menuitem" data-open="integrations"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/></svg>Integrations</button>
+        <div class="label">Theme</div>
+        <div class="seg" role="group" aria-label="Theme">
+          <button data-theme-set="light" aria-pressed="false">Light</button>
+          <button data-theme-set="dark" aria-pressed="false">Dark</button>
+          <button data-theme-set="system" aria-pressed="true">System</button>
+        </div>
+        <div class="sep"></div>
+        <a class="item" role="menuitem" href="#" onclick="return false"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>Docs and help</a>
+        <a class="item danger" role="menuitem" href="metis-auth-shadcn.html"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>Sign out</a>
+      </div>
+    </div>
+  </div>
+</div></header>
+
+<div class="work" id="work">
+  <div class="h-scrim" id="hScrim"></div>
+  <aside class="hpanel" id="hist" aria-label="Idea history">
+    <div class="hist-inner">
+      <div class="h-head">
+        <span class="ttl">Your ideas</span>
+        <button class="btn-icon" id="hNew" aria-label="New idea" data-tip="New idea">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <button class="btn-icon" id="hClose" aria-label="Close history" data-tip="Close">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+        </button>
+      </div>
+      <label class="h-search">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="hSearch" type="search" placeholder="Search ideas" aria-label="Search ideas"><kbd>/</kbd>
+      </label>
+      <div class="h-filters" role="group" aria-label="Filter">
+        <button data-f="all" aria-pressed="true">All</button>
+        <button data-f="active" aria-pressed="false">In progress</button>
+        <button data-f="scored" aria-pressed="false">Scored</button>
+      </div>
+      <div class="h-list" id="hList"></div>
+      <div class="h-foot"><span id="hCount"></span><span>Sorted by last activity</span></div>
+    </div>
+  </aside>
+  <section class="chatpane" id="chatpane">
+    <button class="edge-btn l" id="histBtn" aria-label="Your ideas" data-tip="Your ideas  /" aria-pressed="false" aria-controls="hist">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M9 3v18"/></svg>
+    </button>
+    <button class="edge-btn r" id="panelBtn" aria-label="Outputs panel" data-tip="Outputs" aria-pressed="false" aria-controls="side" disabled>
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M15 3v18"/></svg><span class="dot"></span>
+    </button>
+    <div class="ascii-bg" aria-hidden="true"><pre id="asciiOwl"></pre></div>
+    <main id="scroller">
+      <div class="col">
+        <section class="hero">
+          <svg class="hero-owl" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width=".35" stroke-linejoin="miter" d="M3 2.5 9 6h6l6-3.5V14l-9 7.5L3 14Z M8.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M15.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M10.6 15h2.8L12 17.6Z"/><g class="pupils" fill="currentColor"><circle cx="8.5" cy="11" r="1.3"/><circle cx="15.5" cy="11" r="1.3"/></g></svg>
+          <h1>What are you building?</h1>
+          <p>Describe your idea in a sentence or two. Metis will ask a few questions, research the market and score it.</p>
+          <div class="recent" id="recent" aria-label="Recent ideas"></div>
+        </section>
+        <div class="thread" id="thread" aria-live="polite"></div>
+      </div>
+    </main>
+
+    <div class="dock" id="dock" data-mode="text">
+      <div class="col">
+        <div class="suggest" id="suggest"></div>
+
+        <!-- Mode: free text (new idea, or "something else") -->
+        <div class="mode text">
+          <form class="composer" id="form">
+            <label for="input" style="position:absolute;left:-9999px">Your idea</label>
+            <textarea id="input" rows="1" placeholder="Describe your idea…"></textarea>
+            <div class="bar-row">
+              <div class="tools">
+                <button type="button" class="tool back" id="backToOpts" data-tip="Back to options" aria-label="Back to options">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                </button>
+                <button type="button" class="tool" data-tip="Attach file" aria-label="Attach file">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>
+                </button>
+                <button type="button" class="tool toggle" data-tip="Web research: on" aria-label="Web research" aria-pressed="true">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                </button>
+                <button type="button" class="tool" data-tip="Mention a past idea" aria-label="Mention a past idea">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/></svg>
+                </button>
+                <span class="vsep" aria-hidden="true"></span>
+                <button type="button" class="tool" data-tip="Model: gpt-4.1" aria-label="Choose model">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16"/><rect x="9" y="9" width="6" height="6"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg>
+                </button>
+              </div>
+              <div class="tools">
+                <kbd class="hint hide-sm">Enter to send</kbd>
+                <button type="submit" class="send" id="send" aria-label="Send" data-tip="Send" disabled>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <!-- Mode: pick an answer -->
+        <div class="mode choice">
+          <div class="choices" id="choices" role="group" aria-labelledby="chLabel">
+            <div class="ch-head">
+              <span class="lbl" id="chLabel">Pick an answer</span>
+              <kbd class="hint hide-sm" id="chHint">1–4 to pick</kbd>
+            </div>
+            <div class="opts" id="opts"></div>
+            <div class="ch-foot">
+              <button class="btn sm" id="chClear" type="button">Clear</button>
+              <button class="btn sm primary" id="chGo" type="button" disabled>Continue</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode: agent working -->
+        <div class="mode busy">
+          <div class="working" role="status">
+            <span class="owl-badge" aria-hidden="true"><svg class="owl" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 2.5 9 6h6l6-3.5V14l-9 7.5L3 14Z M8.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M15.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M10.6 15h2.8L12 17.6Z"/><g class="pupils"><circle cx="8.5" cy="11" r="1.3"/><circle cx="15.5" cy="11" r="1.3"/></g><rect class="lid" x="5.2" y="7.7" width="6.6" height="6.6"/><rect class="lid" x="12.2" y="7.7" width="6.6" height="6.6"/></svg></span>
+            <span class="shimmer" id="busyLabel">Thinking…</span>
+            <span class="count" id="busyCount"></span>
+            <button class="btn sm" id="stop" type="button">
+              <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect width="10" height="10" fill="currentColor"/></svg>Stop
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="side" id="side" aria-label="Idea outputs">
+    <div class="side-inner">
+      <div class="sp-head">
+        <div class="sp-tabs" role="tablist" aria-label="Outputs">
+          <button class="sp-tab" role="tab" data-sp="score" aria-selected="true" disabled>Score <span class="n" id="nScore"></span></button>
+          <button class="sp-tab" role="tab" data-sp="research" aria-selected="false" disabled>Research <span class="n" id="nResearch"></span></button>
+          <button class="sp-tab" role="tab" data-sp="angles" aria-selected="false" disabled>Suggestions <span class="n" id="nAngles"></span></button>
+          <button class="sp-tab" role="tab" data-sp="spec" aria-selected="false" disabled>Spec <span class="n" id="nSpec"></span></button>
+          <button class="sp-tab" role="tab" data-sp="plan" aria-selected="false" disabled>Plan <span class="n" id="nPlan"></span></button>
+        </div>
+        <button class="btn-icon sp-wide" id="spWide" aria-label="Widen panel" data-tip="Widen" aria-pressed="false">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        </button>
+        <button class="btn-icon" id="spClose" aria-label="Close panel" data-tip="Close">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="sp-body">
+        <section class="sp-pane active" data-pane="score" id="paneScore"></section>
+        <section class="sp-pane" data-pane="research" id="paneResearch"></section>
+        <section class="sp-pane" data-pane="angles" id="paneAngles"></section>
+        <section class="sp-pane" data-pane="spec" id="paneSpec"></section>
+        <section class="sp-pane" data-pane="plan" id="panePlan"></section>
+      </div>
+      <div class="sp-foot" id="spFoot"></div>
+    </div>
+  </aside>
+</div>
+
+<footer><div class="wrap">Metis uses your own LLM and Exa keys. Scores are estimates, not advice.</div></footer>
+
+<div class="scrim" id="scrim"></div>
+<div class="dlg-scrim" id="dlgScrim"></div>
+<div class="dlg" id="dlg" role="dialog" aria-modal="true" aria-labelledby="dlgT" aria-describedby="dlgP" hidden>
+  <h3 id="dlgT"></h3><p id="dlgP"></p>
+  <div class="row"><button class="btn sm" id="dlgNo" type="button">Cancel</button><button class="btn sm primary" id="dlgYes" type="button">Confirm</button></div>
+</div>
+<aside class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" aria-hidden="true">
+  <div class="sheet-head">
+    <h2 id="sheetTitle">Settings</h2>
+    <button class="btn-icon" id="sheetClose" aria-label="Close settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+  </div>
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-tab="account" aria-selected="true">Account</button>
+    <button class="tab" role="tab" data-tab="keys" aria-selected="false">API keys</button>
+    <button class="tab" role="tab" data-tab="integrations" aria-selected="false">Integrations</button>
+    <button class="tab" role="tab" data-tab="prefs" aria-selected="false">Preferences</button>
+  </div>
+  <div class="sheet-body">
+    <section class="panel active" data-panel="account">
+      <div class="group">
+        <h3>Profile</h3>
+        <div class="field"><label for="sName">Display name</label><input class="input" id="sName" value="sboy99"></div>
+        <div class="field"><label for="sEmail">Email</label><input class="input" id="sEmail" value="Managed by Google" readonly><span class="hint">You sign in with Google. Email sign-in is coming later.</span></div>
+      </div>
+      <div class="group">
+        <h3>Workspace</h3>
+        <div class="field"><label for="sWs">Workspace name</label><input class="input" id="sWs" value="Personal"></div>
+      </div>
+      <div class="group">
+        <h3>Sessions</h3>
+        <div class="row"><div class="t"><b>Sign out everywhere</b><small>Ends every session on every device.</small></div><button class="btn sm">Sign out all</button></div>
+      </div>
+      <div class="danger-zone row"><div class="t"><b>Delete workspace</b><small>Removes ideas, scores and plans. Can't be undone.</small></div><button class="btn sm destructive">Delete</button></div>
+    </section>
+
+    <section class="panel" data-panel="keys">
+      <div class="group">
+        <h3>Language model</h3>
+        <p class="hint">Any OpenAI-compatible endpoint. Keys are encrypted and never shown again.</p>
+        <div class="field"><label for="kBase">Base URL</label><input class="input mono" id="kBase" value="https://api.openai.com/v1"></div>
+        <div class="field"><label for="kModel">Model</label>
+          <select class="input" id="kModel"><option>gpt-4.1</option><option>gpt-4.1-mini</option><option>Custom…</option></select></div>
+        <div class="field"><label for="kLlm">API key</label>
+          <div class="inrow"><input class="input mono" id="kLlm" type="password" value="sk-saved-key-0000" readonly><button class="btn">Replace</button></div>
+          <span class="hint"><span class="status">Saved, ends in 4f2a</span></span></div>
+      </div>
+      <div class="group">
+        <h3>Research</h3>
+        <div class="field"><label for="kExa">Exa API key</label>
+          <div class="inrow"><input class="input mono" id="kExa" type="password" placeholder="Paste your Exa key"><button class="btn">Test</button></div></div>
+      </div>
+      <div class="group">
+        <h3>Monthly budget</h3>
+        <div class="field"><label for="kBudget">Spend limit (USD)</label><input class="input" id="kBudget" type="number" value="20" min="0"><span class="hint">Metis pauses runs when the limit is reached.</span></div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="integrations">
+      <div class="group">
+        <h3>Planning tools</h3>
+        <div class="tile"><div class="mark">L</div><div class="t"><b>Linear</b><small>Export phases and issues with dependencies.</small></div><span class="status">Connected</span></div>
+        <div class="field"><label for="iTeam">Linear team</label><select class="input" id="iTeam"><option>Metis Hackathon</option><option>Create a new team…</option></select></div>
+        <div class="tile"><div class="mark">N</div><div class="t"><b>Notion</b><small>Save high level designs as pages.</small></div><button class="btn sm">Connect</button></div>
+      </div>
+    </section>
+
+    <section class="panel" data-panel="prefs">
+      <div class="group">
+        <h3>Appearance</h3>
+        <div class="seg" role="group" aria-label="Theme" style="margin:0">
+          <button data-theme-set="light" aria-pressed="false">Light</button>
+          <button data-theme-set="dark" aria-pressed="false">Dark</button>
+          <button data-theme-set="system" aria-pressed="true">System</button>
+        </div>
+      </div>
+      <div class="group">
+        <h3>Scoring</h3>
+        <div class="row"><div class="t"><b>Weekly market watch</b><small>Rescan and rescore new ideas every week.</small></div><button class="switch" role="switch" aria-checked="true" aria-label="Weekly market watch"></button></div>
+        <div class="row"><div class="t"><b>Score change alerts</b><small>Notify me in the app when a score moves 5+ points.</small></div><button class="switch" role="switch" aria-checked="true" aria-label="Score change alerts"></button></div>
+        <div class="row"><div class="t"><b>Skip known questions</b><small>Use what Metis remembers to shorten interviews.</small></div><button class="switch" role="switch" aria-checked="false" aria-label="Skip known questions"></button></div>
+      </div>
+    </section>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn" id="sheetCancel">Cancel</button>
+    <button class="btn primary" id="sheetSave">Save changes</button>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status">Settings saved</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const sleep = ms => new Promise(r => setTimeout(r, reduce ? 0 : ms));
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const fmt = s => s.split('\n\n').map(p => '<p>' + esc(p).replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>') + '</p>').join('');
+
+const thread=$('#thread'), scroller=$('#scroller'), dock=$('#dock'), input=$('#input'), send=$('#send'), form=$('#form'), suggest=$('#suggest');
+const toBottom = () => requestAnimationFrame(() => scroller.scrollTop = scroller.scrollHeight);
+
+const I = {
+  mark:'<svg class="owl" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3 2.5 9 6h6l6-3.5V14l-9 7.5L3 14Z M8.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M15.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M10.6 15h2.8L12 17.6Z"/><g class="pupils"><circle cx="8.5" cy="11" r="1.3"/><circle cx="15.5" cy="11" r="1.3"/></g><rect class="lid" x="5.2" y="7.7" width="6.6" height="6.6"/><rect class="lid" x="12.2" y="7.7" width="6.6" height="6.6"/></svg>',
+  check:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  chev:'<svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  arrow:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  pencil:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.4 3.6a2 2 0 1 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  gauge:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/></svg>',
+  search:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>',
+  bulb:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2Z"/></svg>',
+  doc:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M8 13h8M8 17h5"/></svg>',
+  dl:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
+  link:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>',
+  linear:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M7 13l4 4M7 9l8 8M9 7l8 8M13 7l4 4"/></svg>',
+  ext:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>',
+  tree:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="5"/><rect x="14" y="10" width="7" height="5"/><rect x="14" y="17" width="7" height="5"/><path d="M6.5 8v4.5H14M6.5 12.5V19.5H14"/></svg>',
+  up:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>',
+  down:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  trash:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+  plus:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+  refresh:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M8 16H3v5"/></svg>'
+};
+
+/* ---------------- Data ---------------- */
+const PARAMS = [
+  {k:'Problem severity', w:25, v:78, why:'Founders report weeks lost building ideas nobody wanted; the pain shows up in many forum threads.', conf:'High', src:'news.ycombinator.com'},
+  {k:'Uniqueness', w:25, v:42, why:'Three tools already interview users and score ideas. The scoring flow alone is not a differentiator.', conf:'Medium', src:'producthunt.com'},
+  {k:'Market demand', w:15, v:74, why:'Steady search interest for "validate startup idea" and active communities of solo founders.', conf:'Medium', src:'reddit.com'},
+  {k:'Value', w:15, v:66, why:'Saves research time, but founders often accept a rough gut check instead of paying.', conf:'Medium', src:'indiehackers.com'},
+  {k:'Feasibility', w:10, v:85, why:'Built on existing LLM and search APIs; a 2 person team can ship an MVP quickly.', conf:'High', src:'exa.ai'},
+  {k:'Timing', w:10, v:70, why:'AI agents for research are newly practical; the category is forming but not yet crowded.', conf:'Low', src:'g2.com'}
+];
+const COMPETITORS = [
+  {n:'Validly', d:'validly.example', s:'AI interview and a readiness score for startup ideas.', t:'Direct'},
+  {n:'IdeaProof', d:'ideaproof.example', s:'Market reports with competitor lists, no planning.', t:'Direct'},
+  {n:'LaunchLens', d:'launchlens.example', s:'Landing page tests to measure demand.', t:'Adjacent'}
+];
+const FACTS = [
+  ['Most indie products launched on Product Hunt never reach paying users', 'producthunt.com'],
+  ['Founders cite "no market need" as a top reason startups fail', 'cbinsights.com'],
+  ['Idea validation threads get steady weekly engagement', 'reddit.com']
+];
+const ANGLES = [
+  {t:'Focus on non-technical founders', d:'Existing tools assume you know how to read market data. Guide people who don\'t.', i:'+28 uniqueness'},
+  {t:'End with a ready Linear plan', d:'Competitors stop at a report. Turn the score into phases and issues.', i:'+15 uniqueness'},
+  {t:'Rescore weekly as the market moves', d:'Keep the score live with alerts when a competitor launches.', i:'+10 timing'}
+];
+const SOURCES = [
+  {d:'news.ycombinator.com', t:'Ask HN: How do you validate an idea before building?'},
+  {d:'producthunt.com', t:'Idea validation tools launched this year'},
+  {d:'reddit.com', t:'r/startups weekly validation threads'},
+  {d:'indiehackers.com', t:'What founders pay for research tools'},
+  {d:'exa.ai', t:'Search API pricing and limits'},
+  {d:'g2.com', t:'AI market research software category'},
+  {d:'cbinsights.com', t:'Top reasons startups fail'},
+  {d:'validly.example', t:'Validly product page'},
+  {d:'ideaproof.example', t:'IdeaProof product page'},
+  {d:'launchlens.example', t:'LaunchLens product page'}
+];
+const srcN = d => SOURCES.findIndex(x=>x.d===d)+1;
+const chip = d => { const n=srcN(d); return n?`<button type="button" class="cite" data-src="${n}" data-tip="${d}" aria-label="Source ${n}: ${d}">${n}</button>`:''; };
+function goSource(n){
+  if(state.panel!=='research') openPanel('research');
+  requestAnimationFrame(()=>{ const el=document.getElementById('src-'+n); if(!el) return;
+    el.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'});
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); });
+}
+document.addEventListener('click',e=>{ const c=e.target.closest('.cite'); if(c){ e.preventDefault(); goSource(+c.dataset.src); } });
+const W = [.25,.25,.15,.15,.1,.1];
+const total = ps => Math.round(ps.reduce((a,p,i)=>a+p.v*W[i],0));
+const band = t => t>=75?['build','Build it · 75+']:t>=55?['promising','Promising · 55–74']:['advise','Adviser mode · <55'];
+
+const state = { idea:'', versions:[], applied:null, spec:false, panel:null, outputs:new Set() };
+
+/* ---------------- History (left panel) ---------------- */
+const mk = d => PARAMS.map((p,i)=>({...p, v:Math.max(10,Math.min(98,p.v+d[i]))}));
+const PAST = [
+  {id:'p1', t:'AI tutor for spoken Spanish', stage:'Spec confirmed', when:'2 days ago', grp:'This week', params:mk([4,14,2,6,-10,5]), trend:[54,63]},
+  {id:'p2', t:'Marketplace for used lab equipment', stage:'Advising', when:'5 days ago', grp:'This week', params:mk([-20,-6,-30,-16,-25,-15]), trend:[56,52]},
+  {id:'p3', t:'Habit tracker for remote teams', stage:'Exported', when:'2 weeks ago', grp:'Earlier', params:mk([6,40,8,14,5,10]), trend:[61,70,76]},
+  {id:'p4', t:'Recipe planner from fridge photos', stage:'Scored', when:'3 weeks ago', grp:'Earlier', params:mk([-14,4,-6,-10,-8,0])},
+  {id:'p5', t:'Freelance invoice chaser', stage:'Interviewing', when:'1 month ago', grp:'Earlier', params:null}
+];
+let hFilter='all', currentId='new';
+function histItems(){
+  if(currentId==='cur'){ state.newStage=$('#stage').textContent; state.newLive=$('#stage').classList.contains('live'); state.newParams=state.versions.length?state.versions[state.versions.length-1].params:null; }
+  const cur = state.newIdea ? [{id:'cur', t:state.newIdea, stage:currentId==='cur'?state.newStage:'Paused', when:'now', grp:'Today', live:currentId==='cur'&&state.newLive, params:state.newParams}] : [];
+  return [...cur, ...PAST];
+}
+/* score per version, oldest first: earlier versions plus the current score */
+function trendOf(i){
+  if(i.id==='cur') return state.versions.map(v=>total(v.params));
+  if(!i.params) return [];
+  return [...(i.trend||[]), total(i.params)];
+}
+function spark(vals){
+  if(vals.length<2) return '';
+  const w=34,h=12,lo=Math.min(...vals)-4,hi=Math.max(...vals)+4;
+  const pts=vals.map((v,k)=>[ +(k*(w-2)/(vals.length-1)+1).toFixed(1), +(h-1-(v-lo)/(hi-lo)*(h-2)).toFixed(1) ]);
+  const d=vals[vals.length-1]-vals[0];
+  const tip=vals.map((v,k)=>'v'+(k+1)+' '+v).join(' → ');
+  return `<svg class="spark ${d>=0?'up':'down'}" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Score history ${tip}"><title>${tip}</title><polyline points="${pts.map(p=>p.join(',')).join(' ')}"/>${pts.map((p,k)=>`<rect x="${p[0]-1.5}" y="${p[1]-1.5}" width="3" height="3" class="${k===pts.length-1?'last':''}"/>`).join('')}</svg>`;
+}
+function renderHist(){
+  const q=$('#hSearch').value.trim().toLowerCase();
+  const items=histItems().filter(i=>!q||i.t.toLowerCase().includes(q)).filter(i=>
+    hFilter==='all' || (hFilter==='scored' ? !!i.params : !i.params || !/Exported|Spec confirmed/.test(i.stage)));
+  const list=$('#hList'); list.innerHTML='';
+  if(!items.length){ list.innerHTML='<div class="h-empty">No ideas match.</div>'; }
+  let g='';
+  items.forEach(i=>{
+    if(i.grp!==g){ g=i.grp; const h=document.createElement('div'); h.className='h-group'; h.textContent=g; list.appendChild(h); }
+    const t=i.params?total(i.params):(i.id==='cur'&&state.versions.length?total(state.versions[state.versions.length-1].params):null), b=t!=null?band(t)[0]:'none';
+    const el=document.createElement('button'); el.className='h-item'; el.type='button';
+    el.setAttribute('aria-current', i.id===currentId || (i.id==='cur' && currentId==='cur'));
+    el.innerHTML=`<span class="nm"></span><span class="sc ${b}">${spark(trendOf(i))}<span class="n">${t!=null?t:'–'}</span></span><span class="mt"><span class="${i.live?'live':''}">${esc(i.stage)}</span><span>·</span><span>${esc(i.when)}</span></span>`;
+    el.querySelector('.nm').textContent=i.t; el.title=i.t;
+    el.onclick=()=>openIdea(i);
+    list.appendChild(el);
+  });
+  $('#hCount').textContent=`${histItems().length} ideas`;
+}
+function setHist(open){
+  if(open && innerWidth<1200 && document.body.classList.contains('panel-open')) closePanel();
+  document.body.classList.toggle('hist-open',open);
+  $('#histBtn').setAttribute('aria-pressed',open);
+  if(open){ renderHist(); if(innerWidth<=820) setTimeout(()=>$('#hSearch').focus(),60); }
+  animateLayout();
+}
+function openIdea(i){
+  if(i.id==='cur'){ if(currentId!=='cur') showToast('In the app this reopens that conversation'); if(innerWidth<=820) setHist(false); return; }
+  if(dock.dataset.mode==='busy'){ showToast('Wait for Metis to finish this step'); return; }
+  currentId=i.id;
+  pending=null; state.idea=i.t; state.versions=i.params?[{params:i.params.map(p=>({...p})),note:'Last score'}]:[]; state.applied=null;
+  state.outputs=new Set(); state.specLocked=false; state.specEdits=0;
+  $$('.sp-tab').forEach(t=>{t.disabled=true;}); ['#nScore','#nResearch','#nAngles','#nSpec','#nPlan'].forEach(n=>$(n).textContent='');
+  ['#paneScore','#paneResearch','#paneAngles','#paneSpec','#panePlan'].forEach(n=>$(n).innerHTML=''); state.sv=null; state.plan=null;
+  closePanel(); $('#panelBtn').disabled=true;
+  thread.innerHTML=''; document.body.classList.add('chatting'); suggest.innerHTML='';
+  $('#ideaTitle').textContent=i.t.length>48?i.t.slice(0,46)+'…':i.t; setStage(i.stage,false);
+  renderHist(); if(innerWidth<=820) setHist(false);
+  addUser(i.t,false);
+  const g=agent();
+  const sum=document.createElement('div'); sum.className='worked'; sum.innerHTML=`${I.chev}<span>Earlier session · ${esc(i.when)}</span>`; g.appendChild(sum);
+  if(i.params){
+    renderScore(); renderResearch();
+    outCard(g,'score',`<b><span class="num">${total(i.params)}</span>Idea score</b><small>${band(total(i.params))[1]} · ${esc(i.when)}</small>`);
+    const t=document.createElement('div'); t.className='text'; t.innerHTML=fmt(`Welcome back. This idea is at **${i.stage.toLowerCase()}**. The market may have moved since ${i.when}, so a re-check is worth it before you continue.`); g.appendChild(t);
+    nextStep();
+  } else {
+    const t=document.createElement('div'); t.className='text'; t.innerHTML=fmt('Welcome back. We stopped in the middle of the interview. Let’s pick up where we left off.'); g.appendChild(t);
+    askLine(g,'Who pays, and roughly how much a month?');
+    ask({label:'Question 3 of 3', options:[{l:'Freelancers, about $8 a month',d:'Low price, many users',rec:true},{l:'Small agencies, per seat',d:'Fewer buyers, bigger deals'}]}).then(()=>nextStep());
+  }
+  toBottom();
+}
+function renderRecent(){
+  const r=$('#recent'); if(!r) return;
+  r.innerHTML='<div class="rc-h"><span>Pick up where you left off</span><button type="button" class="rc-all" id="rcAll">All ideas</button></div>';
+  PAST.slice(0,2).forEach(i=>{
+    const t=i.params?total(i.params):null, b=t!=null?band(t)[0]:'none';
+    const el=document.createElement('button'); el.type='button'; el.className='rc-item';
+    el.innerHTML=`<span class="nm"></span><span class="mt">${esc(i.stage)} · ${esc(i.when)}</span><span class="sc ${b}">${spark(trendOf(i))}<span class="n">${t!=null?t:'–'}</span></span>${I.arrow}`;
+    el.querySelector('.nm').textContent=i.t;
+    el.onclick=()=>openIdea(i);
+    r.appendChild(el);
+  });
+  $('#rcAll').onclick=()=>setHist(true);
+}
+renderRecent && setTimeout(renderRecent,0);
+/* ---------------- ASCII owl behind the chat ---------------- */
+(function(){
+  const pre=$('#asciiOwl'); if(!pre) return;
+  const FACE='M3 2.5 9 6h6l6-3.5V14l-9 7.5L3 14Z M8.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M15.5 7.8a3.2 3.2 0 1 0 0 6.4a3.2 3.2 0 1 0 0-6.4Z M10.6 15h2.8L12 17.6Z';
+  const RAMP=' .,:;-=+*#%@';
+  const COLS=72, ROWS=46, CW=6, CH=9;             // cells: chars are about twice as tall as wide
+  function frame(closed){
+    const c=document.createElement('canvas'); c.width=COLS*CW; c.height=ROWS*CH;
+    const x=c.getContext('2d'); x.fillStyle='#000'; x.fillRect(0,0,c.width,c.height);
+    const k=Math.min(c.width/18.5,c.height/20.5); x.translate(c.width/2-12*k,c.height/2-12.2*k); x.scale(k,k);
+    // facial disc rings, faint, outside the face
+    // face with soft shading
+    const g=x.createRadialGradient(12,9,1,12,12,12); g.addColorStop(0,'#f2f2f2'); g.addColorStop(.6,'#a8a8a8'); g.addColorStop(1,'#5a5a5a');
+    x.fillStyle=g; x.fill(new Path2D(FACE),'evenodd');
+    // feather chevrons on the lower face
+    x.strokeStyle='#3a3a3a'; x.lineWidth=.45;
+    for(const [cx,cy] of [[7,16],[12,19.2],[17,16],[9.5,18],[14.5,18]]){ x.beginPath(); x.moveTo(cx-1,cy-.7); x.lineTo(cx,cy); x.lineTo(cx+1,cy-.7); x.stroke(); }
+    // eye rings
+    x.strokeStyle='#cfcfcf'; x.lineWidth=.5;
+    for(const ex of [8.5,15.5]){ x.beginPath(); x.arc(ex,11,3.9,0,Math.PI*2); x.stroke(); }
+    if(closed){
+      x.fillStyle='#8a8a8a'; for(const ex of [8.5,15.5]){ x.beginPath(); x.arc(ex,11,3.25,0,Math.PI*2); x.fill(); }
+      x.strokeStyle='#111'; x.lineWidth=.6; for(const ex of [8.5,15.5]){ x.beginPath(); x.moveTo(ex-2.6,11); x.quadraticCurveTo(ex,12.4,ex+2.6,11); x.stroke(); }
+    } else {
+      x.fillStyle='#fff'; for(const ex of [8.5,15.5]){ x.beginPath(); x.arc(ex,11,1.35,0,Math.PI*2); x.fill(); }
+    }
+    const d=x.getImageData(0,0,c.width,c.height).data; let out='';
+    for(let r=0;r<ROWS;r++){ let line='';
+      for(let q=0;q<COLS;q++){ let sum=0;
+        for(let yy=0;yy<CH;yy+=2) for(let xx=0;xx<CW;xx+=2){ sum+=d[((r*CH+yy)*c.width+(q*CW+xx))*4]; }
+        const v=sum/((CH/2)*(CW/2))/255; line+=RAMP[Math.min(RAMP.length-1,Math.round(v*(RAMP.length-1)))];
+      } out+=line.replace(/\s+$/,'')+'\n'; }
+    return out;
+  }
+  const OPEN=frame(false), SHUT=frame(true);
+  pre.textContent=OPEN;
+  if(reduce) return;
+  setInterval(()=>{
+    if(document.body.dataset.owl!=='work' || !document.body.classList.contains('chatting')) return;
+    pre.textContent=SHUT; setTimeout(()=>pre.textContent=OPEN,160);
+  },2600);
+})();
+function showToast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+
+
+/* ---------------- Header stage ---------------- */
+function setStage(label, live){
+  const s=$('#stage'); s.textContent=label; s.classList.toggle('live', !!live);
+  if(document.body.classList.contains('hist-open')) renderHist();
+}
+
+/* ---------------- Messages ---------------- */
+function addUser(text, picked){
+  document.body.classList.add('chatting');
+  const m=document.createElement('div'); m.className='msg user';
+  m.innerHTML=`<div class="bubble ${picked?'pick':''}">${picked?I.check:''}<span></span></div>`;
+  m.querySelector('span').textContent=text;
+  thread.appendChild(m); toBottom(); layout();
+}
+function agent(){
+  const m=document.createElement('div'); m.className='msg ai';
+  m.innerHTML=`<div class="who" aria-hidden="true">${I.mark}</div><div class="ghost"><div class="name">Metis</div></div>`;
+  thread.appendChild(m); toBottom();
+  return m.querySelector('.ghost');
+}
+async function stream(g, text, cls){
+  const t=document.createElement('div'); t.className='text caret'+(cls?' '+cls:''); g.appendChild(t);
+  let out=''; for(const w of text.split(/(\s+)/)){ out+=w; t.innerHTML=fmt(out); toBottom(); await sleep(14); }
+  t.classList.remove('caret'); return t;
+}
+function askLine(g, q){
+  const t=document.createElement('div'); t.className='text'; t.innerHTML=`<p class="q">${esc(q)}</p>`; g.appendChild(t); toBottom();
+}
+
+/* Steps run in the dock; the chat keeps a one-line summary you can expand. */
+async function work(g, steps, summary){
+  setMode('busy');
+  const box=document.createElement('div'); box.className='steps hidden';
+  const sum=document.createElement('button'); sum.className='worked'; sum.setAttribute('aria-expanded','false');
+  sum.innerHTML=`<span class="spin" aria-hidden="true"></span><span class="lbl">Working…</span>`;
+  g.appendChild(sum); g.appendChild(box); toBottom();
+  for(let i=0;i<steps.length;i++){
+    $('#busyLabel').textContent=steps[i]+'…'; $('#busyCount').textContent=`${i+1}/${steps.length}`;
+    const row=document.createElement('div'); row.className='step done'; row.innerHTML=`<span class="ic">${I.check}</span>${esc(steps[i])}`;
+    await sleep(700); box.appendChild(row);
+  }
+  sum.innerHTML=`${I.chev}<span>${esc(summary || `Done in ${steps.length} steps`)}</span>`;
+  sum.onclick=()=>{const o=sum.getAttribute('aria-expanded')!=='true';sum.setAttribute('aria-expanded',o);box.classList.toggle('hidden',!o);};
+}
+
+/* Output card in chat → opens the side panel */
+function outCard(g, kind, html){
+  const icons={score:I.gauge,research:I.search,angles:I.bulb,spec:I.doc,plan:I.tree};
+  const b=document.createElement('button'); b.className='card-link'; b.dataset.kind=kind;
+  b.innerHTML=`<span class="ico">${icons[kind]}</span><span class="t">${html}</span><span class="go">Open ${I.arrow}</span>`;
+  b.onclick=()=>openPanel(kind);
+  g.appendChild(b); toBottom(); syncCards();
+}
+function syncCards(){ $$('.card-link').forEach(c=>c.classList.toggle('active', document.body.classList.contains('panel-open') && c.dataset.kind===state.panel)); }
+
+/* ---------------- Dock modes ---------------- */
+let pending=null; // current question
+function setMode(m){
+  dock.dataset.mode=m;
+  document.body.dataset.owl = m==='busy' ? 'work' : (document.body.classList.contains('chatting') ? 'wait' : 'idle');
+  if(m!=='text') dock.classList.remove('answering');
+  layout();
+  if(m==='text') setTimeout(()=>input.focus(),30);
+}
+
+function ask({label='Pick an answer', options, multi=false, tag=''}){
+  return new Promise(resolve=>{
+    pending={options,multi,resolve,tag};
+    $('#chLabel').textContent=label;
+    $('#chHint').textContent = multi ? `1–${options.length} to toggle · Enter to continue` : `1–${options.length} to pick · 0 to type`;
+    const box=$('#opts'); box.innerHTML='';
+    $('#choices').classList.toggle('is-multi',multi);
+    options.forEach((o,i)=>{
+      const b=document.createElement('button'); b.type='button';
+      b.className='opt'+(multi?' multi':'');
+      b.setAttribute('role', multi?'checkbox':'button');
+      if(multi) b.setAttribute('aria-checked', o.pre?'true':'false');
+      b.innerHTML=`<span class="k">${i+1}</span><span class="l"><b>${esc(o.l)}</b>${o.d?`<small>${esc(o.d)}</small>`:''}</span>${o.rec?'<span class="rec">Best fit</span>':'<span></span>'}`;
+      b.onclick=()=> multi ? toggleOpt(b) : choose([i]);
+      box.appendChild(b);
+    });
+    const other=document.createElement('button'); other.type='button'; other.className='opt other';
+    other.innerHTML=`<span class="k">0</span><span class="l"><b>Something else, let me type it</b></span><span>${I.pencil}</span>`;
+    other.onclick=typeInstead; box.appendChild(other);
+    updateGo();
+    setMode('choice');
+    setTimeout(()=>box.querySelector('.opt').focus(),30);
+  });
+}
+function toggleOpt(b){ b.setAttribute('aria-checked', b.getAttribute('aria-checked')!=='true'); updateGo(); }
+function updateGo(){
+  const n=$$('#opts .opt.multi[aria-checked="true"]').length;
+  $('#chGo').disabled=!n; $('#chGo').textContent= n?`Continue (${n})`:'Continue';
+}
+function choose(idx){
+  if(!pending) return;
+  const p=pending; pending=null;
+  const text=idx.map(i=>p.options[i].l).join(', ');
+  addUser(text,true);
+  p.resolve({idx,text});
+}
+$('#chGo').onclick=()=>{ const idx=$$('#opts .opt.multi').map((b,i)=>b.getAttribute('aria-checked')==='true'?i:-1).filter(i=>i>=0); if(idx.length) choose(idx); };
+$('#chClear').onclick=()=>{ $$('#opts .opt.multi').forEach(b=>b.setAttribute('aria-checked','false')); updateGo(); };
+
+function typeInstead(){
+  dock.classList.add('answering'); setMode('text'); dock.classList.add('answering');
+  input.placeholder='Type your answer…';
+}
+$('#backToOpts').onclick=()=>{ dock.classList.remove('answering'); setMode('choice'); };
+
+document.addEventListener('keydown',e=>{
+  if(dock.dataset.mode!=='choice' || !pending) return;
+  if(e.target.closest('input,textarea,select,[contenteditable="true"]') || document.getElementById('sheet').classList.contains('open') || !document.getElementById('dlg').hidden) return;
+  if(e.key==='0'){e.preventDefault();typeInstead();return;}
+  const n=parseInt(e.key,10);
+  if(n>=1 && n<=pending.options.length){
+    e.preventDefault();
+    const b=$$('#opts .opt')[n-1];
+    pending.multi ? toggleOpt(b) : choose([n-1]);
+  }
+  if(e.key==='Enter' && pending.multi && !$('#chGo').disabled){ e.preventDefault(); $('#chGo').click(); }
+});
+
+/* Free text: a new idea, or a typed answer to the open question */
+function autosize(){input.style.height='auto';input.style.height=Math.min(input.scrollHeight,180)+'px';send.disabled=!input.value.trim();}
+input.addEventListener('input',autosize);
+input.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();form.requestSubmit();}});
+form.addEventListener('submit',e=>{
+  e.preventDefault(); const v=input.value.trim(); if(!v) return;
+  input.value=''; autosize();
+  if(pending){ const p=pending; pending=null; dock.classList.remove('answering'); addUser(v,false);
+    const rec=p.options.findIndex(o=>o.rec); p.resolve({idx:[rec<0?0:rec],text:v,typed:true}); return; }
+  if(!state.idea) start(v); else freeReply(v);
+});
+
+/* ---------------- Side panel ---------------- */
+function enableTab(kind,count){
+  state.outputs.add(kind);
+  const t=$(`.sp-tab[data-sp="${kind}"]`); t.disabled=false;
+  const n={score:'#nScore',research:'#nResearch',angles:'#nAngles',spec:'#nSpec',plan:'#nPlan'}[kind];
+  if(count!=null) $(n).textContent=count;
+  $('#panelBtn').disabled=false; $('#panelBtn .dot').hidden=document.body.classList.contains('panel-open');
+}
+function openPanel(kind){
+  state.panel=kind;
+  document.body.classList.add('panel-open');
+  $('#panelBtn').setAttribute('aria-pressed','true'); $('#panelBtn .dot').hidden=true;
+  $$('.sp-tab').forEach(t=>t.setAttribute('aria-selected', t.dataset.sp===kind));
+  $$('.sp-pane').forEach(p=>p.classList.toggle('active', p.dataset.pane===kind));
+  renderFoot(kind); syncCards(); animateLayout();
+}
+function closePanel(){
+  document.body.classList.remove('panel-open');
+  $('#panelBtn').setAttribute('aria-pressed','false'); syncCards(); animateLayout();
+}
+$$('.sp-tab').forEach(t=>t.onclick=()=>openPanel(t.dataset.sp));
+$('#spClose').onclick=closePanel;
+$('#panelBtn').onclick=()=> document.body.classList.contains('panel-open') ? closePanel() : openPanel(state.panel || [...state.outputs][0]);
+
+function renderScore(){
+  const vs=state.versions, cur=vs[vs.length-1], prev=vs[vs.length-2];
+  const t=total(cur.params), [b,bl]=band(t);
+  $('#paneScore').innerHTML=`
+    <div class="sp-sec">
+      <div class="sc-top">
+        <div class="sc-num">${t}<small> / 100</small></div>
+        <div class="sc-meta"><span class="pill ${b}">${bl}</span><span>v${vs.length} · ${cur.note}</span>${prev?`<span class="delta">▲ ${t-total(prev.params)} from v${vs.length-1}</span>`:''}</div>
+      </div>
+    </div>
+    <div class="sp-sec">
+      <h4><span>Rubric</span><span>weight · score</span></h4>
+      <div class="params">${cur.params.map((p,i)=>`
+        <div class="param ${p.v<55?'weak':''}">
+          <button type="button" aria-expanded="false"><span class="pname">${p.k}</span><span class="w">${p.w}%</span><span class="track"><span class="fill" data-v="${p.v}"></span></span><span class="v">${p.v}</span>${I.chev}</button>
+          <div class="why"><span>${esc(p.why)} ${chip(p.src)}</span><span class="conf">Confidence: ${p.conf} · ${p.src}</span></div>
+        </div>`).join('')}
+      </div>
+    </div>
+    <div class="sp-sec">
+      <h4><span>History</span></h4>
+      <div class="hist">${vs.map((v,i)=>`<div><span>v${i+1}</span><span>${esc(v.note)}</span><b>${total(v.params)}</b></div>`).reverse().join('')}</div>
+    </div>`;
+  $$('#paneScore .param > button').forEach(b=>b.onclick=()=>{const p=b.parentElement;p.classList.toggle('open');b.setAttribute('aria-expanded',p.classList.contains('open'));});
+  requestAnimationFrame(()=>requestAnimationFrame(()=>$$('#paneScore .fill').forEach(f=>f.style.width=f.dataset.v+'%')));
+  enableTab('score', t);
+  if(state.panel==='score') renderFoot('score');
+}
+function renderResearch(){
+  $('#paneResearch').innerHTML=`
+    <div class="sp-sec"><h4><span>Competitors</span><span>${COMPETITORS.length}</span></h4>
+      ${COMPETITORS.map(c=>`<div class="comp"><span class="fav">${c.n[0]}</span><span><b>${c.n} ${chip(c.d)}</b><small>${c.s}</small><small>${c.d}</small></span><span class="tag">${c.t}</span></div>`).join('')}
+    </div>
+    <div class="sp-sec"><h4><span>Market facts</span><span>${FACTS.length}</span></h4>
+      <ul class="facts">${FACTS.map(([f,s])=>`<li><span>${f} ${chip(s)}</span></li>`).join('')}</ul>
+    </div>
+    <div class="sp-sec"><h4><span>Sources</span><span>${SOURCES.length}</span></h4>
+      <ol class="srcs">${SOURCES.map((x,k)=>`<li id="src-${k+1}"><span class="cite static">${k+1}</span><span class="st"><b>${esc(x.t)}</b><small>${x.d}</small></span><a href="#" onclick="return false" class="ext" aria-label="Open ${x.d}" data-tip="Open">${I.ext}</a></li>`).join('')}</ol>
+    </div>`;
+  enableTab('research', 6);
+}
+function renderAngles(){
+  $('#paneAngles').innerHTML=`<div class="sp-sec"><h4><span>Ways to stand out</span><span>${ANGLES.length}</span></h4>
+    ${ANGLES.map((a,i)=>`<div class="angle ${state.applied===i?'applied':''}"><div class="top"><b>${a.t}</b><span class="impact">${a.i}</span></div><p>${a.d}</p>${state.applied===i?'<span class="tag" style="width:max-content">Applied in v2</span>':''}</div>`).join('')}
+  </div>`;
+  enableTab('angles', ANGLES.length);
+}
+/* ---------------- Spec (32.1): versions, inline edit, compare, confirm ---------------- */
+const SPEC_KEYS=[['problem','Problem','p','What problem does this solve?'],['users','Users','p','Who is it for?'],['features','Core features','ul'],['metric','Success metric','p','How will you know it works? e.g. 50 founders finish a plan in the first month'],['out','Out of scope','ul']];
+const SPEC_V1={problem:'Solo founders spend weeks building ideas without checking demand or competition.', users:'Non-technical solo founders validating side projects.', features:['Guided interview with suggested answers','Sourced competitor research','Explainable score on six criteria','Plan export to Linear'], metric:'', out:['Team workspaces','Paid plans']};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const hhmm=()=>new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+const lastV=()=>state.sv.list[state.sv.list.length-1];
+function specBlocks(data, editable){
+  return SPEC_KEYS.map(([k,label,tag,ph])=>{
+    const ce=editable?' contenteditable="true"':'';
+    const body= tag==='p'
+      ? `<p data-k="${k}"${ce} data-ph="${ph||''}">${esc(data[k]||'')}</p>`
+      : `<ul data-k="${k}"${ce}>${(data[k]||[]).map(x=>`<li>${esc(x)}</li>`).join('') || (editable?'<li></li>':'<li class="none">None</li>')}</ul>`;
+    return `<div class="blk"><h5>${label}</h5>${body}</div>`;
+  }).join('');
+}
+function readSpec(){ const d={}; $$('#specDoc [data-k]').forEach(el=>{ d[el.dataset.k]= el.tagName==='UL' ? [...el.querySelectorAll('li')].map(l=>l.textContent.trim()).filter(Boolean) : el.textContent.trim(); }); return d; }
+function lcs(a,b){
+  const n=a.length,m=b.length,dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+  for(let i=n-1;i>=0;i--) for(let j=m-1;j>=0;j--) dp[i][j]= a[i]===b[j] ? dp[i+1][j+1]+1 : Math.max(dp[i+1][j],dp[i][j+1]);
+  const out=[]; let i=0,j=0;
+  while(i<n&&j<m){ if(a[i]===b[j]){out.push(['=',a[i]]);i++;j++;} else if(dp[i+1][j]>=dp[i][j+1]) out.push(['-',a[i++]]); else out.push(['+',b[j++]]); }
+  while(i<n) out.push(['-',a[i++]]); while(j<m) out.push(['+',b[j++]]); return out;
+}
+function diffSection(tag,a,b,cnt){
+  if(tag==='p'){
+    const ops=lcs((a||'').split(/(\s+)/).filter(x=>x!==''),(b||'').split(/(\s+)/).filter(x=>x!==''));
+    if(!ops.some(o=>o[0]!=='=')) return null;
+    return '<p>'+ops.map(([o,t])=>{ if(/^\s+$/.test(t)) return o==='-'?'':' '; if(o==='=') return esc(t); cnt[o]++; return o==='-'?`<del>${esc(t)}</del>`:`<ins>${esc(t)}</ins>`; }).join('')+'</p>';
+  }
+  const ops=lcs(a||[],b||[]);
+  if(!ops.some(o=>o[0]!=='=')) return null;
+  return '<ul>'+ops.map(([o,t])=>{ if(o!=='=') cnt[o]++; return `<li class="${o==='-'?'del':o==='+'?'ins':''}">${o==='-'?'<del>':o==='+'?'<ins>':''}${esc(t)}${o==='-'?'</del>':o==='+'?'</ins>':''}</li>`; }).join('')+'</ul>';
+}
+function verLabel(v){ return `v${v.n} · ${esc(v.by)} · ${v.at}`; }
+function renderSpec(){
+  const sv=state.sv, last=lastV(), view=sv.view;
+  const shown = typeof view==='number' ? sv.list.find(v=>v.n===view) : last;
+  const vItems=sv.list.slice().reverse().map(v=>`<button class="item" role="menuitemradio" aria-checked="${v.n===shown.n&&view!=='compare'}" data-v="${v.n}"><span class="vn">v${v.n}</span><span class="vb">${esc(v.by)}</span><span class="va">${v.at}</span>${sv.confirmed===v.n?'<span class="tag ok">Confirmed</span>':''}</button>`).join('');
+  let html=`<div class="vbar">
+      <div class="vsel"><button class="btn sm" id="verBtn" aria-haspopup="menu" aria-expanded="false">${view==='compare'?'Compare versions':verLabel(shown)}${I.down}</button>
+        <div class="vmenu" id="verMenu" role="menu"><div class="mh">Versions</div>${vItems}<div class="sep"></div><button class="item demo" id="demoConflict" role="menuitem">Demo: edit from another tab</button></div></div>
+      <button class="btn sm" id="cmpBtn" aria-pressed="${view==='compare'}" ${sv.list.length<2?'disabled data-tip="Needs two versions"':''}>Compare</button>
+    </div>`;
+  if(sv.conflict) html+=`<div class="banner warn" role="alert"><b>This spec changed in another tab.</b><span>v${last.n+1} was saved there at ${sv.conflict.at}. Your last edit was not saved.</span><div class="row"><button class="btn sm primary" id="cfReload">Load v${last.n+1}</button><button class="btn sm" id="cfKeep">Keep mine as v${last.n+2}</button></div></div>`;
+  if(view==='compare'){
+    const base=sv.cmpBase && sv.cmpBase<last.n ? sv.cmpBase : sv.list[sv.list.length-2].n;
+    const A=sv.list.find(v=>v.n===base).data, B=last.data, cnt={'+':0,'-':0};
+    const secs=SPEC_KEYS.map(([k,label,tag])=>{ const d=diffSection(tag,A[k],B[k],cnt); return `<div class="blk ${d?'':'same'}"><h5>${label}${d?'':'<span class="unch">No changes</span>'}</h5>${d||''}</div>`; }).join('');
+    html+=`<div class="sp-sec cmp-h"><label>From <select id="cmpBase" class="sel">${sv.list.slice(0,-1).map(v=>`<option value="${v.n}" ${v.n===base?'selected':''}>v${v.n} · ${esc(v.by)}</option>`).join('')}</select></label><span class="arrow">→</span><span>v${last.n} · ${esc(last.by)} <span class="muted">(latest)</span></span><span class="cnt"><ins>+${cnt['+']}</ins> <del>−${cnt['-']}</del></span></div>
+      <div class="sp-sec spec diff">${secs}</div>`;
+  } else if(typeof view==='number' && view!==last.n){
+    html+=`<div class="banner"><span>Viewing <b>v${shown.n}</b> by ${esc(shown.by)}, read-only.</span><div class="row"><button class="btn sm" id="backLatest">Back to v${last.n}</button>${sv.locked?'':`<button class="btn sm" id="restoreV">Restore as v${last.n+1}</button>`}</div></div>
+      <div class="sp-sec spec locked">${specBlocks(shown.data,false)}</div>`;
+  } else {
+    const editable=!sv.locked;
+    html+=`<div class="sp-sec spec ${editable?'':'locked'}" id="specDoc">
+      ${editable?`<div class="hint-top">${I.pencil}Click any section to edit. Changes save automatically.</div>`:`<div class="hint-top lockd">Confirmed v${sv.confirmed}. Start v${last.n+1} to edit again.</div>`}
+      ${specBlocks(last.data,editable)}</div>`;
+  }
+  $('#paneSpec').innerHTML=html;
+  $('#nSpec').textContent = sv.locked ? `v${sv.confirmed} ✓` : `v${last.n}`;
+  // wiring
+  const vb=$('#verBtn'), vm=$('#verMenu');
+  vb.onclick=e=>{ e.stopPropagation(); vm.classList.toggle('open'); vb.setAttribute('aria-expanded',vm.classList.contains('open')); };
+  $$('#verMenu [data-v]').forEach(b=>b.onclick=()=>{ const n=+b.dataset.v; sv.view = n===last.n ? 'edit' : n; renderSpec(); });
+  $('#demoConflict').onclick=()=>{ if(sv.locked){ showToast('Start a new version first'); return; } sv.conflict={at:hhmm(), data:{...clone(last.data), metric:'30 founders export a plan in their first week'}}; sv.view='edit'; renderSpec(); if(state.panel==='spec') renderFoot('spec'); };
+  const cb=$('#cmpBtn'); if(cb) cb.onclick=()=>{ sv.view = sv.view==='compare' ? 'edit' : 'compare'; renderSpec(); };
+  const cs=$('#cmpBase'); if(cs) cs.onchange=()=>{ sv.cmpBase=+cs.value; renderSpec(); };
+  const bl=$('#backLatest'); if(bl) bl.onclick=()=>{ sv.view='edit'; renderSpec(); };
+  const rv=$('#restoreV'); if(rv) rv.onclick=()=>{ sv.list.push({n:last.n+1, by:`You (from v${shown.n})`, at:hhmm(), data:clone(shown.data)}); sv.view='edit'; renderSpec(); renderFoot('spec'); showToast(`Restored as v${last.n+1}`); };
+  const cr=$('#cfReload'); if(cr) cr.onclick=()=>{ sv.list.push({n:last.n+1, by:'You, other tab', at:sv.conflict.at, data:sv.conflict.data}); sv.conflict=null; renderSpec(); renderFoot('spec'); };
+  const ck=$('#cfKeep'); if(ck) ck.onclick=()=>{ const mine=$('#specDoc')?readSpec():clone(last.data); sv.list.push({n:last.n+1, by:'You, other tab', at:sv.conflict.at, data:sv.conflict.data}); sv.list.push({n:last.n+2, by:'You', at:hhmm(), data:mine}); sv.conflict=null; renderSpec(); renderFoot('spec'); };
+  const doc=$('#specDoc');
+  if(doc && !sv.locked){
+    let t;
+    doc.addEventListener('input',()=>{
+      if(sv.conflict){ setSave('err','Not saved · resolve the conflict'); return; }
+      setSave('saving','Saving…'); clearTimeout(t);
+      t=setTimeout(()=>{
+        const data=readSpec(), l=lastV();
+        if(l.by!=='You' || l.n===sv.confirmed) sv.list.push({n:l.n+1, by:'You', at:hhmm(), data});
+        else { l.data=data; l.at=hhmm(); }
+        const n=lastV().n; $('#nSpec').textContent=`v${n}`; $('#verBtn').firstChild.textContent=verLabel(lastV());
+        const cbn=$('#cmpBtn'); if(cbn){ cbn.disabled=false; cbn.removeAttribute('data-tip'); }
+        setSave('',`Saved · v${n}, edited`); const sc=$('#specConfirm'); if(sc) sc.textContent=`Confirm v${n}`;
+      }, reduce?0:700);
+    });
+    doc.addEventListener('keydown',e=>{ if(e.key==='Escape') e.target.blur(); });
+  }
+}
+document.addEventListener('click',e=>{ const m=$('#verMenu'); if(m && !m.contains(e.target) && !e.target.closest('#verBtn')){ m.classList.remove('open'); const b=$('#verBtn'); if(b) b.setAttribute('aria-expanded','false'); } });
+function initSpec(){ state.sv={list:[{n:1,by:'Metis',at:hhmm(),data:clone(SPEC_V1)}], view:'edit', confirmed:null, locked:false, conflict:null}; state.specLocked=false; renderSpec(); enableTab('spec', 'v1'); }
+function setSave(cls,txt){ const el=$('#saveState'); if(!el) return; el.className='save '+cls; el.textContent=txt; }
+function lockSpec(){ const sv=state.sv; sv.locked=true; sv.confirmed=lastV().n; sv.view='edit'; state.specLocked=true; renderSpec(); if(state.panel==='spec') renderFoot('spec'); }
+function confirmDlg(title, body, yes='Confirm'){
+  return new Promise(res=>{
+    const d=$('#dlg'), sc=$('#dlgScrim'), prev=document.activeElement;
+    $('#dlgT').textContent=title; $('#dlgP').textContent=body; $('#dlgYes').textContent=yes;
+    d.hidden=false; sc.classList.add('open'); setTimeout(()=>$('#dlgYes').focus(),20);
+    const done=v=>{ d.hidden=true; sc.classList.remove('open'); document.removeEventListener('keydown',kd,true); if(prev&&prev.focus) prev.focus(); res(v); };
+    const kd=e=>{ if(e.key==='Escape'){ e.stopPropagation(); done(false); } if(e.key==='Tab'){ const f=[$('#dlgNo'),$('#dlgYes')]; const i=f.indexOf(document.activeElement); e.preventDefault(); f[(i+(e.shiftKey?-1:1)+2)%2].focus(); } };
+    document.addEventListener('keydown',kd,true);
+    $('#dlgYes').onclick=()=>done(true); $('#dlgNo').onclick=()=>done(false); sc.onclick=()=>done(false);
+  });
+}
+
+/* ---------------- Plan (32.2): phase review, plan list, dependency graph ---------------- */
+const PHASES0=[
+  {name:'Foundations', goal:'Accounts, keys and the run engine', exit:'A user signs in and starts a run that streams live'},
+  {name:'Interview and research', goal:'Ask the right questions and gather evidence', exit:'Research returns sourced competitors and facts'},
+  {name:'Scoring and advice', goal:'An explainable score with ways to improve it', exit:'The score shows six criteria with evidence'},
+  {name:'Spec and export', goal:'Turn the idea into a plan people can build', exit:'The plan exports to Linear with dependencies'}];
+const TASKS0=[
+  ['T1','Google sign-in and sessions',3,0,['server'],[],'Server-owned Google OAuth with HttpOnly session cookies and a /me route.'],
+  ['T2','Encrypted provider keys',2,0,['server'],['T1'],'Store LLM and Exa keys with envelope encryption; never return them.'],
+  ['T3','Run engine with live events',5,0,['server'],['T1'],'Background runs with checkpoints, interrupts and SSE events.'],
+  ['T4','Interview with suggested answers',3,1,['web','server'],['T3'],'Adaptive questions with options and one recommended answer.'],
+  ['T5','Exa research with sources',3,1,['server'],['T3'],'Search competitors and market facts; keep every source.'],
+  ['T6','Competitor knowledge base',2,1,['server'],['T5'],'Deduplicate competitors across ideas and runs.'],
+  ['T7','Rubric scoring with evidence',5,2,['server'],['T4','T5'],'Six weighted criteria, each with a reason, evidence and confidence.'],
+  ['T8','Adviser angles and rescore',3,2,['server'],['T7'],'Suggest ways to stand out and rescore with the chosen angle.'],
+  ['T9','Score history and sparkline',1,2,['web'],['T7'],'Version list and a small trend in the history panel.'],
+  ['T10','Spec editor with versions',3,3,['web'],['T7'],'Inline editing, autosave, compare and confirm.'],
+  ['T11','Planner: phases and tasks',5,3,['server'],['T10'],'Phases, tasks, Fibonacci estimates and dependencies.'],
+  ['T12','Linear export',3,3,['server'],['T11'],'Project, milestones per phase and issues with blocked-by links.'],
+  ['T13','Markdown export',1,3,['server'],['T10'],'Download the spec and plan as Markdown.']
+].map(([id,t,pts,ph,labels,deps,desc])=>({id,t,pts,ph,labels,deps,desc}));
+const EST=[1,2,3,5,8];
+function planStats(){
+  const T=state.plan.tasks, by=Object.fromEntries(T.map(t=>[t.id,t])), end={}, rank={};
+  const E=id=>{ if(end[id]!=null) return end[id]; const t=by[id]; const ds=t.deps.filter(d=>by[d]); end[id]=t.pts+(ds.length?Math.max(...ds.map(E)):0); return end[id]; };
+  const R=id=>{ if(rank[id]!=null) return rank[id]; const ds=by[id].deps.filter(d=>by[d]); rank[id]=ds.length?1+Math.max(...ds.map(R)):0; return rank[id]; };
+  T.forEach(t=>{E(t.id);R(t.id);});
+  let cur=T.reduce((a,t)=>end[t.id]>end[a.id]?t:a,T[0]); const crit=new Set(); const len=end[cur.id];
+  while(cur){ crit.add(cur.id); const ds=cur.deps.filter(d=>by[d]); cur= ds.length ? by[ds.reduce((a,d)=>end[d]>end[a]?d:a,ds[0])] : null; }
+  return {crit,len,rank,pts:T.reduce((a,t)=>a+t.pts,0)};
+}
+function phasePts(i){ return state.plan.tasks.filter(t=>t.ph===i).reduce((a,t)=>a+t.pts,0); }
+function renderPlan(){
+  const P=state.plan, pane=$('#panePlan');
+  if(P.mode==='review'){
+    pane.innerHTML=`<div class="sp-sec"><div class="hint-top">${I.pencil}Rename, reorder or add phases. Metis writes tasks after you approve.</div>
+      <div class="phs">${P.phases.map((ph,i)=>`<div class="ph" data-i="${i}">
+        <div class="ph-h"><span class="ix">P${i+1}</span><span class="nm" contenteditable="true" data-f="name" data-ph="Phase name">${esc(ph.name)}</span>
+          <span class="ctl"><button class="ic" data-act="up" aria-label="Move P${i+1} up" ${i===0?'disabled':''}>${I.up}</button><button class="ic" data-act="down" aria-label="Move P${i+1} down" ${i===P.phases.length-1?'disabled':''}>${I.down}</button><button class="ic" data-act="del" aria-label="Delete P${i+1}" ${P.phases.length<2?'disabled':''}>${I.trash}</button></span></div>
+        <div class="ph-f"><span class="lb">Goal</span><span contenteditable="true" data-f="goal" data-ph="What this phase delivers">${esc(ph.goal)}</span></div>
+        <div class="ph-f"><span class="lb">Done when</span><span contenteditable="true" data-f="exit" data-ph="Exit criteria">${esc(ph.exit)}</span></div>
+      </div>`).join('')}</div>
+      <button class="ph-add" id="phAdd" type="button">${I.plus}Add phase</button></div>`;
+    $$('#panePlan .ph [contenteditable]').forEach(el=>{ el.oninput=()=>{ P.phases[+el.closest('.ph').dataset.i][el.dataset.f]=el.textContent.trim(); P.edited=true; renderFoot('plan'); }; el.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault(); el.blur();} if(e.key==='Escape') el.blur(); }; });
+    $$('#panePlan .ph .ic').forEach(b=>b.onclick=()=>{ const i=+b.closest('.ph').dataset.i, a=b.dataset.act;
+      if(a==='up') [P.phases[i-1],P.phases[i]]=[P.phases[i],P.phases[i-1]];
+      if(a==='down') [P.phases[i+1],P.phases[i]]=[P.phases[i],P.phases[i+1]];
+      if(a==='del') P.phases.splice(i,1);
+      P.edited=true; renderPlan(); renderFoot('plan'); });
+    $('#phAdd').onclick=()=>{ P.phases.push({name:'',goal:'',exit:''}); P.edited=true; renderPlan(); renderFoot('plan'); const n=$$('#panePlan .ph .nm'); n[n.length-1].focus(); };
+    $('#nPlan').textContent=`${P.phases.length} ph`;
+    return;
+  }
+  const st=planStats(), narrow=innerWidth<=820; if(narrow) P.view='list';
+  let html=`<div class="sp-sec pl-sum"><div><b>${P.phases.length}</b><span>Phases</span></div><div><b>${P.tasks.length}</b><span>Tasks</span></div><div><b>${st.pts}</b><span>Points</span></div><div><b>${st.len}</b><span>Critical path</span></div></div>
+    <div class="pl-bar"><div class="seg pl-seg" role="tablist" aria-label="Plan view"><button role="tab" data-v="list" aria-pressed="${P.view==='list'}">List</button><button role="tab" data-v="graph" aria-pressed="${P.view==='graph'}" ${narrow?'disabled data-tip="Needs a wider screen"':''}>Graph</button></div><span class="legend"><i></i>Critical path</span></div>`;
+  if(P.view==='list'){
+    html+=P.phases.map((ph,i)=>`<div class="pl-phase"><div class="pl-ph-h"><span class="ix">P${i+1}</span><b>${esc(ph.name||'Untitled phase')}</b><span class="pts">${phasePts(i)} pts</span></div>
+      ${P.tasks.filter(t=>t.ph===i).map(t=>`<div class="tk ${st.crit.has(t.id)?'crit':''} ${P.open===t.id?'open':''}" id="tk-${t.id}">
+        <button class="tk-row" type="button" aria-expanded="${P.open===t.id}" data-id="${t.id}"><span class="tid">${t.id}</span><span class="tt">${esc(t.t)}</span><span class="deps">${t.deps.map(d=>`<span class="dep" data-go="${d}" role="link" tabindex="0" aria-label="Blocked by ${d}">← ${d}</span>`).join('')}</span><span class="est">${t.pts}</span>${I.chev}</button>
+        ${P.open===t.id?`<div class="tk-more"><p>${esc(t.desc)}</p>
+          <label class="fld"><span>Title</span><input class="inp" data-f="t" value="${esc(t.t).replace(/"/g,'&quot;')}"></label>
+          <div class="fld"><span>Estimate</span><div class="est-seg" role="radiogroup" aria-label="Estimate">${EST.map(e=>`<button type="button" role="radio" aria-checked="${t.pts===e}" data-e="${e}">${e}</button>`).join('')}</div></div>
+          <label class="fld"><span>Phase</span><select class="sel" data-f="ph">${P.phases.map((p2,j)=>`<option value="${j}" ${j===t.ph?'selected':''}>P${j+1} · ${esc(p2.name||'Untitled')}</option>`).join('')}</select></label>
+          <div class="fld"><span>Labels</span><span class="lbls">${t.labels.map(l=>`<span class="tag">${l}</span>`).join('')}</span></div>
+          <div class="fld"><span>Blocked by</span><span class="lbls">${t.deps.length?t.deps.map(d=>`<span class="dep" data-go="${d}" role="link" tabindex="0">${d} · ${esc(P.tasks.find(x=>x.id===d)?.t||'')}</span>`).join(''):'<span class="muted">Nothing</span>'}</span></div>
+        </div>`:''}</div>`).join('') || '<div class="tk-empty">No tasks in this phase yet.</div>'}</div>`).join('');
+  } else {
+    const NW=148,NH=40,GX=12,GY=28,PAD=8; const rows={};
+    P.tasks.forEach(t=>{(rows[st.rank[t.id]]=rows[st.rank[t.id]]||[]).push(t);});
+    const R=Object.keys(rows).map(Number).sort((a,b)=>a-b); const maxK=Math.max(...R.map(r=>rows[r].length));
+    const W=maxK*NW+(maxK-1)*GX+PAD*2, H=R.length*NH+(R.length-1)*GY+PAD*2, pos={};
+    R.forEach((r,ri)=>{ const row=rows[r].sort((a,b)=>a.ph-b.ph||(+a.id.slice(1))-(+b.id.slice(1))); const rw=row.length*NW+(row.length-1)*GX; row.forEach((t,k)=>{ pos[t.id]={x:(W-rw)/2+k*(NW+GX), y:PAD+ri*(NH+GY)}; }); });
+    let edges='', nodes='';
+    P.tasks.forEach(t=>t.deps.forEach(d=>{ const a=pos[d], b=pos[t.id]; if(!a||!b) return; const c=st.crit.has(d)&&st.crit.has(t.id);
+      const sx=a.x+NW/2, sy=a.y+NH, tx=b.x+NW/2, ty=b.y, my=(sy+ty)/2;
+      edges+=`<path class="ge ${c?'crit':''}" d="M${sx},${sy} C${sx},${my} ${tx},${my} ${tx},${ty-3}"/><path class="gh ${c?'crit':''}" d="M${tx-3},${ty-5} L${tx},${ty-1} L${tx+3},${ty-5}"/>`; }));
+    P.tasks.forEach(t=>{ const {x,y}=pos[t.id], c=st.crit.has(t.id), tt=t.t.length>22?t.t.slice(0,21)+'…':t.t;
+      nodes+=`<g class="gn ${c?'crit':''}" data-id="${t.id}" tabindex="0" role="button" aria-label="${t.id}: ${esc(t.t)}, ${t.pts} points"><title>${t.id} · ${esc(t.t)} · ${t.pts} pts</title><rect x="${x}" y="${y}" width="${NW}" height="${NH}"/><text class="gid" x="${x+8}" y="${y+15}">${t.id} · P${t.ph+1}</text><text class="gp" x="${x+NW-8}" y="${y+15}" text-anchor="end">${t.pts}</text><text class="gt" x="${x+8}" y="${y+31}">${esc(tt)}</text></g>`; });
+    html+=`<div class="pl-graph"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="group" aria-label="Dependency graph">${edges}${nodes}</svg></div>`;
+  }
+  pane.innerHTML=html;
+  $('#nPlan').textContent=P.tasks.length;
+  $$('#panePlan .pl-seg button').forEach(b=>b.onclick=()=>{ P.view=b.dataset.v; renderPlan(); });
+  $$('#panePlan .tk-row').forEach(b=>b.onclick=e=>{ if(e.target.closest('.dep')) return; P.open = P.open===b.dataset.id ? null : b.dataset.id; renderPlan(); });
+  $$('#panePlan .dep').forEach(d=>{ const go=()=>openTask(d.dataset.go); d.onclick=e=>{e.stopPropagation();go();}; d.onkeydown=e=>{ if(e.key==='Enter'){e.preventDefault();go();} }; });
+  $$('#panePlan .gn').forEach(g=>{ g.onclick=()=>openTask(g.dataset.id); g.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){e.preventDefault();openTask(g.dataset.id);} }; });
+  const t=P.tasks.find(x=>x.id===P.open);
+  if(t && P.view==='list'){
+    const ti=$('#panePlan .inp[data-f="t"]'); ti.oninput=()=>{ t.t=ti.value; $(`#tk-${t.id} .tt`).textContent=ti.value; planSaved(); };
+    $$('#panePlan .est-seg button').forEach(b=>b.onclick=()=>{ t.pts=+b.dataset.e; planSaved(); renderPlan(); });
+    const ps=$('#panePlan .sel[data-f="ph"]'); ps.onchange=()=>{ t.ph=+ps.value; planSaved(); renderPlan(); };
+  }
+}
+function openTask(id){ const P=state.plan; P.view='list'; P.open=id; renderPlan(); const el=$('#tk-'+id); if(el){ el.scrollIntoView({block:'center',behavior:reduce?'auto':'smooth'}); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
+function planSaved(){ const el=$('#planSave'); if(!el) return; el.className='save saving'; el.textContent='Saving…'; clearTimeout(planSaved.t); planSaved.t=setTimeout(()=>{ el.className='save'; el.textContent=`Saved · ${state.plan.tasks.length} tasks`; }, reduce?0:500); }
+function buildTasks(){
+  const P=state.plan, n=P.phases.length, tasks=clone(TASKS0).map(t=>({...t, ph:Math.min(t.ph,n-1)}));
+  for(let i=4;i<n;i++){ const prev=tasks.filter(t=>t.ph===i-1).pop(); tasks.push({id:'T'+(tasks.length+1), t:`Tasks for ${P.phases[i].name||'new phase'}`, pts:2, ph:i, labels:['web'], deps:prev?[prev.id]:[], desc:'Placeholder. Add detail to the phase and Metis will split it into tasks.'}); }
+  P.tasks=tasks; P.mode='plan'; P.view='list'; P.open=null;
+}
+function setWide(on){
+  document.body.classList.toggle('panel-wide',on); $('#spWide').setAttribute('aria-pressed',on);
+  $('#spWide').dataset.tip = on ? 'Narrow' : 'Widen'; $('#spWide').setAttribute('aria-label', on ? 'Narrow panel' : 'Widen panel');
+  if(on && innerWidth<1600 && document.body.classList.contains('hist-open')) setHist(false);
+  animateLayout();
+}
+$('#spWide').onclick=()=>setWide(!document.body.classList.contains('panel-wide'));
+function renderFoot(kind){
+  const f=$('#spFoot');
+  if(kind==='score') f.innerHTML=`<div style="display:flex;gap:6px"><button class="btn sm" id="expBtn" aria-haspopup="menu" aria-expanded="false">${I.dl}Export</button><button class="btn sm" id="recheck">${I.refresh}Re-check market</button></div><span class="meta">Updated just now</span>
+    <div class="menu" id="expMenu" role="menu">
+      <button class="item" role="menuitem">${I.doc}Markdown report</button>
+      <button class="item" role="menuitem">${I.link}Copy share link</button>
+      <button class="item" role="menuitem" aria-disabled="true">${I.linear}Linear<span class="meta">after the plan</span></button>
+    </div>`;
+  else if(kind==='research') f.innerHTML=`<button class="btn sm">${I.dl}Export sources</button><span class="meta">${SOURCES.length} sources via Exa</span>`;
+  else if(kind==='angles') f.innerHTML=`<span class="meta">Pick an angle in the chat to rescore</span>`;
+  else if(kind==='spec'){ const sv=state.sv, l=lastV();
+    f.innerHTML= sv.locked
+      ? `<span class="save">Confirmed · v${sv.confirmed}</span><button class="btn sm" id="specNew" ${state.plan&&state.plan.mode==='plan'?'disabled data-tip="Planning has started"':''}>${I.pencil}Start v${l.n+1}</button>`
+      : `<span class="save" id="saveState">Saved · v${l.n}${l.by==='You'?', edited':''}</span><button class="btn sm primary" id="specConfirm" ${sv.conflict?'disabled':''}>Confirm v${l.n}</button>`; }
+  else if(kind==='plan'){ const P=state.plan;
+    f.innerHTML= P.mode==='review'
+      ? `<span class="meta">${P.phases.length} phases${P.edited?' · edited':''}</span><button class="btn sm primary" id="phApprove">Approve phases</button>`
+      : `<div style="display:flex;gap:6px"><button class="btn sm" id="expBtn" aria-haspopup="menu" aria-expanded="false">${I.dl}Export</button><button class="btn sm" id="replan">${I.refresh}Re-plan</button></div><span class="save" id="planSave">Saved · ${P.tasks.length} tasks</span>
+        <div class="menu" id="expMenu" role="menu">
+          <button class="item" role="menuitem">${I.doc}Markdown plan</button>
+          <button class="item" role="menuitem">${I.linear}Linear<span class="meta">project + issues</span></button>
+          <button class="item" role="menuitem">${I.link}Copy share link</button>
+        </div>`; }
+  const nv=$('#specNew'); if(nv) nv.onclick=()=>{ state.sv.locked=false; state.specLocked=false; renderSpec(); renderFoot('spec'); setTimeout(()=>{ const e=$('#specDoc [contenteditable]'); if(e) e.focus(); },30); };
+  const pa=$('#phApprove'); if(pa) pa.onclick=()=>{ if(pending && pending.tag==='phases'){ choose([0]); } };
+  const rp=$('#replan'); if(rp) rp.onclick=()=>showToast('Re-plan asks Metis to rewrite tasks from the current phases');
+  const eb=$('#expBtn'); if(eb){ eb.onclick=e=>{e.stopPropagation();const m=$('#expMenu');m.classList.toggle('open');eb.setAttribute('aria-expanded',m.classList.contains('open'));}; }
+  const sc=$('#specConfirm'); if(sc) sc.onclick=async()=>{ const n=lastV().n;
+    const ok=await confirmDlg(`Confirm spec v${n}?`, 'Metis will plan phases from this version. You can start a new version until planning begins.', `Confirm v${n}`);
+    if(!ok) return;
+    if(pending && pending.tag==='spec'){ choose([0]); } else { lockSpec(); showToast(`Spec v${n} confirmed`); } };
+}
+document.addEventListener('click',e=>{const m=$('#expMenu'); if(m && !m.contains(e.target) && e.target.id!=='expBtn') m.classList.remove('open');});
+
+/* ---------------- The flow ---------------- */
+async function start(idea){
+  state.idea=idea; state.newIdea=idea; currentId='cur'; if(document.body.classList.contains('hist-open')) renderHist();
+  suggest.innerHTML='';
+  $('#ideaTitle').textContent=idea.length>48?idea.slice(0,46)+'…':idea;
+  addUser(idea,false);
+  setStage('Interviewing',true);
+  let g=agent();
+  await work(g,['Reading your idea','Checking what I already know about you','Planning the interview'],'Read the idea and planned 3 questions');
+  await stream(g,'Got it. A few quick questions before I research. Pick the closest answer, or type your own.');
+  askLine(g,'Who feels this problem the most?');
+  await ask({label:'Question 1 of 3', options:[
+    {l:'Solo founders validating side projects', d:'They ship fast and skip research', rec:true},
+    {l:'Small product teams at startups', d:'They need to justify bets to others'},
+    {l:'Agencies scoping client ideas', d:'They pitch ideas they did not invent'}]});
+
+  g=agent(); setMode('busy'); $('#busyLabel').textContent='Thinking…'; $('#busyCount').textContent=''; await sleep(600);
+  askLine(g,'What do they use today instead? Pick all that apply.');
+  await ask({label:'Question 2 of 3 · pick any', multi:true, options:[
+    {l:'Ask friends and online communities', rec:true, pre:true},
+    {l:'Spreadsheets and notes', rec:true, pre:true},
+    {l:'Idea validation tools'},
+    {l:'Nothing, they just build'}]});
+
+  g=agent(); setMode('busy'); $('#busyLabel').textContent='Thinking…'; await sleep(600);
+  askLine(g,'Who pays, and roughly how much a month?');
+  await ask({label:'Question 3 of 3', options:[
+    {l:'Founders, about $10 a month', d:'Low price, high volume', rec:true},
+    {l:'Teams, about $40 per seat', d:'Fewer buyers, bigger deals'},
+    {l:'Free, with paid exports', d:'Charge when the plan is useful'}]});
+
+  setStage('Researching',true);
+  g=agent();
+  await work(g,['Searching competitors with Exa','Reading 6 sources','Updating the competitor knowledge base'],'Researched 6 sources');
+  renderResearch();
+  outCard(g,'research','<b>Research</b><small>3 competitors · 3 market facts · 6 sources</small>');
+  setStage('Scoring',true);
+  await work(g,['Scoring on the rubric','Checking evidence for each criterion'],'Scored on 6 criteria');
+  state.versions.push({params:PARAMS.map(p=>({...p})), note:'First score'});
+  renderScore();
+  outCard(g,'score',`<b><span class="num">${total(PARAMS)}</span>Idea score</b><small>Promising · uniqueness is the weak spot</small>`);
+  openPanel('score');
+  await stream(g,'Your first score is **67, promising**. The problem and demand are strong. Uniqueness is low because three tools already cover the core flow. The details are in the panel.');
+  setStage('Scored',false);
+  await nextStep();
+}
+
+async function nextStep(){
+  const g=agent(); askLine(g,'What should we do next?');
+  const r=await ask({label:'Next step', options:[
+    {l:'Find ways to stand out', d:'Suggest angles, then rescore', rec:state.versions.length===1},
+    {l:'Draft the spec', d:'Write the spec from what we have', rec:state.versions.length>1},
+    {l:'Re-check the market', d:'Search again for new competitors'}]});
+  if(r.idx[0]===0) return angles();
+  if(r.idx[0]===1) return spec();
+  return recheck();
+}
+
+async function angles(){
+  setStage('Advising',true);
+  const g=agent();
+  await work(g,['Comparing competitor features','Finding gaps','Estimating impact on the score'],'Found 3 angles');
+  renderAngles();
+  outCard(g,'angles','<b>Suggestions</b><small>3 ways to stand out, with estimated impact</small>');
+  openPanel('angles');
+  await stream(g,'Here are three angles. The first closes the biggest gap with competitors.');
+  setStage('Advising',false);
+  askLine(g,'Which angle should I rescore with?');
+  const r=await ask({label:'Pick an angle', options:ANGLES.map((a,i)=>({l:a.t, d:a.i, rec:i===0}))});
+  state.applied=r.idx[0]; renderAngles();
+  setStage('Scoring',true);
+  const g2=agent();
+  await work(g2,['Applying the angle','Rescoring uniqueness and timing'],'Rescored with the new angle');
+  const ps=state.versions[state.versions.length-1].params.map(p=>({...p}));
+  if(r.idx[0]===2) ps[5].v=Math.min(100,ps[5].v+10); else ps[1].v=Math.min(100,ps[1].v+(r.idx[0]===0?28:15));
+  ps[1].why='The new angle targets a group competitors ignore, which lifts uniqueness.';
+  state.versions.push({params:ps, note:ANGLES[r.idx[0]].t});
+  const prev=total(state.versions[state.versions.length-2].params), now=total(ps);
+  renderScore();
+  outCard(g2,'score',`<b><span class="num">${now}</span>Score updated</b><small>${prev} → ${now} · v${state.versions.length}</small>`);
+  openPanel('score');
+  await stream(g2,`The score moved from **${prev} to ${now}**. ${now>=75?'It is now in the build band.':'Still promising, and much closer to the build band.'}`);
+  setStage('Scored',false);
+  return nextStep();
+}
+
+async function recheck(){
+  setStage('Researching',true);
+  const g=agent();
+  await work(g,['Searching for new competitors','Comparing with the last snapshot'],'Re-checked the market');
+  await stream(g,'Nothing new since the last scan, so the score stays the same. I can watch the market weekly and tell you when it changes.');
+  setStage('Scored',false);
+  return nextStep();
+}
+
+async function spec(){
+  setStage('Spec draft',true);
+  const g=agent();
+  await work(g,['Collecting interview answers','Writing the problem and users','Listing core features'],'Drafted spec v1');
+  initSpec();
+  outCard(g,'spec','<b>Spec v1</b><small>Problem, users, features, out of scope</small>');
+  openPanel('spec');
+  await stream(g,'Spec v1 is ready in the panel. Edit any part directly, it saves as you type. Confirm when it looks right.');
+  setStage('Spec review',false);
+  askLine(g,'Does the spec look right?');
+  const r=await ask({label:'Review the spec', tag:'spec', options:[
+    {l:'Looks good, confirm it', d:'Locks the latest version and moves to planning', rec:true},
+    {l:'Narrow the features', d:'Cut to the smallest useful version'}]});
+  const g2=agent();
+  if(r.typed || r.idx[0]===1){
+    await work(g2,['Updating the spec'],'Updated the spec');
+    const l=lastV(), d=clone(l.data); d.features=d.features.slice(0,3); d.out=[...d.out,'Plan export to Linear (v2)'];
+    state.sv.list.push({n:l.n+1, by:'Metis', at:hhmm(), data:d}); state.sv.view='edit';
+  }
+  lockSpec();
+  setStage('Spec confirmed',false);
+  await stream(g2,(r.typed||r.idx[0]===1?`Updated and confirmed spec v${lastV().n}. Use Compare in the panel to see what changed. `:'Spec confirmed. ')+'Next I\'ll split it into phases for you to review.');
+  return planning();
+}
+
+async function planning(){
+  setStage('Planning',true);
+  const g=agent();
+  await work(g,['Reading the confirmed spec','Drafting phases'],'Drafted 4 phases');
+  state.plan={mode:'review', phases:clone(PHASES0), tasks:[], edited:false, view:'list', open:null};
+  renderPlan(); enableTab('plan', `${state.plan.phases.length} ph`);
+  outCard(g,'plan','<b>Phases draft</b><small>4 phases · review before tasks</small>');
+  openPanel('plan');
+  await stream(g,'Here is a first cut of the phases. Rename, reorder or add phases in the panel, then approve and I\'ll write the tasks.');
+  setStage('Phase review',false);
+  askLine(g,'Do these phases look right?');
+  const r=await ask({label:'Review phases', tag:'phases', options:[
+    {l:'Approve phases', d:'Write tasks, estimates and dependencies', rec:true},
+    {l:'Merge into 3 phases', d:'Combine scoring with spec and export'}]});
+  if(!r.typed && r.idx[0]===1 && state.plan.phases.length>3){ const ph=state.plan.phases, a=ph[ph.length-2], b=ph.pop(); a.name=`${a.name} and ${b.name.toLowerCase()}`; a.exit=b.exit; }
+  setStage('Planning',true);
+  const g2=agent();
+  await work(g2,['Writing tasks for each phase','Estimating in Fibonacci points','Linking dependencies','Finding the critical path'],'Planned the work');
+  buildTasks(); renderPlan(); enableTab('plan', state.plan.tasks.length);
+  const st=planStats();
+  outCard(g2,'plan',`<b>Plan</b><small>${state.plan.phases.length} phases · ${state.plan.tasks.length} tasks · ${st.pts} pts</small>`);
+  openPanel('plan');
+  if(state.panel==='spec') renderFoot('spec');
+  await stream(g2,`The plan has **${state.plan.tasks.length} tasks and ${st.pts} points**. The critical path is ${st.len} points long, through ${[...st.crit].reverse().join(' → ')}. Edit titles, estimates and phases in the panel, or switch to Graph to see the dependencies.`);
+  setStage('Planned',false);
+  input.placeholder='Ask Metis anything about this plan…';
+  setMode('text');
+}
+
+async function freeReply(v){
+  addUser(v,false);
+  const g=agent();
+  await work(g,['Reading your message'],'Read your message');
+  await stream(g,'Noted. I\'ll use that in the next step.');
+  setMode('text');
+}
+
+/* Empty state suggestions */
+const IDEAS=['A tool that scores startup ideas and plans them','AI tutor for spoken Spanish','Marketplace for used lab equipment'];
+function setChips(){suggest.innerHTML='';IDEAS.forEach(t=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=t;b.onclick=()=>start(t);suggest.appendChild(b);});}
+setChips();
+$('#stop').onclick=()=>{$('#busyLabel').textContent='Stopping after this step…';};
+$('#newChat').onclick=()=>location.reload();
+
+/* Theme: light / dark / system */
+const root=document.documentElement;
+function applyTheme(mode){
+  if(mode==='system') delete root.dataset.theme; else root.dataset.theme=mode;
+  document.querySelectorAll('[data-theme-set]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.themeSet===mode));
+  try{localStorage.setItem('metis-theme',mode);}catch(e){}
+}
+let saved='system';try{saved=localStorage.getItem('metis-theme')||'system';}catch(e){}
+applyTheme(saved);
+document.querySelectorAll('[data-theme-set]').forEach(b=>b.onclick=()=>applyTheme(b.dataset.themeSet));
+$('#theme').onclick=()=>{
+  const dark = root.dataset.theme ? root.dataset.theme==='dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+  applyTheme(dark?'light':'dark');
+};
+
+/* Account popover */
+const acctBtn=$('#acctBtn'), pop=$('#acctPop');
+function setPop(open){pop.classList.toggle('open',open);acctBtn.setAttribute('aria-expanded',open);if(open)pop.querySelector('.item').focus();}
+acctBtn.onclick=e=>{e.stopPropagation();setPop(!pop.classList.contains('open'));};
+document.addEventListener('click',e=>{if(!pop.contains(e.target)&&e.target!==acctBtn)setPop(false);});
+pop.addEventListener('keydown',e=>{
+  const items=[...pop.querySelectorAll('.item')];const i=items.indexOf(document.activeElement);
+  if(e.key==='ArrowDown'){e.preventDefault();items[(i+1)%items.length].focus();}
+  if(e.key==='ArrowUp'){e.preventDefault();items[(i-1+items.length)%items.length].focus();}
+});
+
+/* Settings sheet */
+const sheet=$('#sheet'), scrim=$('#scrim');
+function selectTab(name){
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===name));
+}
+function openSheet(tab='account'){setPop(false);selectTab(tab);sheet.classList.add('open');scrim.classList.add('open');sheet.setAttribute('aria-hidden','false');setTimeout(()=>$('#sheetClose').focus(),50);}
+function closeSheet(){sheet.classList.remove('open');scrim.classList.remove('open');sheet.setAttribute('aria-hidden','true');acctBtn.focus();}
+document.querySelectorAll('[data-open]').forEach(b=>b.onclick=()=>openSheet(b.dataset.open));
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>selectTab(t.dataset.tab));
+document.querySelectorAll('.switch').forEach(sw=>sw.onclick=()=>sw.setAttribute('aria-checked',sw.getAttribute('aria-checked')!=='true'));
+$('#sheetClose').onclick=closeSheet;$('#sheetCancel').onclick=closeSheet;scrim.onclick=closeSheet;
+$('#sheetSave').onclick=()=>{closeSheet();const t=$('#toast');t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800);};
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(sheet.classList.contains('open'))closeSheet();else if(pop.classList.contains('open')){setPop(false);acctBtn.focus();}}
+  if((e.metaKey||e.ctrlKey)&&e.key===','){e.preventDefault();openSheet('account');}
+});
+
+/* Side pattern: concentric rings centred off the outer edge */
+function rings(svg, cy){
+  const NS='http://www.w3.org/2000/svg';
+  for(let r=60;r<=1800;r+=16){
+    const c=document.createElementNS(NS,'circle');
+    c.setAttribute('cx',-140);c.setAttribute('cy',cy);c.setAttribute('r',r);svg.appendChild(c);
+  }
+}
+
+rings($('#ringsL'),'38%');rings($('#ringsR'),'72%');
+
+$('#histBtn').onclick=()=>setHist(!document.body.classList.contains('hist-open'));
+$('#hClose').onclick=()=>setHist(false);
+$('#hScrim').onclick=()=>setHist(false);
+$('#hNew').onclick=()=>location.reload();
+$('#hSearch').addEventListener('input',renderHist);
+$$('.h-filters button').forEach(b=>b.onclick=()=>{hFilter=b.dataset.f;$$('.h-filters button').forEach(x=>x.setAttribute('aria-pressed',x===b));renderHist();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='/' && !e.target.closest('input,textarea,[contenteditable="true"]')){ e.preventDefault(); if(!document.body.classList.contains('hist-open')) setHist(true); setTimeout(()=>$('#hSearch').focus(),30); }
+  if(e.key==='Escape' && document.body.classList.contains('hist-open') && innerWidth<=820) setHist(false);
+});
+
+/* ---------------- Grid: guides, input band, cross ticks ---------------- */
+function layout(){
+  const W=innerWidth, wide=W>820, framed=W>700, rs=document.documentElement.style;
+  const safe=$('.safe').getBoundingClientRect();
+  const pane=$('#chatpane').getBoundingClientRect();
+  const colW = !wide || pane.width<=920 ? pane.width : 760;
+  const gl = pane.left + (pane.width-colW)/2, gr = gl+colW;
+  const open = document.body.classList.contains('panel-open') && wide;
+  const pl = $('#side').getBoundingClientRect().left;
+  const activeMode=[...dock.querySelectorAll('.mode')].find(m=>getComputedStyle(m).display!=='none');
+  const bandY=(activeMode||dock).getBoundingClientRect().top;
+  const hOpen = document.body.classList.contains('hist-open') && wide;
+  const hl = $('#hist').getBoundingClientRect().right;
+  const bandX = hOpen ? hl : 0;
+  const bandW= open ? pl : W;
+  rs.setProperty('--hl',(hl-1)+'px'); rs.setProperty('--band-x',bandX+'px');
+  rs.setProperty('--eb-l',(gl-pane.left)+'px'); rs.setProperty('--eb-r',(pane.right-gr)+'px');
+  rs.setProperty('--col-px',colW+'px'); rs.setProperty('--gl',gl+'px'); rs.setProperty('--gr',(gr-1)+'px');
+  rs.setProperty('--pl',pl+'px'); rs.setProperty('--band-y',bandY+'px'); rs.setProperty('--band-w',bandW+'px');
+  rs.setProperty('--frame-px',safe.width+'px');
+  const vs=[]; if(framed) vs.push(safe.left, safe.right); if(wide) vs.push(gl, gr); if(open) vs.push(pl); if(hOpen) vs.push(hl-1);
+  const hTop=$('header').getBoundingClientRect().bottom, fTop=$('footer').getBoundingClientRect().top;
+  const pts=[]; vs.forEach(x=>{ pts.push([x,hTop],[x,fTop]); if(x<=bandW+1 && x>=bandX-2) pts.push([x,bandY]); });
+  $('#ticks').innerHTML=pts.map(([x,y])=>`<span class="tick" style="left:${x}px;top:${y}px"></span>`).join('');
+}
+function animateLayout(){ const t0=performance.now(); (function f(){ layout(); if(performance.now()-t0<340) requestAnimationFrame(f); })(); }
+addEventListener('resize',layout);
+new ResizeObserver(layout).observe(dock);
+new ResizeObserver(layout).observe($('#chatpane'));
+layout();
+document.querySelectorAll('.tool.toggle').forEach(t=>t.onclick=()=>{const on=t.getAttribute('aria-pressed')!=='true';t.setAttribute('aria-pressed',on);t.dataset.tip='Web research: '+(on?'on':'off');});
+input.focus();
+</script>
+</body>
+</html>
