@@ -6,11 +6,11 @@
 
 **Status:** ready-for-agent
 
-- [ ] Mic permission denied → toast "Microphone access denied. You can still type." + voice button stays visible but disabled-with-tooltip
-- [ ] Sarvam API error (401/429/500) → toast "Transcription failed. You can still type." + input untouched
-- [ ] Web Speech API not available (browser doesn't support it) → hide voice button + tooltip "Voice input not supported in this browser"
-- [ ] Empty audio / silence → "Nothing heard" toast, no crash
-- [ ] Auto-stop on ~2s silence after user stops speaking
-- [ ] Cross-device: touch targets ≥44px on mobile, works in Safari iOS and Chrome Android
-- [ ] E2E tests: happy path speak→transcript→submit→agent respond; each failure path; mobile viewport
-- [ ] No hardcoded strings — all UI text from config/i18n-ready constants
+- [x] Mic permission denied → toast "Microphone access denied. You can still type." + voice button stays visible but disabled-with-tooltip
+- [x] Sarvam API error (401/429/500) → toast "Transcription failed. You can still type." + input untouched
+- [x] Web Speech API not available (browser doesn't support it) → hide voice button + tooltip "Voice input not supported in this browser"
+- [x] Empty audio / silence → "Nothing heard" toast, no crash
+- [x] Auto-stop on ~2s silence after user stops speaking
+- [x] Cross-device: touch targets ≥44px on mobile, works in Safari iOS and Chrome Android
+- [x] E2E tests: happy path speak→transcript→submit→agent respond; each failure path; mobile viewport
+- [x] No hardcoded strings — all UI text from config/i18n-ready constants

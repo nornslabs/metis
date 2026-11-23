@@ -196,6 +196,8 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           toast.error("Transcription failed. You can still type.");
         }
       }}
+      options={{ silenceTimeoutMs: 2000 }} // auto-stop after ~2s of silence
+      showAudioLevel
     />
   );
 

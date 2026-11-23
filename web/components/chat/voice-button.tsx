@@ -1,7 +1,7 @@
 "use client";
 
 import { Mic, MicOff } from "lucide-react";
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -16,10 +16,13 @@ interface VoiceButtonProps {
   options?: VoiceRecorderOptions;
   /** Whether voice input is currently disabled (e.g. browser doesn't support it). */
   disabled?: boolean;
+  /** Show audio level meter while recording. */
+  showAudioLevel?: boolean;
 }
 
-export function VoiceButton({ onBlob, options, disabled = false }: VoiceButtonProps) {
-  const { recording, error, start, stop } = useVoiceRecorder(options);
+export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel = false }: VoiceButtonProps) {
+  const { recording, error, audioLevel, start, stop } = useVoiceRecorder(options);
+  const [webSpeechSupported, setWebSpeechSupported] = useState(true);
 
   const handleStart = useCallback(async () => {
     await start();
@@ -32,6 +35,13 @@ export function VoiceButton({ onBlob, options, disabled = false }: VoiceButtonPr
     }
   }, [stop, onBlob]);
 
+  // Check Web Speech API support on mount
+  useEffect(() => {
+    const supported = typeof window !== "undefined" &&
+      ("SpeechRecognition" in window || "webkitSpeechRecognition" in window);
+    setWebSpeechSupported(supported);
+  }, []);
+
   // Show error toast on permission deny (only when not recording, to avoid spam)
   if (error && !recording) {
     toast.error(
@@ -41,32 +51,33 @@ export function VoiceButton({ onBlob, options, disabled = false }: VoiceButtonPr
     );
   }
 
-  if (disabled) {
-    return (
-      <Tooltip>
-        <TooltipTrigger render={<Button type="button" variant="outline" size="icon-xs" disabled aria-label="Voice input not supported" className="size-6.5 opacity-50" />} />
-        <TooltipContent>Voice input not supported in this browser</TooltipContent>
-      </Tooltip>
-    );
+  // Hide button entirely if Web Speech API is not supported
+  if (!webSpeechSupported || disabled) {
+    return null;
   }
 
   return (
-    <Tooltip>
-      <TooltipTrigger render={
-        <Button
-          type="button"
-          variant={recording ? "destructive" : "default"}
-          size="icon-xs"
-          onClick={recording ? handleStop : handleStart}
-          disabled={!recording && error !== null}
-          aria-label={recording ? "Stop recording" : "Start voice recording"}
-          className="size-6.5"
-        >
-          {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
-        </Button>
-      } />
-      <TooltipContent>{recording ? "Stop recording" : "Start voice recording"}</TooltipContent>
-    </Tooltip>
+    <>
+      <Tooltip>
+        <TooltipTrigger render={
+          <Button
+            type="button"
+            variant={recording ? "destructive" : "default"}
+            size="icon-xs"
+            onClick={recording ? handleStop : handleStart}
+            disabled={!recording && error !== null}
+            aria-label={recording ? "Stop recording" : "Start voice recording"}
+            className="size-6.5 min-h-[44px] min-w-[44px]" // ≥44px touch target
+          >
+            {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
+          </Button>
+        } />
+        <TooltipContent>{recording ? "Stop recording" : "Start voice recording"}</TooltipContent>
+      </Tooltip>
+      {showAudioLevel && recording && audioLevel > 0 ? (
+        <AudioLevelMeter level={audioLevel} />
+      ) : null}
+    </>
   );
 }
 
