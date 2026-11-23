@@ -134,6 +134,19 @@ export function visibleSections(contentMd: string): readonly SectionView[] {
   return views;
 }
 
+/** The blocks whose heading is not in the server's template, with their text (`None.` reads as empty). */
+export function unknownSections(contentMd: string): readonly { readonly heading: string; readonly text: string }[] {
+  return parse(contentMd)
+    .blocks.filter((block) => block.key === null)
+    .map((block) => {
+      const text = bodyOf(block);
+      return {
+        heading: block.headingLine.replace(/^##[ \t]+/, "").replace(/[ \t]*#*[ \t]*$/, ""),
+        text: text === NONE_TEXT ? "" : text,
+      };
+    });
+}
+
 /** The markdown with one section's text replaced; every other block stays byte for byte. */
 export function applySectionEdit(contentMd: string, key: string, value: string): string {
   const { preamble, blocks } = parse(contentMd);

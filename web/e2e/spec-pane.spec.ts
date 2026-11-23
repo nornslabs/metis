@@ -139,6 +139,12 @@ async function fakeSpecIdea(page: Page, options: { confirmed?: boolean; awaiting
     fulfillJson(route, server.hidden ? { latest: null, confirmed: null } : { latest: newest(server), confirmed: server.confirmed }),
   );
   await page.route(`**/v1/ideas/${idea.id}/spec/versions`, async (route) => {
+    if (route.request().method() === "GET") {
+      const items = server.versions
+        .map(({ id, number, source, created_by, created_at }) => ({ id, number, source, created_by, created_at }))
+        .reverse();
+      return fulfillJson(route, { items });
+    }
     const body = route.request().postDataJSON() as { base_number: number; content_md: string };
     if (server.confirmedElsewhere) {
       server.confirmed = newest(server);
@@ -153,6 +159,11 @@ async function fakeSpecIdea(page: Page, options: { confirmed?: boolean; awaiting
     const saved = version(idea.id, server.versions.length + 1, body.content_md, "user");
     server.versions.push(saved);
     return fulfillJson(route, saved, 201);
+  });
+  await page.route(new RegExp(`/v1/ideas/${idea.id}/spec/versions/\\d+$`), (route) => {
+    const number = Number(route.request().url().split("/").pop());
+    const found = server.versions.find((candidate) => candidate.number === number);
+    return found ? fulfillJson(route, found) : fulfillJson(route, problem("spec.not_found", 404), 404);
   });
   await page.route(`**/v1/ideas/${idea.id}/spec/confirm`, async (route) => {
     const body = route.request().postDataJSON() as { number: number };
@@ -317,5 +328,200 @@ test.describe("Spec pane", () => {
 
     await expect(panel.getByText("Confirmed · v1")).toBeVisible();
     await expect(panel.getByRole("textbox")).toHaveCount(0);
+  });
+
+  test("the version menu lists every version and shows an older one read-only", async ({
+    page,
+  }) => {
+    const { server } = await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Second text.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await expect(page.getByRole("menuitemradio")).toHaveCount(2);
+    await expect(
+      page.getByRole("menuitemradio", { name: /^v2/ }),
+    ).toBeChecked();
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+
+    await expect(
+      panel.getByText("Viewing v1 by Agent, read-only."),
+    ).toBeVisible();
+    await expect(panel.getByRole("textbox")).toHaveCount(0);
+    await expect(panel.getByText("Founders waste weeks.")).toBeVisible();
+    await expect(
+      panel.getByRole("button", { name: "Confirm spec" }),
+    ).toBeDisabled();
+
+    await panel.getByRole("button", { name: "Back to v2" }).click();
+    await expect(panel.getByRole("textbox", { name: "Problem" })).toHaveValue(
+      "Second text.",
+    );
+    await expect(
+      panel.getByRole("button", { name: "Confirm spec" }),
+    ).toBeEnabled();
+    expect(server.saves).toHaveLength(1);
+  });
+
+  test("text typed before switching to an older version is saved first and kept", async ({
+    page,
+  }) => {
+    const { server } = await openIdea(page);
+    const panel = outputPanel(page);
+    await panel
+      .getByRole("textbox", { name: "Problem" })
+      .fill("Typed just now.");
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+    await expect(
+      panel.getByText("Viewing v1 by Agent, read-only."),
+    ).toBeVisible();
+    expect(server.saves.map((save) => save.base_number)).toEqual([1]);
+
+    await panel.getByRole("button", { name: "Back to v2" }).click();
+    await expect(panel.getByRole("textbox", { name: "Problem" })).toHaveValue(
+      "Typed just now.",
+    );
+  });
+
+  test("Restore as a new version saves the old text on the newest number", async ({
+    page,
+  }) => {
+    const { server } = await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Changed.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+    await panel.getByRole("button", { name: "Restore as v3" }).click();
+
+    await expect(panel.getByText("Saved · draft v3, edited")).toBeVisible();
+    expect(server.saves.at(-1)).toEqual({
+      base_number: 2,
+      content_md: SPEC_MD,
+    });
+    await expect(panel.getByRole("textbox", { name: "Problem" })).toHaveValue(
+      "Founders waste weeks.",
+    );
+  });
+
+  test("Restore is not offered when the spec is confirmed", async ({
+    page,
+  }) => {
+    await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Final.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+    await panel.getByRole("button", { name: "Confirm spec" }).click();
+    await page
+      .getByRole("alertdialog")
+      .getByRole("button", { name: "Confirm v2" })
+      .click();
+    await expect(panel.getByText("Confirmed · v2")).toBeVisible();
+
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await expect(
+      page.getByRole("menuitemradio", { name: /Confirmed/ }),
+    ).toContainText("v2");
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+    await expect(
+      panel.getByText("Viewing v1 by Agent, read-only."),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("button", { name: /^Restore as/ }),
+    ).toHaveCount(0);
+  });
+
+  test("Compare shows what changed between two versions", async ({ page }) => {
+    await openIdea(page);
+    const panel = outputPanel(page);
+    await expect(panel.getByRole("button", { name: "Compare" })).toBeDisabled();
+    await panel
+      .getByRole("textbox", { name: "Problem" })
+      .fill("Founders lose weeks.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+
+    await panel.getByRole("button", { name: "Compare" }).click();
+    await expect(panel.getByRole("combobox")).toHaveValue("1");
+    const problemChanges = panel.getByRole("region", {
+      name: "Problem, changes",
+    });
+    await expect(problemChanges.locator("del")).toHaveText("deleted: waste");
+    await expect(problemChanges.locator("ins")).toHaveText("inserted: lose");
+    await expect(
+      panel.getByRole("region", { name: "Users, changes" }),
+    ).toContainText("No changes");
+    await expect(panel.getByText("1 added")).toBeVisible();
+
+    await panel.getByRole("button", { name: "Compare" }).click();
+    await expect(panel.getByRole("textbox", { name: "Problem" })).toHaveValue(
+      "Founders lose weeks.",
+    );
+  });
+
+  test("a version that fails to load shows Retry", async ({ page }) => {
+    await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Another.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+    let fail = true;
+    await page.route(/\/spec\/versions\/1$/, (route) => {
+      if (!fail) return route.fallback();
+      return fulfillJson(route, problem("internal_error", 500), 500);
+    });
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+    await expect(
+      panel
+        .getByRole("alert")
+        .filter({ hasText: "Could not load the spec v1" }),
+    ).toBeVisible();
+    fail = false;
+    await panel.getByRole("button", { name: "Retry" }).click();
+    await expect(
+      panel.getByText("Viewing v1 by Agent, read-only."),
+    ).toBeVisible();
+  });
+
+  test("Esc closes the version menu", async ({ page }) => {
+    await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await expect(page.getByRole("menuitemradio")).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menuitemradio")).toHaveCount(0);
+  });
+
+  test("Confirm is off while comparing, and Restore is off when the text equals the newest", async ({ page }) => {
+    const { server } = await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Middle text.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Founders waste weeks.");
+    await expect(panel.getByText("Saved · draft v3, edited")).toBeVisible();
+    expect(server.saves).toHaveLength(2);
+
+    await panel.getByRole("button", { name: "Compare" }).click();
+    await expect(panel.getByRole("button", { name: "Confirm spec" })).toBeDisabled();
+    await panel.getByRole("combobox").selectOption("1");
+    await expect(panel.getByRole("region", { name: "Problem, changes" })).toContainText("No changes");
+
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+    await expect(panel.getByRole("button", { name: "Restore as v4" })).toBeDisabled();
+  });
+
+  test("a conflict while restoring shows the conflict notice", async ({ page }) => {
+    const { server } = await openIdea(page);
+    const panel = outputPanel(page);
+    await panel.getByRole("textbox", { name: "Problem" }).fill("Changed.");
+    await expect(panel.getByText("Saved · draft v2, edited")).toBeVisible();
+    await panel.getByRole("button", { name: "Versions" }).click();
+    await page.getByRole("menuitemradio", { name: /^v1/ }).click();
+    server.conflictWith = SPEC_MD.replace("Founders waste weeks.", "Elsewhere.");
+    await panel.getByRole("button", { name: "Restore as v3" }).click();
+
+    await expect(panel.getByRole("alert").filter({ hasText: "Spec changed elsewhere" })).toBeVisible();
   });
 });

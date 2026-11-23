@@ -182,3 +182,65 @@ describe("SpecEditor confirm", () => {
     expect(editor.getState().confirmProblem).toBeNull();
   });
 });
+
+describe("SpecEditor versions", () => {
+  it("saves typed text before it shows an older version", async () => {
+    const { editor, ports } = setup();
+    editor.edit("problem", "Typed");
+    await editor.showVersion(1);
+
+    expect(ports.save).toHaveBeenCalledTimes(1);
+    expect(editor.getState().view).toEqual({ mode: "version", number: 1 });
+    expect(editor.getState().draftMd).toBeNull();
+  });
+
+  it("shows compare, and going back restarts the fields from the newest text", async () => {
+    const { editor } = setup();
+    await editor.showCompare(1);
+    expect(editor.getState().view).toEqual({ mode: "compare", from: 1 });
+
+    const epoch = editor.getState().epoch;
+    editor.showEdit();
+    expect(editor.getState().view).toEqual({ mode: "edit" });
+    expect(editor.getState().epoch).toBe(epoch + 1);
+  });
+
+  it("restores an older text as a new version on the newest number", async () => {
+    const { editor, ports } = setup();
+    await editor.restore(md("Old text"));
+
+    expect(ports.save).toHaveBeenCalledWith(1, md("Old text"));
+    expect(editor.getState().latest?.number).toBe(2);
+    expect(editor.getState().view).toEqual({ mode: "edit" });
+  });
+
+  it("does not restore the text it already has", async () => {
+    const { editor, ports } = setup();
+    await editor.restore(md("draft"));
+    expect(ports.save).not.toHaveBeenCalled();
+  });
+
+  it("does not restore into a locked spec", async () => {
+    const { editor, ports } = setup();
+    editor.sync({ latest: version(1, "draft"), confirmed: version(1, "draft") });
+    await editor.restore(md("Old text"));
+    expect(ports.save).not.toHaveBeenCalled();
+  });
+});
+
+describe("SpecEditor versions when a save fails", () => {
+  it("stays on the draft when the pending save conflicts", async () => {
+    const { editor } = setup({ save: vi.fn(async () => Promise.reject(apiError("spec.conflict"))) });
+    editor.edit("problem", "Typed");
+    await editor.showVersion(1);
+    expect(editor.getState().view).toEqual({ mode: "edit" });
+    expect(editor.getState().status).toBe("conflict");
+  });
+
+  it("does nothing when going back to edit from edit", () => {
+    const { editor } = setup();
+    const epoch = editor.getState().epoch;
+    editor.showEdit();
+    expect(editor.getState().epoch).toBe(epoch);
+  });
+});
