@@ -14,39 +14,53 @@ import {
 import { OutputAvailabilityContext, useOutputAvailability, type OutputAvailability } from "./output-availability";
 import { OUTPUT_PANES, type OutputPane } from "./panes";
 
-type PaneContent = Readonly<Partial<Record<OutputPane, ReactNode>>>;
+/** What a pane puts in the output panel. */
+export interface PaneOutput {
+  /** The scrolling body. */
+  readonly body: ReactNode;
+  /** The sticky footer: the pane's actions. */
+  readonly footer?: ReactNode;
+  /** The tab's count (a number, or "v2" for the spec). */
+  readonly count?: string;
+  /**
+   * Changes when the output is new or a new version of it. A new value lights the unseen mark
+   * (the right toggle's dot, the tab's dot); edits that keep it the same do not.
+   */
+  readonly version: string;
+}
+
+type PaneContent = Readonly<Partial<Record<OutputPane, PaneOutput>>>;
 
 interface OutputRegistryActions {
-  /**
-   * Gives `pane` its content; the pane's tab and the right toggle turn on. `scope` (the idea id)
-   * tells a new output from new content for one already announced: only a new output is unseen.
-   */
-  register: (pane: OutputPane, content: ReactNode, scope: string) => void;
-  /** Takes the pane away (the idea page left, or its output is gone). */
+  /** Gives `pane` its output; its tab and the right toggle turn on. `scope` is the idea id. */
+  register: (pane: OutputPane, output: PaneOutput, scope: string) => void;
+  /** Takes the pane's content away; the unseen mark stays, so a re-register (new memo) keeps the dot. */
   unregister: (pane: OutputPane) => void;
-  /** Called once the output panel is open: nothing is unseen any more. */
-  markSeen: () => void;
+  /** The output is gone or its page left: forget it and its unseen mark. */
+  release: (pane: OutputPane, scope: string) => void;
+  /** Called while `pane` is shown in the open panel: nothing there is unseen any more. */
+  markSeen: (pane: OutputPane) => void;
 }
 
 const ActionsContext = createContext<OutputRegistryActions | null>(null);
 const ContentContext = createContext<PaneContent>({});
 
 /**
- * Which panes have content, the content itself, and whether something new is unseen. The idea page
- * registers what it produced; the output panel and the edge toggle read it. Actions and content
- * are separate contexts so a page that only registers is not re-rendered by a content change.
+ * Which panes have output, the output itself, and which are unseen. The idea page registers what
+ * it produced; the output panel and the edge toggle read it. Actions and content are separate
+ * contexts so a page that only registers is not re-rendered by a content change.
  */
 export function OutputRegistryProvider({ children }: { children: ReactNode }) {
   const [content, setContent] = useState<PaneContent>({});
-  const [unseen, setUnseen] = useState(false);
-  const announced = useRef(new Set<string>());
+  const [unseenPanes, setUnseenPanes] = useState<readonly OutputPane[]>([]);
+  const announced = useRef(new Map<string, string>());
 
-  const register = useCallback((pane: OutputPane, next: ReactNode, scope: string) => {
-    setContent((current) => ({ ...current, [pane]: next }));
+  const register = useCallback((pane: OutputPane, output: PaneOutput, scope: string) => {
+    setContent((current) => ({ ...current, [pane]: output }));
     const key = `${scope}:${pane}`;
-    if (announced.current.has(key)) return;
-    announced.current.add(key);
-    setUnseen(true);
+    if (announced.current.get(key) === output.version) return;
+    announced.current.set(key, output.version);
+    setUnseenPanes((current) => (current.includes(pane) ? current : [...current, pane]));
   }, []);
 
   const unregister = useCallback((pane: OutputPane) => {
@@ -56,12 +70,23 @@ export function OutputRegistryProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const markSeen = useCallback(() => setUnseen(false), []);
+  const release = useCallback((pane: OutputPane, scope: string) => {
+    announced.current.delete(`${scope}:${pane}`);
+    setUnseenPanes((current) => (current.includes(pane) ? current.filter((name) => name !== pane) : current));
+  }, []);
 
-  const actions = useMemo(() => ({ register, unregister, markSeen }), [register, unregister, markSeen]);
+  const markSeen = useCallback((pane: OutputPane) => {
+    setUnseenPanes((current) => (current.includes(pane) ? current.filter((name) => name !== pane) : current));
+  }, []);
+
+  const actions = useMemo(() => ({ register, unregister, release, markSeen }), [register, unregister, release, markSeen]);
   const availability = useMemo<OutputAvailability>(
-    () => ({ panes: OUTPUT_PANES.filter((pane) => pane in content), unseen }),
-    [content, unseen],
+    () => ({
+      panes: OUTPUT_PANES.filter((pane) => pane in content),
+      unseenPanes,
+      unseen: unseenPanes.length > 0,
+    }),
+    [content, unseenPanes],
   );
 
   return (
@@ -79,33 +104,42 @@ function useActions(): OutputRegistryActions {
   return actions;
 }
 
-/** The content registered for `pane`, or undefined. */
-export function useOutputContent(pane: OutputPane | null): ReactNode {
+/** The output registered for `pane`, or undefined. */
+export function useOutputContent(pane: OutputPane | null): PaneOutput | undefined {
   const content = useContext(ContentContext);
   return pane === null ? undefined : content[pane];
 }
 
-/**
- * Registers `content` for `pane` while `content` is given; unregisters when it becomes null or on
- * unmount. `scope` is what the output belongs to (the idea id).
- */
-export function useRegisterOutput(pane: OutputPane, content: ReactNode | null, scope: string): void {
-  const { register, unregister } = useActions();
-  useEffect(() => {
-    if (content === null) {
-      unregister(pane);
-      return;
-    }
-    register(pane, content, scope);
-    return () => unregister(pane);
-  }, [pane, content, scope, register, unregister]);
+/** Every registered pane's output (the tab strip reads the counts from it). */
+export function useOutputPanes(): PaneContent {
+  return useContext(ContentContext);
 }
 
-/** Clears the unseen mark while the panel is open, also for an output that arrives after it opened. */
-export function useMarkOutputSeen(open: boolean): void {
-  const { markSeen } = useActions();
-  const { unseen } = useOutputAvailability();
+/**
+ * Registers `output` for `pane` while `output` is given; unregisters when it becomes null or on
+ * unmount. `scope` is what the output belongs to (the idea id). Memoize `output`.
+ */
+export function useRegisterOutput(pane: OutputPane, output: PaneOutput | null, scope: string): void {
+  const { register, unregister, release } = useActions();
   useEffect(() => {
-    if (open && unseen) markSeen();
-  }, [open, unseen, markSeen]);
+    if (output === null) {
+      unregister(pane);
+      release(pane, scope);
+      return;
+    }
+    register(pane, output, scope);
+    return () => unregister(pane);
+  }, [pane, output, scope, register, unregister, release]);
+  // Leaving the page (or the idea) forgets the output; a new version of it does not.
+  useEffect(() => () => release(pane, scope), [pane, scope, release]);
+}
+
+/** Clears the unseen mark of the pane the open panel shows, also for a version that arrives while it is open. */
+export function useMarkOutputSeen(open: boolean, pane: OutputPane | null): void {
+  const { markSeen } = useActions();
+  const { unseenPanes } = useOutputAvailability();
+  const unseenHere = pane !== null && unseenPanes.includes(pane);
+  useEffect(() => {
+    if (open && pane !== null && unseenHere) markSeen(pane);
+  }, [open, pane, unseenHere, markSeen]);
 }

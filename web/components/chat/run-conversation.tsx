@@ -248,6 +248,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           outputs={
             <OutputCards
               ideaId={idea.id}
+              ideaTitle={idea.title}
               runActive={active || state.status === "awaiting_user"}
               scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
               researchStarted={researcherStarted}

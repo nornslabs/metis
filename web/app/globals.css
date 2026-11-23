@@ -70,6 +70,7 @@
   --text-body: 13px;
   --text-title: 17px;
   --text-score: 28px;
+  --text-total: 40px;
   --text-display: clamp(1.5rem, 2.6vw, 2rem);
   --text-display--line-height: 1.12;
   --text-display--letter-spacing: -0.03em;
@@ -119,12 +120,12 @@
   grid-template-columns: 100px 1fr;
 }
 
-/* Param bar row: label, track, mark out of 10, weighted points. */
+/* Param bar row: label and weight, track, mark out of 100. */
 @utility grid-cols-param-row {
-  grid-template-columns: minmax(0, 130px) 1fr 40px 36px;
+  grid-template-columns: minmax(0, 150px) 1fr 28px;
   /* the `compact` breakpoint */
   @media (width < 700px) {
-    grid-template-columns: minmax(0, 96px) 1fr 36px 32px;
+    grid-template-columns: minmax(0, 110px) 1fr 28px;
   }
 }
 

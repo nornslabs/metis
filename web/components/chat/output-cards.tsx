@@ -1,82 +1,137 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { OutputCard } from "@/components/chat/output-card";
+import { LoadFailure } from "@/components/panel/load-failure";
+import { ScorePaneBody, ScorePaneFooter } from "@/components/panel/score-pane";
+import { SuggestionsPaneBody, SuggestionsPaneFooter } from "@/components/panel/suggestions-pane";
 import { ResearchSection } from "@/components/research/research-section";
-import { ScoreSection } from "@/components/score/score-section";
-import { Button } from "@/components/ui/button";
-import { describeError } from "@/lib/api/errors";
-import { useLatestScore } from "@/lib/api/queries/use-latest-score";
 import { useResearch } from "@/lib/api/queries/use-research";
 import { countOf } from "@/lib/text/count";
+import { useScoreOutputs } from "@/lib/scores/use-score-outputs";
+import { deltaText } from "@/lib/scores/versions";
 import { BAND_LABELS, BAND_RANGES, MAX_TOTAL } from "@/lib/scores/view";
+import { useRegisterOutput, type PaneOutput } from "@/lib/workspace/output-registry";
 import type { OutputPane } from "@/lib/workspace/panes";
-import { useRegisterOutput } from "@/lib/workspace/output-registry";
+import { pickAutoOpen } from "@/lib/workspace/live-arrival";
+import { useLiveArrival } from "@/lib/workspace/use-live-arrival";
+import { useNarrow } from "@/lib/workspace/use-narrow";
 import { useWorkspacePanels } from "@/lib/workspace/workspace-panels";
 
 interface OutputCardsProps {
   ideaId: string;
+  ideaTitle: string;
   /** True while a run of this idea can still change (the score's refresh buttons wait for it). */
   runActive: boolean;
   scoringStarted: boolean;
   researchStarted: boolean;
 }
 
-function PaneBody({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-3 p-4">{children}</div>;
-}
+const AUTO_OPEN_ORDER = ["score", "suggestions"] as const;
+type AutoOpenPane = (typeof AUTO_OPEN_ORDER)[number];
 
-function LoadFailure({ what, error, onRetry }: { what: string; error: unknown; onRetry: () => void }) {
-  return (
-    <div role="alert" className="flex flex-wrap items-center gap-2 border border-destructive/40 px-2.5 py-1.5">
-      <span className="text-control">
-        Could not load the {what}. {describeError(error)}
-      </span>
-      <Button type="button" variant="outline" size="sm" className="ml-auto" onClick={onRetry}>
-        Retry
-      </Button>
-    </div>
-  );
+/**
+ * Opens the output panel by itself once per idea, for the first output produced live. Not when the
+ * panel is already open (it stays where the user is), not under 820px (the toggle's dot lights
+ * instead), and never moves focus. An output that arrives later, even after the user closed the
+ * panel, does not reopen it.
+ */
+function useAutoOpen(ideaId: string, arrived: Readonly<Record<AutoOpenPane, boolean>>): void {
+  const { outputOpen, openOutput } = useWorkspacePanels();
+  const narrow = useNarrow();
+  const handled = useRef(new Set<string>());
+  const openedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const fresh = AUTO_OPEN_ORDER.filter((pane) => arrived[pane] && !handled.current.has(`${ideaId}:${pane}`));
+    if (fresh.length === 0) return;
+    for (const pane of fresh) handled.current.add(`${ideaId}:${pane}`);
+    const pane = pickAutoOpen(fresh, { alreadyOpened: openedFor.current === ideaId, narrow, outputOpen });
+    if (pane === null) return;
+    openedFor.current = ideaId;
+    openOutput(pane);
+  }, [ideaId, arrived, narrow, outputOpen, openOutput]);
 }
 
 /**
- * The outputs of a run as one-line cards in the chat. The report itself lives in the output panel:
- * until the panes have their own components (SHIP-290 and later), the existing score and research
- * views are registered as the panes' content.
+ * The outputs of a run as one-line cards in the chat, and the registration of their panes in the
+ * output panel. The reports never render in the chat. Score and Suggestions have their own panes;
+ * Research stays the existing view in a padded body until SHIP-291.
  */
-export function OutputCards({ ideaId, runActive, scoringStarted, researchStarted }: OutputCardsProps) {
-  const latest = useLatestScore(ideaId);
+export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, researchStarted }: OutputCardsProps) {
+  const { latest, score, suggestions, versions, newestSuggestions } = useScoreOutputs(ideaId);
   const research = useResearch(ideaId, researchStarted);
   const { pane, outputOpen, openOutput } = useWorkspacePanels();
 
-  const score = latest.data ?? null;
+  const current = score ? versions.find((version) => version.id === score.id) : undefined;
   const view = research.data ?? null;
-  const hasScore = score !== null;
-  const hasResearch = view !== null;
 
-  const scoreContent = useMemo(
+  const scoreId = score?.id ?? null;
+  const scoreCreatedAt = score?.created_at ?? null;
+  const scoreOutput = useMemo<PaneOutput | null>(
     () =>
-      hasScore ? (
-        <PaneBody>
-          <ScoreSection ideaId={ideaId} runActive={runActive} scoringStarted={scoringStarted} />
-        </PaneBody>
-      ) : null,
-    [hasScore, ideaId, runActive, scoringStarted],
+      scoreId === null || scoreCreatedAt === null
+        ? null
+        : {
+            version: scoreId,
+            count: versions.length > 0 ? String(versions.length) : undefined,
+            body: <ScorePaneBody ideaId={ideaId} />,
+            footer: <ScorePaneFooter ideaId={ideaId} ideaTitle={ideaTitle} runActive={runActive} createdAt={scoreCreatedAt} />,
+          },
+    [scoreId, scoreCreatedAt, versions.length, ideaId, ideaTitle, runActive],
   );
-  const researchContent = useMemo(
+  const advisedRunId = newestSuggestions[0]?.score_run_id ?? null;
+  const suggestionsOutput = useMemo<PaneOutput | null>(
     () =>
-      hasResearch ? (
-        <PaneBody>
-          <ResearchSection ideaId={ideaId} researchStarted={researchStarted} />
-        </PaneBody>
-      ) : null,
-    [hasResearch, ideaId, researchStarted],
+      advisedRunId === null
+        ? null
+        : {
+            version: advisedRunId,
+            count: String(newestSuggestions.length),
+            body: <SuggestionsPaneBody ideaId={ideaId} />,
+            footer: <SuggestionsPaneFooter />,
+          },
+    [advisedRunId, newestSuggestions.length, ideaId],
   );
-  useRegisterOutput("score", scoreContent, ideaId);
-  useRegisterOutput("research", researchContent, ideaId);
+  const researchItems = view?.items.length ?? null;
+  const researchCompetitors = view?.competitors.length ?? 0;
+  const researchOutput = useMemo<PaneOutput | null>(
+    () =>
+      researchItems === null
+        ? null
+        : {
+            version: `${researchItems}:${researchCompetitors}`,
+            count: String(researchItems),
+            body: (
+              <div className="flex flex-col gap-3 p-4">
+                <ResearchSection ideaId={ideaId} researchStarted={researchStarted} />
+              </div>
+            ),
+          },
+    [researchItems, researchCompetitors, ideaId, researchStarted],
+  );
+  useRegisterOutput("score", scoreOutput, ideaId);
+  useRegisterOutput("suggestions", suggestionsOutput, ideaId);
+  useRegisterOutput("research", researchOutput, ideaId);
+
+  // Live outputs open the panel once. The suggestions count as live too when the score was.
+  const scoreLive = useLiveArrival(ideaId, !latest.isPending, score !== null);
+  const suggestionsLive = useLiveArrival(ideaId, suggestions.data !== undefined, newestSuggestions.length > 0);
+  const scoreWasLive = scoreLive.startedAbsent === true;
+  const suggestionsSettled = suggestionsLive.startedAbsent !== null;
+  const suggestionsArrived = newestSuggestions.length > 0 && (suggestionsLive.arrived || (scoreWasLive && suggestionsSettled));
+  const arrived = useMemo(() => ({ score: scoreLive.arrived, suggestions: suggestionsArrived }), [scoreLive.arrived, suggestionsArrived]);
+  useAutoOpen(ideaId, arrived);
 
   const isOpen = (name: OutputPane) => outputOpen && pane === name;
+  const scoreMeta = [
+    current ? `v${current.number}` : null,
+    current ? deltaText(current.delta) : null,
+    score ? `${BAND_LABELS[score.band]} · ${BAND_RANGES[score.band]}` : null,
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+
   return (
     <>
       {latest.isError && scoringStarted ? (
@@ -86,11 +141,14 @@ export function OutputCards({ ideaId, runActive, scoringStarted, researchStarted
         <LoadFailure what="research" error={research.error} onRetry={() => void research.refetch()} />
       ) : null}
       {score ? (
+        <OutputCard pane="score" title={`Score ${score.total} / ${MAX_TOTAL}`} meta={scoreMeta} open={isOpen("score")} onOpen={openOutput} />
+      ) : null}
+      {newestSuggestions.length > 0 ? (
         <OutputCard
-          pane="score"
-          title={`Score ${score.total} / ${MAX_TOTAL}`}
-          meta={`${BAND_LABELS[score.band]} · ${BAND_RANGES[score.band]}`}
-          open={isOpen("score")}
+          pane="suggestions"
+          title="Suggestions"
+          meta={`${countOf(newestSuggestions.length, "way")} to improve`}
+          open={isOpen("suggestions")}
           onOpen={openOutput}
         />
       ) : null}
