@@ -34,6 +34,8 @@ interface ConversationLayoutProps {
   idea: Idea;
   /** The interview so far (questions and answers), between the idea and the run's message. */
   interview?: ReactNode;
+  /** Earlier turns and the newest run's prompt, between the interview and the newest message. */
+  turns?: ReactNode;
   /** The agent message's content. */
   body: ReactNode;
   /** The dock at the bottom: the composer, the answer options or the working bar. */
@@ -47,7 +49,7 @@ interface ConversationLayoutProps {
 }
 
 /** The idea page: the idea, the interview, Metis's message for the run, and the composer. */
-export function ConversationLayout({ idea, interview, body, composer, scrollKey, owl, sentCount = 0 }: ConversationLayoutProps) {
+export function ConversationLayout({ idea, interview, turns, body, composer, scrollKey, owl, sentCount = 0 }: ConversationLayoutProps) {
   const endRef = useStickToBottom(scrollKey, sentCount);
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -56,6 +58,7 @@ export function ConversationLayout({ idea, interview, body, composer, scrollKey,
         <Thread>
           <UserBubble text={idea.raw_text} />
           {interview}
+          {turns}
           <AgentMessage
             owl={owl}
             aside={

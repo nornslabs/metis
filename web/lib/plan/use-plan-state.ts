@@ -62,7 +62,7 @@ export function usePhaseReview(ideaId: string): PhaseReview {
             resume: async (runId, phases) => {
               await resumeWithPhases(runId, phases);
               // The run moves on to write tasks: refetch what depends on it.
-              void queryClient.invalidateQueries({ queryKey: queryKeys.latestRun(workspaceId, ideaId) });
+              void queryClient.invalidateQueries({ queryKey: queryKeys.runs(workspaceId, ideaId) });
               void queryClient.invalidateQueries({ queryKey: queryKeys.idea(workspaceId, ideaId), exact: true });
             },
           }),

@@ -13,8 +13,9 @@ export const queryKeys = {
   scoreSummaries: (workspaceId: string | null, ideaIds: readonly string[]) =>
     ["ideas", workspaceId, "score-summaries", ...ideaIds] as const,
   idea: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId] as const,
-  latestRun: (workspaceId: string | null, ideaId: string) =>
-    ["ideas", workspaceId, ideaId, "latest-run"] as const,
+  /** The idea's runs, oldest first (the chat shows each as a turn). */
+  runs: (workspaceId: string | null, ideaId: string) =>
+    ["ideas", workspaceId, ideaId, "runs"] as const,
   /** The idea's interview turns (under the idea key, so a refresh of the idea refetches them). */
   interview: (workspaceId: string | null, ideaId: string) =>
     ["ideas", workspaceId, ideaId, "interview"] as const,

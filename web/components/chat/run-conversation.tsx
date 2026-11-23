@@ -12,6 +12,7 @@ import { OutputCards } from "@/components/chat/output-cards";
 import { RunApprovals } from "@/components/chat/run-approvals";
 import { RunDock } from "@/components/chat/run-dock";
 import { KeyGateNotice } from "@/components/chat/key-gate-notice";
+import { PastRunTurn } from "@/components/chat/past-run-turn";
 import { InterviewMessages } from "@/components/chat/interview-messages";
 import { QuickReplies } from "@/components/chat/quick-replies";
 import { RunNote, StartRunButton } from "@/components/chat/run-notice";
@@ -29,8 +30,9 @@ import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { pickedLabel } from "@/lib/chat/choice";
-import { ARCHITECT_NODE, PLANNER_NODE, RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
+import { SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
 import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
+import { outputStarts } from "@/lib/events/output-starts";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { stepCounter } from "@/lib/events/work-summary";
 import { buildInterviewThread } from "@/lib/interview/thread";
@@ -48,10 +50,6 @@ const APPROVAL_PLACEHOLDER = "Approve or reject above";
 const ADVICE_PLACEHOLDER = "Decide above";
 const SPEC_REVIEW_PLACEHOLDER = "Confirm the spec above";
 const PHASE_REVIEW_PLACEHOLDER = "Approve the phases above";
-/** From the spec draft on, the idea has a spec to read. */
-const SPEC_STAGES: ReadonlySet<string> = new Set(["spec_draft", "spec_confirmed", "planning", "exported"]);
-/** From planning on, the idea has phases or a plan to read. */
-const PLAN_STAGES: ReadonlySet<string> = new Set(["planning", "exported"]);
 const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
@@ -101,8 +99,18 @@ function composerPlaceholder({ answering, approval, advice, specReview, phaseRev
   return active ? WORKING_PLACEHOLDER : NO_ANSWER_PLACEHOLDER;
 }
 
-/** One run, live: the interview, the research, and a composer that answers the run's questions. */
-export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
+interface RunConversationProps {
+  idea: Idea;
+  /** The newest run: the live one. */
+  run: RunView;
+  /** Earlier runs, oldest first, shown read-only above it. */
+  history: readonly RunView[];
+  /** The run whose message carries the output cards. */
+  outputsRunId: string | null;
+}
+
+/** The newest run, live: the interview, the research, and a composer that answers the run's questions. */
+export function RunConversation({ idea, run, history, outputsRunId }: RunConversationProps) {
   const refresh = useRefreshIdea(idea.id);
   // A refetch when the feed ends picks up the new stage, and a lost session redirects to sign-in.
   const { state, stream, sync } = useRunEvents(run.id, run, () => void refresh());
@@ -162,11 +170,10 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   });
   const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
-  const researcherStarted = state.steps.some((step) => step.node === RESEARCHER_NODE);
-  const specStarted =
-    specReviewId !== null || SPEC_STAGES.has(idea.stage) || state.steps.some((step) => step.node === ARCHITECT_NODE);
-  const planStarted =
-    phaseReview !== null || PLAN_STAGES.has(idea.stage) || state.steps.some((step) => step.node === PLANNER_NODE);
+  const starts = outputStarts(state.steps, idea.stage);
+  const researcherStarted = starts.researchStarted;
+  const specStarted = specReviewId !== null || starts.specStarted;
+  const planStarted = phaseReview !== null || starts.planStarted;
   const sourceCount = useResearch(idea.id, researcherStarted).data?.items.length ?? null;
 
   const placeholder = composerPlaceholder({
@@ -240,10 +247,13 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
       idea={idea}
       owl={owl}
       sentCount={answers.sent.length + answers.decisions.length + answers.adviceChoices.length}
-      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}`}
-      interview={
+      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}:${history.length}`}
+      interview={<InterviewMessages messages={thread.messages} />}
+      turns={
         <>
-          <InterviewMessages messages={thread.messages} />
+          {history.map((past) => (
+            <PastRunTurn key={past.id} idea={idea} run={past} showOutputs={past.id === outputsRunId} />
+          ))}
           {run.user_prompt ? <UserBubble text={run.user_prompt} /> : null}
         </>
       }
@@ -270,18 +280,20 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           sourceCount={sourceCount}
           retry={<StartRunButton label="Retry" pending={starting} onClick={() => start()} blocked={gate.llmBlock !== null} />}
           outputs={
-            <OutputCards
-              ideaId={idea.id}
-              ideaTitle={idea.title}
-              runActive={active || state.status === "awaiting_user"}
-              scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
-              researchStarted={researcherStarted}
-              specStarted={specStarted}
-              planStarted={planStarted}
-              runId={run.id}
-              runStatus={state.status}
-              phaseReview={phaseReview}
-            />
+            run.id === outputsRunId ? (
+              <OutputCards
+                ideaId={idea.id}
+                ideaTitle={idea.title}
+                runActive={active || state.status === "awaiting_user"}
+                scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
+                researchStarted={researcherStarted}
+                specStarted={specStarted}
+                planStarted={planStarted}
+                runId={run.id}
+                runStatus={state.status}
+                phaseReview={phaseReview}
+              />
+            ) : null
           }
           approval={
             <RunApprovals
