@@ -29,7 +29,7 @@ import { useRunSync } from "@/lib/api/queries/use-run-sync";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { pickedLabel } from "@/lib/chat/choice";
-import { ARCHITECT_NODE, RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
+import { ARCHITECT_NODE, PLANNER_NODE, RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
 import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { stepCounter } from "@/lib/events/work-summary";
@@ -47,8 +47,11 @@ const WORKING_PLACEHOLDER = "Metis is working…";
 const APPROVAL_PLACEHOLDER = "Approve or reject above";
 const ADVICE_PLACEHOLDER = "Decide above";
 const SPEC_REVIEW_PLACEHOLDER = "Confirm the spec above";
+const PHASE_REVIEW_PLACEHOLDER = "Approve the phases above";
 /** From the spec draft on, the idea has a spec to read. */
 const SPEC_STAGES: ReadonlySet<string> = new Set(["spec_draft", "spec_confirmed", "planning", "exported"]);
+/** From planning on, the idea has phases or a plan to read. */
+const PLAN_STAGES: ReadonlySet<string> = new Set(["planning", "exported"]);
 const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
@@ -81,17 +84,19 @@ type PlaceholderInput = {
   approval: boolean;
   advice: boolean;
   specReview: boolean;
+  phaseReview: boolean;
   canContinue: boolean;
   starting: boolean;
   active: boolean;
 };
 
 /** What the composer says: what it takes now, or why it waits. */
-function composerPlaceholder({ answering, approval, advice, specReview, canContinue, starting, active }: PlaceholderInput): string {
+function composerPlaceholder({ answering, approval, advice, specReview, phaseReview, canContinue, starting, active }: PlaceholderInput): string {
   if (answering) return ANSWER_PLACEHOLDER;
   if (approval) return APPROVAL_PLACEHOLDER;
   if (advice) return ADVICE_PLACEHOLDER;
   if (specReview) return SPEC_REVIEW_PLACEHOLDER;
+  if (phaseReview) return PHASE_REVIEW_PLACEHOLDER;
   if (canContinue) return starting ? "Sending…" : "Continue this chat…";
   return active ? WORKING_PLACEHOLDER : NO_ANSWER_PLACEHOLDER;
 }
@@ -147,7 +152,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const active = isActiveStatus(state.status) && !streamLost;
   const canContinue = isTerminalStatus(state.status);
   const canSubmitPrompt = canContinue && !starting;
-  const { awaiting, question, offered, approval, advice, specReview, answeredHere, mode } = useRunPrompts({
+  const { awaiting, question, offered, approval, advice, specReview, phaseReview, answeredHere, mode } = useRunPrompts({
     state,
     streamLost,
     turnsPending: turns.isPending,
@@ -160,6 +165,8 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const researcherStarted = state.steps.some((step) => step.node === RESEARCHER_NODE);
   const specStarted =
     specReviewId !== null || SPEC_STAGES.has(idea.stage) || state.steps.some((step) => step.node === ARCHITECT_NODE);
+  const planStarted =
+    phaseReview !== null || PLAN_STAGES.has(idea.stage) || state.steps.some((step) => step.node === PLANNER_NODE);
   const sourceCount = useResearch(idea.id, researcherStarted).data?.items.length ?? null;
 
   const placeholder = composerPlaceholder({
@@ -167,6 +174,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     approval: approval !== null,
     advice: advice !== null,
     specReview: specReview !== null,
+    phaseReview: phaseReview !== null,
     canContinue,
     starting,
     active,
@@ -269,6 +277,10 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
               scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
               researchStarted={researcherStarted}
               specStarted={specStarted}
+              planStarted={planStarted}
+              runId={run.id}
+              runStatus={state.status}
+              phaseReview={phaseReview}
             />
           }
           approval={
@@ -276,6 +288,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
               advice={advice}
               approval={approval}
               specReview={specReview}
+              phaseReview={phaseReview}
               ideaId={idea.id}
               ideaText={idea.raw_text}
               accepted={acceptedFor(suggestions.data ?? [], advice?.scoreRunId ?? "")}
@@ -285,6 +298,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
               onAdvise={(value, decision) => answers.advise(seq, value, decision)}
               onDecide={(approved) => answers.decide(seq, approved)}
               onOpenSpec={() => openOutput("spec")}
+              onOpenPhases={() => openOutput("plan")}
             />
           }
         />

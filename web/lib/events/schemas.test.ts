@@ -176,4 +176,23 @@ describe("parseRunEvent", () => {
       interrupt: { kind: "spec_review", text: "sv1", specVersionId: "sv1", number: 1 },
     });
   });
+
+  test("reads a phase_review interrupt", () => {
+    const phases = [{ name: "Foundations", goal: "Set up", exit_criteria: "Builds" }];
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "phase_review", phases }))).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "phase_review", text: JSON.stringify(phases), phases },
+    });
+  });
+
+  test("turns a malformed phase_review into the unreadable-pause notice", () => {
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "phase_review", phases: [{ name: "x" }] }))).toMatchObject({
+      type: "notice",
+      code: UNREADABLE_PAUSE_CODE,
+    });
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "phase_review", phases: [] }))).toMatchObject({
+      type: "notice",
+      code: UNREADABLE_PAUSE_CODE,
+    });
+  });
 });
