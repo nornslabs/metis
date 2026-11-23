@@ -318,3 +318,137 @@ async def test_the_stub_setting_keeps_every_specialist_a_stub(
     assert (await run_row(engine, run)).status == "succeeded"
     assert llm.calls == 0
     assert await _brief(engine, run) is None
+
+
+# ------------------------------------------------------------------ answer options
+
+CUSTOMER_OPTIONS = [
+    {"label": "Solo freelancers", "detail": "One person, no team.", "recommended": True},
+    {"label": "Small agencies"},
+    {"label": "In-house teams", "recommended": False},
+]
+
+
+async def _interrupts(redis: Redis, run: QueuedRun) -> list[dict[str, Any]]:
+    events = await events_of(redis, run)
+    return [e.data for e in events if e.type is RunEventType.INTERRUPT]
+
+
+async def test_a_question_with_options_pauses_with_ids_and_progress(
+    redis: Redis, engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await keyed_run(engine)
+    llm.add(ask("Who is it for?", "customer", options=CUSTOMER_OPTIONS, allow_free_text=False))
+
+    await run_job(ctx, run)
+
+    assert await _interrupts(redis, run) == [
+        {
+            "type": "question",
+            "question": "Who is it for?",
+            "multi": False,
+            "options": [
+                {
+                    "id": "o1",
+                    "label": "Solo freelancers",
+                    "detail": "One person, no team.",
+                    "recommended": True,
+                },
+                {"id": "o2", "label": "Small agencies", "recommended": False},
+                {"id": "o3", "label": "In-house teams", "recommended": False},
+            ],
+            "allow_free_text": False,
+            "index": 1,
+            "total": 5,
+        }
+    ]
+    assert (await run_row(engine, run)).status == "awaiting_user"
+
+
+async def test_a_question_without_options_is_free_text_with_progress(
+    redis: Redis, engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await keyed_run(engine)
+    llm.add(ask(Q_PROBLEM, "problem"), ask(Q_PAYMENT, "payment"))
+
+    await run_job(ctx, run)
+    await run_job(ctx, run, resume=A_PROBLEM)
+
+    [first, second] = await _interrupts(redis, run)
+    assert (first["options"], first["multi"], first["allow_free_text"]) == ([], False, True)
+    assert (first["index"], first["total"]) == (1, 5)
+    assert (second["index"], second["total"]) == (2, 5)
+
+
+async def test_progress_total_drops_when_an_answer_covers_other_topics(
+    redis: Redis, engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await keyed_run(engine)
+    llm.add(note("customer", "Who is it for?", "Freelancers."), ask(Q_PROBLEM, "problem"))
+
+    await run_job(ctx, run)
+
+    [payload] = await _interrupts(redis, run)
+    assert (payload["index"], payload["total"]) == (1, 4)
+
+
+@pytest.mark.parametrize(
+    ("bad", "hint"),
+    [
+        ({"options": [{"label": "Only one"}]}, "Give 2 to 5 options"),
+        ({"options": [{"label": f"Option {n}"} for n in range(6)]}, "Give 2 to 5 options"),
+        ({"options": [{"label": "Same"}, {"label": "same"}]}, "must be different"),
+        ({"options": [{"label": ""}, {"label": "Other"}]}, "label is 1 to 80"),
+        (
+            {"options": [{"label": "A", "recommended": True}, {"label": "B", "recommended": True}]},
+            "at most one option",
+        ),
+        ({"options": [{"label": "A", "detail": "x" * 161}, {"label": "B"}]}, "at most 160"),
+    ],
+)
+async def test_bad_options_come_back_to_the_model_and_open_no_turn(
+    redis: Redis,
+    engine: AsyncEngine,
+    ctx: dict[str, Any],
+    llm: ScriptedLLM,
+    bad: dict[str, Any],
+    hint: str,
+) -> None:
+    run = await keyed_run(engine)
+    llm.add(ask(Q_PROBLEM, "problem", **bad), ask(Q_PROBLEM, "problem"))
+
+    await run_job(ctx, run)
+
+    assert hint in llm.shown(1)
+    assert await _turns(engine, run) == [("problem", "asked", Q_PROBLEM, None)]
+    [payload] = await _interrupts(redis, run)
+    assert (payload["options"], payload["index"]) == ([], 1)
+
+
+async def test_several_recommended_options_are_fine_for_a_multi_choice_question(
+    redis: Redis, engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await keyed_run(engine)
+    options = [{"label": "A", "recommended": True}, {"label": "B", "recommended": True}]
+    llm.add(ask("Which apply?", "problem", options=options, multi=True))
+
+    await run_job(ctx, run)
+
+    [payload] = await _interrupts(redis, run)
+    assert payload["multi"] is True
+    assert [o["recommended"] for o in payload["options"]] == [True, True]
+
+
+async def test_an_answer_picked_from_options_is_saved_as_its_label(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await keyed_run(engine)
+    llm.add(ask("Who is it for?", "customer", options=CUSTOMER_OPTIONS), ask(Q_PAYMENT, "payment"))
+
+    await run_job(ctx, run)
+    await run_job(ctx, run, resume="Solo freelancers; Small agencies")
+
+    assert await _turns(engine, run) == [
+        ("customer", "asked", "Who is it for?", "Solo freelancers; Small agencies"),
+        ("payment", "asked", Q_PAYMENT, None),
+    ]

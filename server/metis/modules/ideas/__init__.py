@@ -55,6 +55,7 @@ from metis.modules.ideas.service.interview import (
     interview_coverage,
     list_turns,
     open_question,
+    question_progress,
     save_interview_brief,
     save_interview_turn,
 )
@@ -138,6 +139,7 @@ __all__ = [
     "mark_running",
     "mark_succeeded",
     "open_question",
+    "question_progress",
     "record_llm_usage",
     "render_spec_markdown",
     "router",

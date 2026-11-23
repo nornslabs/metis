@@ -1227,6 +1227,22 @@ export interface components {
             value: string;
         };
         /**
+         * QuestionAnswer
+         * @description The answer to a ``question`` interrupt that offered options.
+         *
+         *     Exactly one of ``option_ids`` (ids from the pending question's options) or ``text`` (free
+         *     text) is given; the check against the pending interrupt is in ``check_resume_value``.
+         */
+        QuestionAnswer: {
+            /**
+             * Option Ids
+             * @default []
+             */
+            option_ids: string[];
+            /** Text */
+            text?: string | null;
+        };
+        /**
          * RemovePhase
          * @description Remove a phase; its tasks go to the end of ``move_tasks_to``.
          */
@@ -1345,11 +1361,11 @@ export interface components {
         };
         /**
          * ResumeBody
-         * @description The user's answer: text for a question, true/false for an approval, or a decision.
+         * @description The user's answer: text or options (question), true/false (approval) or a decision.
          */
         ResumeBody: {
             /** Value */
-            value: string | boolean | components["schemas"]["AdviceResume"] | components["schemas"]["PhaseReviewResume"];
+            value: string | boolean | components["schemas"]["AdviceResume"] | components["schemas"]["PhaseReviewResume"] | components["schemas"]["QuestionAnswer"];
         };
         /**
          * ReviewedPhase
