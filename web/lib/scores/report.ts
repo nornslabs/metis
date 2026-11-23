@@ -11,6 +11,7 @@ import {
   type Suggestion,
 } from "@/lib/scores/view";
 import { confidenceLabel, safeHref } from "@/lib/research/view";
+import { titleSlug } from "@/lib/text/slug";
 
 export interface ScoreReportInput {
   ideaTitle: string;
@@ -19,9 +20,6 @@ export interface ScoreReportInput {
   /** The newest score run's suggestions. */
   suggestions: readonly Suggestion[];
 }
-
-const FALLBACK_SLUG = "idea";
-const SLUG_LIMIT = 40;
 
 /** A link for an http(s) URL, else the plain title: evidence from a model is never trusted. */
 function link(title: string, url: string): string {
@@ -80,11 +78,5 @@ export function buildScoreReport({ ideaTitle, score, versions, suggestions }: Sc
 
 /** `metis-<idea title as a slug>-score.md`. */
 export function reportFileName(ideaTitle: string): string {
-  const slug = ideaTitle
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, SLUG_LIMIT)
-    .replace(/-+$/g, "");
-  return `metis-${slug || FALLBACK_SLUG}-score.md`;
+  return `metis-${titleSlug(ideaTitle)}-score.md`;
 }

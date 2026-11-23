@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  competitorRelation,
   confidenceLabel,
   domainOf,
   formatPublished,
@@ -8,14 +9,11 @@ import {
   overlapPercent,
   otherFindings,
   safeHref,
-  sourceChips,
   type ResearchView,
 } from "./view";
 
 const item = (kind: string, url: string | null, id = "i") =>
   ({ id, kind, title: "t", url, published_at: null, quote: null, claim: "c", confidence: 0.5 }) as ResearchView["items"][number];
-const competitor = (url: string, name = "n") =>
-  ({ id: name, name, url, domain: "x", description: null, pricing: null, overlap: 0.5, updated_at: "" }) as ResearchView["competitors"][number];
 const view = (items: ResearchView["items"], competitors: ResearchView["competitors"] = []): ResearchView =>
   ({ id: "s", idea_id: "i", run_id: "r", summary: null, closed_at: null, created_at: "", items, competitors }) as ResearchView;
 
@@ -61,27 +59,11 @@ describe("items", () => {
   });
 });
 
-describe("sourceChips", () => {
-  it("makes one chip per domain, competitors first", () => {
-    const v = view([item("market_fact", "https://www.g2.com/a"), item("market_fact", "https://news.ycombinator.com/x")], [
-      competitor("https://g2.com/b"),
-      competitor("https://producthunt.com/c"),
-    ]);
-    const { chips, more } = sourceChips(v);
-    expect(chips.map((chip) => chip.domain)).toEqual(["g2.com", "producthunt.com", "news.ycombinator.com"]);
-    expect(chips[0]).toMatchObject({ letter: "G", href: "https://g2.com/b" });
-    expect(more).toBe(0);
-  });
-
-  it("counts the chips left out", () => {
-    const urls = ["a", "b", "c", "d", "e", "f", "g"].map((d) => competitor(`https://${d}.com`, d));
-    const { chips, more } = sourceChips(view([], urls), 5);
-    expect(chips).toHaveLength(5);
-    expect(more).toBe(2);
-  });
-
-  it("skips unsafe and missing urls and ignores trends and risks", () => {
-    const v = view([item("market_fact", "javascript:alert(1)"), item("market_fact", null), item("trend", "https://t.com")]);
-    expect(sourceChips(v)).toEqual({ chips: [], more: 0 });
+describe("competitorRelation", () => {
+  it("is Direct from 0.5 overlap and Adjacent below", () => {
+    expect(competitorRelation(0.5)).toBe("Direct");
+    expect(competitorRelation(0.99)).toBe("Direct");
+    expect(competitorRelation(0.49)).toBe("Adjacent");
+    expect(competitorRelation(0)).toBe("Adjacent");
   });
 });

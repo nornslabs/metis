@@ -3,6 +3,7 @@
 import { ChevronRight } from "lucide-react";
 import { useEffect, useId, useState, type CSSProperties } from "react";
 
+import { Cite } from "@/components/panel/cite";
 import { SourceLink } from "@/components/research/source-link";
 import { cn } from "@/lib/cn";
 import { confidenceLabel } from "@/lib/research/view";
@@ -27,7 +28,9 @@ function Evidence({ param }: { param: ScoreParamResult }) {
     <ul className="flex flex-col gap-1.5">
       {param.evidence.map((item) => (
         <li key={`${item.url}:${item.title}`} className="flex flex-col gap-0.5">
-          <span className="text-control break-words">{item.title}</span>
+          <span className="text-control break-words">
+            {item.title} <Cite url={item.url} />
+          </span>
           {item.quote ? (
             <blockquote className="border-l-2 pl-2 text-control break-words text-muted-foreground">{item.quote}</blockquote>
           ) : null}

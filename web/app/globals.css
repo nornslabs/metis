@@ -87,6 +87,9 @@
   --spacing-track: 3px;
   --spacing-tick: 9px;
 
+  /* A source row flashed by a chip (1.6s, accent fading out) */
+  --animate-src-flash: src-flash 1.6s ease-out;
+
   /* Max widths: max-w-pitch, max-w-headline, max-w-lead, max-w-card */
   --container-pitch: 480px;
   --container-headline: 460px;
@@ -229,6 +232,16 @@
   }
   to {
     background-position: 0 0;
+  }
+}
+
+@keyframes src-flash {
+  0%,
+  40% {
+    background: var(--accent);
+  }
+  100% {
+    background: transparent;
   }
 }
 
