@@ -137,6 +137,27 @@ describe("runReducer", () => {
     expect(state.text).toBe("Hello world");
   });
 
+  test("cuts the text at each question so a reply stays after its answer", () => {
+    const state = play([
+      { type: "token", node: "interviewer", text: "X" },
+      { type: "interrupt", interrupt: { kind: "question", text: "Q1" } },
+      { type: "token", node: "interviewer", text: "Y" },
+      { type: "interrupt", interrupt: { kind: "question", text: "Q2" } },
+      { type: "token", node: "interviewer", text: "Z" },
+    ]);
+    expect(state.segments).toEqual(["X", "Y", "Z"]);
+    expect(state.text).toBe("XYZ");
+  });
+
+  test("does not cut the text at a pause that is not a question", () => {
+    const state = play([
+      { type: "token", node: "advisor", text: "A" },
+      { type: "interrupt", interrupt: { kind: "approval", text: "go" } },
+      { type: "token", node: "advisor", text: "B" },
+    ]);
+    expect(state.segments).toEqual(["AB"]);
+  });
+
   test("records status, error and question", () => {
     const failed = play([
       { type: "run_status", status: "running" },

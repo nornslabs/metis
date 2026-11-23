@@ -38,7 +38,7 @@ web/
 │   ├── (auth)/sign-in/page.tsx    # sign-in page (public)
 │   ├── (app)/layout.tsx           # AppFrame (rails, safe area, header, footer) around WorkspaceLayout; redirects to /sign-in when signed out
 │   ├── (app)/page.tsx             # new idea: EmptyChat (EmptyState hero, suggestions, composer)
-│   └── (app)/ideas/[ideaId]/page.tsx  # idea conversation: every run in order, the newest live
+│   └── (app)/ideas/[ideaId]/page.tsx  # idea conversation: every run in order (prompt, its questions and answers with the reply that followed each answer above the next question, its message), the newest live
 ├── components/
 │   ├── ui/                        # shadcn/ui generated (do not edit)
 │   ├── brand/                     # OwlMark, BrandMark (owl in the 20px square)

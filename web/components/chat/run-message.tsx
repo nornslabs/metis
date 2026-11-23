@@ -16,6 +16,8 @@ interface RunMessageBodyProps {
   sourceCount: number | null;
   /** The output cards (score, research): one line each, never the report. */
   outputs?: ReactNode;
+  /** The run's own text after its last question; defaults to all of it. */
+  text?: string;
   /** The approval prompt and the user's earlier choices; always rendered, the caller decides what shows. */
   approval?: ReactNode;
 }
@@ -24,14 +26,14 @@ interface RunMessageBodyProps {
  * What the agent message shows for one run: the work summary (live steps run in the dock), the
  * output cards, text, and the run's outcome.
  */
-export function RunMessageBody({ state, streamLost, retry, sourceCount, outputs, approval }: RunMessageBodyProps) {
+export function RunMessageBody({ state, streamLost, retry, sourceCount, outputs, approval, text }: RunMessageBodyProps) {
   const working = isActiveStatus(state.status) && state.status !== "awaiting_user" && !streamLost;
   return (
     <>
       <WorkSummary steps={state.steps} sourceCount={sourceCount} working={working} />
       <RunNotices notices={state.notices} />
       {outputs}
-      <AgentText text={state.text} streaming={working && state.status === "running"} />
+      <AgentText text={text ?? state.text} streaming={working && state.status === "running"} />
       {streamLost ? (
         <RunNote>Live updates stopped. Reload the page to see the latest progress.</RunNote>
       ) : null}

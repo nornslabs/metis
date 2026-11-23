@@ -35,7 +35,8 @@ import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
 import { outputStarts } from "@/lib/events/output-starts";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { stepCounter } from "@/lib/events/work-summary";
-import { buildInterviewThread } from "@/lib/interview/thread";
+import { countQuestions, splitSegments } from "@/lib/interview/segments";
+import { buildInterviewThread, groupByRun } from "@/lib/interview/thread";
 import { answerSchema, pickValue, textValue, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
 import { acceptedFor } from "@/lib/scores/decision";
 import { useReportRunBusy } from "@/lib/workspace/run-activity";
@@ -143,9 +144,16 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
   const interrupt = state.interrupt;
   const seq = state.interruptCount;
   const thread = useMemo(
-    () => buildInterviewThread({ turns: turns.data ?? [], interrupt, interruptSeq: seq, sent: answers.sent }),
-    [turns.data, interrupt, seq, answers.sent],
+    () => buildInterviewThread({ runId: run.id, turns: turns.data ?? [], interrupt, interruptSeq: seq, sent: answers.sent }),
+    [run.id, turns.data, interrupt, seq, answers.sent],
   );
+  // Each earlier run keeps its own questions; the live run takes the rest, so none are lost.
+  const byRun = useMemo(() => groupByRun(thread.messages), [thread.messages]);
+  const liveInterview = useMemo(() => {
+    const earlier = new Set(history.map((past) => past.id));
+    return thread.messages.filter((message) => !earlier.has(message.runId));
+  }, [thread.messages, history]);
+  const liveText = useMemo(() => splitSegments(state.segments, countQuestions(liveInterview)), [state.segments, liveInterview]);
   const researchDone = finishedResearchSteps(state);
   const specReviewId = interrupt?.kind === "spec_review" ? interrupt.specVersionId : null;
   useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId, specReviewId);
@@ -248,11 +256,17 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
       owl={owl}
       sentCount={answers.sent.length + answers.decisions.length + answers.adviceChoices.length}
       scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}:${history.length}`}
-      interview={<InterviewMessages messages={thread.messages} />}
+      interview={<InterviewMessages messages={liveInterview} leads={liveText.leads} />}
       turns={
         <>
           {history.map((past) => (
-            <PastRunTurn key={past.id} idea={idea} run={past} showOutputs={past.id === outputsRunId} />
+            <PastRunTurn
+              key={past.id}
+              idea={idea}
+              run={past}
+              interview={byRun.get(past.id) ?? []}
+              showOutputs={past.id === outputsRunId}
+            />
           ))}
           {run.user_prompt ? <UserBubble text={run.user_prompt} /> : null}
         </>
@@ -276,6 +290,7 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
       body={
         <RunMessageBody
           state={state}
+          text={liveText.tail}
           streamLost={streamLost}
           sourceCount={sourceCount}
           retry={<StartRunButton label="Retry" pending={starting} onClick={() => start()} blocked={gate.llmBlock !== null} />}
