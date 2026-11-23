@@ -3,11 +3,14 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import { OutputCard } from "@/components/chat/output-card";
+import { usePlanOutput } from "@/components/chat/use-plan-output";
 import { LoadFailure } from "@/components/panel/load-failure";
 import { ScorePaneBody, ScorePaneFooter } from "@/components/panel/score-pane";
 import { SuggestionsPaneBody, SuggestionsPaneFooter } from "@/components/panel/suggestions-pane";
 import { ResearchPaneBody, ResearchPaneFooter } from "@/components/panel/research-pane";
 import { SpecPaneBody, SpecPaneFooter } from "@/components/panel/spec-pane";
+import type { PhaseReviewInterrupt } from "@/lib/events/schemas";
+import type { PlanSummary } from "@/lib/plan/view";
 import { useResearch } from "@/lib/api/queries/use-research";
 import { useSpec } from "@/lib/api/queries/use-spec";
 import { SourceIndexProvider } from "@/lib/research/source-context";
@@ -34,9 +37,19 @@ interface OutputCardsProps {
   researchStarted: boolean;
   /** True once the run can have a spec (the Architect started, the spec is awaiting review, or the idea is past it). */
   specStarted: boolean;
+  /** True once the run can have phases or a plan (the Planner started, a review is pending, or the idea is past it). */
+  planStarted: boolean;
+  runId: string;
+  runStatus: string;
+  /** The `phase_review` interrupt the run waits on, or null. */
+  phaseReview: PhaseReviewInterrupt | null;
 }
 
-const AUTO_OPEN_ORDER = ["score", "suggestions", "spec"] as const;
+function planMeta(summary: PlanSummary): string {
+  return `${countOf(summary.phases, "phase")} · ${summary.points} pts · critical path ${summary.criticalPoints} pts`;
+}
+
+const AUTO_OPEN_ORDER = ["score", "suggestions", "spec", "plan"] as const;
 type AutoOpenPane = (typeof AUTO_OPEN_ORDER)[number];
 
 /**
@@ -67,7 +80,18 @@ function useAutoOpen(ideaId: string, arrived: Readonly<Record<AutoOpenPane, bool
  * One numbered source index (research, then the score's evidence) is shared by the Score and
  * Research panes, so a chip means the same source in both.
  */
-export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, researchStarted, specStarted }: OutputCardsProps) {
+export function OutputCards({
+  ideaId,
+  ideaTitle,
+  runActive,
+  scoringStarted,
+  researchStarted,
+  specStarted,
+  planStarted,
+  runId,
+  runStatus,
+  phaseReview,
+}: OutputCardsProps) {
   const { latest, score, suggestions, versions, newestSuggestions } = useScoreOutputs(ideaId);
   const research = useResearch(ideaId, researchStarted);
   const { pane, outputOpen, openOutput } = useWorkspacePanels();
@@ -84,6 +108,8 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
     window.addEventListener("pagehide", flush);
     return () => window.removeEventListener("pagehide", flush);
   }, [specEditor]);
+
+  const plan = usePlanOutput({ ideaId, runId, runStatus, planStarted, phaseReview });
 
   const current = score ? versions.find((version) => version.id === score.id) : undefined;
   const view = research.data ?? null;
@@ -169,8 +195,8 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
   const suggestionsArrived = newestSuggestions.length > 0 && (suggestionsLive.arrived || (scoreWasLive && suggestionsSettled));
   const specLive = useLiveArrival(ideaId, specData !== undefined, specData?.latest != null);
   const arrived = useMemo(
-    () => ({ score: scoreLive.arrived, suggestions: suggestionsArrived, spec: specLive.arrived }),
-    [scoreLive.arrived, suggestionsArrived, specLive.arrived],
+    () => ({ score: scoreLive.arrived, suggestions: suggestionsArrived, spec: specLive.arrived, plan: plan.arrived }),
+    [scoreLive.arrived, suggestionsArrived, specLive.arrived, plan.arrived],
   );
   useAutoOpen(ideaId, arrived);
 
@@ -218,6 +244,15 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
           title={specLocked ? `Spec v${specNumber}` : `Spec draft v${specNumber}`}
           meta={specLocked ? "Confirmed" : specState.latest?.source === "user" ? "Draft · edited" : "Draft"}
           open={isOpen("spec")}
+          onOpen={openOutput}
+        />
+      ) : null}
+      {plan.present ? (
+        <OutputCard
+          pane="plan"
+          title={plan.view ? `Plan · ${countOf(plan.view.summary.tasks, "task")}` : `Phases · ${plan.phaseCount}`}
+          meta={plan.view ? planMeta(plan.view.summary) : "Review"}
+          open={isOpen("plan")}
           onOpen={openOutput}
         />
       ) : null}

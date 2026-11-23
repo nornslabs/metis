@@ -4,7 +4,7 @@ import type { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { hasOptions } from "@/lib/chat/choice";
 import { dockMode, type DockMode } from "@/lib/chat/dock-mode";
 import type { RunState } from "@/lib/events/reducer";
-import type { AdviceInterrupt, ApprovalInterrupt, SpecReviewInterrupt } from "@/lib/events/schemas";
+import type { AdviceInterrupt, ApprovalInterrupt, PhaseReviewInterrupt, SpecReviewInterrupt } from "@/lib/events/schemas";
 
 type Answers = ReturnType<typeof useAnswerActions>;
 
@@ -35,6 +35,7 @@ export function useRunPrompts({ state, streamLost, turnsPending, pendingQuestion
   const advice: AdviceInterrupt | null =
     awaiting && interrupt?.kind === "advice_decision" && !adviceDecided ? interrupt : null;
   const specReview: SpecReviewInterrupt | null = awaiting && interrupt?.kind === "spec_review" ? interrupt : null;
+  const phaseReview: PhaseReviewInterrupt | null = awaiting && interrupt?.kind === "phase_review" ? interrupt : null;
   const answeredHere = answers.sent.some((entry) => entry.seq === seq) || decided || adviceDecided;
 
   const mode: DockMode = dockMode({
@@ -44,5 +45,5 @@ export function useRunPrompts({ state, streamLost, turnsPending, pendingQuestion
     typingOther: otherSeq === seq,
     answered: answeredHere,
   });
-  return { awaiting, question, offered, approval, advice, specReview, answeredHere, mode };
+  return { awaiting, question, offered, approval, advice, specReview, phaseReview, answeredHere, mode };
 }
