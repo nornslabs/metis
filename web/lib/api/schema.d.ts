@@ -1208,12 +1208,13 @@ export interface components {
         ProviderKeys: {
             exa?: components["schemas"]["ProviderKeyView"] | null;
             llm?: components["schemas"]["ProviderKeyView"] | null;
+            sarvam?: components["schemas"]["ProviderKeyView"] | null;
         };
         /**
          * ProviderKind
          * @enum {string}
          */
-        ProviderKind: "llm" | "exa";
+        ProviderKind: "llm" | "exa" | "sarvam";
         /**
          * PutProviderKeyRequest
          * @description Body of ``PUT /v1/settings/keys/{kind}``; the service validates it.
@@ -1587,6 +1588,8 @@ export interface components {
             max_steps?: number | null;
             /** Run Budget Usd */
             run_budget_usd?: number | string | null;
+            /** Stt Provider */
+            stt_provider?: string | null;
             /** Version */
             version: number;
         };
@@ -1844,13 +1847,15 @@ export interface components {
         };
         /**
          * WorkspaceSettingsView
-         * @description Run limits; ``version`` 0 means defaults that were never saved.
+         * @description Run limits and STT settings; ``version`` 0 means defaults that were never saved.
          */
         WorkspaceSettingsView: {
             /** Max Steps */
             max_steps: number;
             /** Run Budget Usd */
             run_budget_usd: number;
+            /** Stt Provider */
+            stt_provider: string;
             /** Version */
             version: number;
         };
