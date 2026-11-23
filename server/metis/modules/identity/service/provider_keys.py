@@ -159,7 +159,7 @@ async def _saved_key(
 
 
 def _credentials(row: ProviderKeyRow, workspace_id: UUID) -> ProviderCredentials:
-    api_key = crypto.decrypt(repo.provider_keys.seal_from_json(row.sealed), workspace_id)
+    api_key = crypto.decrypt(crypto.seal_from_json(row.sealed), workspace_id)
     return ProviderCredentials(
         kind=ProviderKind(row.kind), api_key=api_key, base_url=row.base_url, model=row.model
     )

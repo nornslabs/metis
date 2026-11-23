@@ -33,7 +33,7 @@ def test_the_migration_chain_has_one_head() -> None:
     config.set_main_option("script_location", str(SERVER / "migrations"))
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == ["0022_ideas_activity_index"]
+    assert script.get_heads() == ["0023_integrations"]
 
 
 async def test_every_planning_table_has_row_level_security(engine: AsyncEngine) -> None:

@@ -490,6 +490,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Integrations
+         * @description Each provider's connection status in the current workspace.
+         */
+        get: operations["list_integrations_v1_integrations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect
+         * @description Disconnect the provider (owners only).
+         */
+        delete: operations["disconnect_v1_integrations__provider__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Callback
+         * @description Finish the OAuth flow and return to the web app. Any failure stores nothing.
+         */
+        get: operations["callback_v1_integrations__provider__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect
+         * @description Start the OAuth flow (owners only); the web sends the browser to ``authorize_url``.
+         */
+        post: operations["connect_v1_integrations__provider__connect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tools
+         * @description The tools the connected server offers. An expired connection is returned as a 409
+         *     problem, not raised, so the ``expired`` mark still commits.
+         */
+        get: operations["list_tools_v1_integrations__provider__tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans/{plan_id}/phases": {
         parameters: {
             query?: never;
@@ -884,6 +985,19 @@ export interface components {
             number: number;
         };
         /**
+         * ConnectRequest
+         * @description Body of ``POST /v1/integrations/{provider}/connect``.
+         */
+        ConnectRequest: {
+            /** Redirect To */
+            redirect_to?: string | null;
+        };
+        /** ConnectStarted */
+        ConnectStarted: {
+            /** Authorize Url */
+            authorize_url: string;
+        };
+        /**
          * CreateWorkspaceRequest
          * @description Body of ``POST /v1/workspaces``; the service validates and trims ``name``.
          */
@@ -1057,6 +1171,44 @@ export interface components {
         IdeaScoreSummaryList: {
             /** Items */
             items: components["schemas"]["IdeaScoreSummary"][];
+        };
+        /** IntegrationList */
+        IntegrationList: {
+            /** Items */
+            items: components["schemas"]["IntegrationView"][];
+        };
+        /**
+         * IntegrationProvider
+         * @description MCP providers; matches the ``mcp_connections.provider`` CHECK.
+         * @enum {string}
+         */
+        IntegrationProvider: "linear" | "notion";
+        /**
+         * IntegrationStatus
+         * @description What a member sees: a revoked connection reads as ``not_connected``.
+         * @enum {string}
+         */
+        IntegrationStatus: "not_connected" | "connected" | "expired";
+        /**
+         * IntegrationView
+         * @description One provider's connection as members see it. Never carries a token or a secret.
+         */
+        IntegrationView: {
+            /** Connected At */
+            connected_at?: string | null;
+            /** Connected By */
+            connected_by?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            provider: components["schemas"]["IntegrationProvider"];
+            /** Scopes */
+            scopes?: string[];
+            status: components["schemas"]["IntegrationStatus"];
+            /**
+             * Version
+             * @default 0
+             */
+            version: number;
         };
         /**
          * InterviewTopic
@@ -1832,6 +1984,21 @@ export interface components {
             position: number;
             /** Title */
             title: string;
+        };
+        /**
+         * ToolInfo
+         * @description One tool a server offers.
+         */
+        ToolInfo: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /** ToolList */
+        ToolList: {
+            /** Items */
+            items: components["schemas"]["ToolInfo"][];
         };
         /**
          * TurnSource
@@ -2773,6 +2940,178 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SuggestionList"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_integrations_v1_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_v1_integrations__provider__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    callback_v1_integrations__provider__callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connect_v1_integrations__provider__connect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tools_v1_integrations__provider__tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolList"];
+                };
+            };
+            /** @description Not connected, or expired */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {
