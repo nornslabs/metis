@@ -12,8 +12,11 @@
 
 - [x] `SarvamSTTProvider.transcribe(blob)`: POSTs blob to Sarvam, returns `Promise<string>` — implemented in providers.ts (ticket 01)
 - [x] `WebSpeechSTTProvider.transcribe(blob)`: uses `SpeechRecognition`, returns transcript — implemented in providers.ts (ticket 01)
-- [x] Factory auto-selects: `SARVAM_API_KEY` set → Sarvam; otherwise → Web Speech API — factory.ts (ticket 01)
+- [x] Factory auto-selects: `SARVAM_API_KEY` set → Sarvam; otherwise → Web Speech API — factory.ts checks key presence directly
 - [x] Sarvam missing key → throws clear config error at factory init — factory.ts + config.server.ts z.refine (ticket 01)
 - [x] Web Speech unavailable (Firefox, etc.) → throws clear error — providers.ts + client.test.ts
 - [x] Client-side provider: `getSTTClientProvider()` returns `WebSpeechSTTProvider` for browser use — config.ts + client.test.ts
 - [x] Tests: mock provider used; unknown/unsupported provider errors covered; provider switching via env — factory.test.ts, client.test.ts, voice-integration.test.ts
+- [x] Real audio levels via AnalyserNode in VoiceRecorder (not fake blob-size level)
+- [x] Toast on error via useEffect, not during render
+- [x] No hardcoded UI strings — VOICE_STRINGS constants

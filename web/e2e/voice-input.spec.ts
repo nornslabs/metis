@@ -58,6 +58,21 @@ test.describe("voice input", () => {
     await expect(page.locator("textarea[name=\"text\"]")).not.toBeEmpty({ timeout: 5000 });
   });
 
+  test("happy path: speak → transcript → submit → agent responds", async ({ page }) => {
+    await page.goto("/");
+    await page.getByLabel("Your idea").fill("Voice happy path");
+    await page.getByRole("button", { name: "Start" }).click();
+    await page.waitForURL(/^\/ideas\//);
+    await page.getByRole("button", { name: /Start voice recording/ }).click();
+    await page.getByRole("button", { name: /Stop recording/ }).click();
+    // Transcript should appear in the input field
+    await expect(page.locator("textarea[name=\"text\"]")).not.toBeEmpty({ timeout: 5000 });
+    // Submit via Enter
+    await page.locator("textarea[name=\"text\"]").press("Enter");
+    // Agent should respond — look for assistant message bubble or agent text
+    await expect(page.getByText(/agent|metis|response|answer/i).first()).toBeVisible({ timeout: 15000 });
+  });
+
   test("STT error shows Transcription failed toast", async ({ page }) => {
     await page.goto("/");
     await page.getByLabel("Your idea").fill("STT error test");

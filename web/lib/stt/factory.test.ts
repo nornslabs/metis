@@ -67,6 +67,13 @@ describe("getSTTProvider", () => {
     expect(provider).toBeInstanceOf(SarvamSTTProvider);
   });
 
+  it("auto-selects SarvamSTTProvider when SARVAM_API_KEY set (even if STT_PROVIDER=web-speech)", () => {
+    process.env.STT_PROVIDER = "web-speech";
+    process.env.SARVAM_API_KEY = "sk-test-key";
+    const provider = getSTTProvider();
+    expect(provider).toBeInstanceOf(SarvamSTTProvider);
+  });
+
   it("returns a WebSpeechSTTProvider instance when provider is web-speech", () => {
     process.env.STT_PROVIDER = "web-speech";
     const provider = getSTTProvider();

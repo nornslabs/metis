@@ -1,12 +1,18 @@
 /** VoiceRecorder manages MediaRecorder lifecycle for voice input.
  *
- * Platform-agnostic: no React, no DOM assumptions beyond `navigator.mediaDevices`
- * and `MediaRecorder` globals. Returns a `Blob` (WebM/Opus) on stop.
+ * Platform-agnostic: no React, no DOM assumptions beyond `navigator.mediaDevices`,
+ * `MediaRecorder`, and `AudioContext` globals. Returns a `Blob` (WebM/Opus) on stop.
  *
  * Options:
  * - `silenceTimeoutMs`: auto-stop after this many ms of no audio data (default: no auto-stop)
  * - `mimeType`: preferred MIME type for MediaRecorder (default: "audio/webm")
  */
+declare global {
+  interface Window {
+    webkitAudioContext?: typeof AudioContext;
+  }
+}
+
 export interface VoiceRecorderOptions {
   silenceTimeoutMs?: number;
   mimeType?: string;
@@ -22,7 +28,10 @@ export interface VoiceRecorderState {
 export class VoiceRecorder {
   private mediaRecorder: MediaRecorder | null = null;
   private mediaStream: MediaStream | null = null;
+  private audioContext: AudioContext | null = null;
+  private analyser: AnalyserNode | null = null;
   private silenceTimer: ReturnType<typeof setTimeout> | null = null;
+  private rafId: ReturnType<typeof requestAnimationFrame> | null = null;
   private chunks: Blob[] = [];
   private resolveStop: ((blob: Blob | null) => void) | null = null;
 
@@ -47,7 +56,7 @@ export class VoiceRecorder {
   get blob() { return this._blob; }
   get audioLevel() { return this._audioLevel; }
 
-  /** Start recording: request mic permission, create MediaRecorder, begin capturing. */
+  /** Start recording: request mic permission, create MediaRecorder + AnalyserNode, begin capturing. */
   async start(): Promise<void> {
     this._error = null;
     this._blob = null;
@@ -62,6 +71,22 @@ export class VoiceRecorder {
       return;
     }
 
+    // Build an AnalyserNode for real-time audio levels
+    try {
+      this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      if (this.audioContext.state === "suspended") {
+        await this.audioContext.resume();
+      }
+      this.analyser = this.audioContext.createAnalyser();
+      this.analyser.fftSize = 2048;
+      const source = this.audioContext.createMediaStreamSource(this.mediaStream);
+      source.connect(this.analyser);
+    } catch {
+      // Analyser is optional — audio level meter will show 0 if unavailable
+      this.audioContext = null;
+      this.analyser = null;
+    }
+
     const mimeType = this.options.mimeType ?? "audio/webm";
     const options = MediaRecorder.isTypeSupported?.(mimeType) ? { mimeType } : undefined;
 
@@ -70,8 +95,6 @@ export class VoiceRecorder {
     this.mediaRecorder.ondataavailable = (event) => {
       if (event.data && event.data.size > 0) {
         this.chunks.push(event.data);
-        // Rough audio level from blob size (bigger chunk = louder)
-        this._audioLevel = Math.min(event.data.size / 1000, 1);
         this._scheduleSilenceReset();
       }
     };
@@ -88,6 +111,7 @@ export class VoiceRecorder {
 
     this.mediaRecorder.start();
     this._recording = true;
+    this._startLevelPolling();
   }
 
   /** Stop recording: finalize, release mic tracks, return the captured Blob. */
@@ -100,6 +124,24 @@ export class VoiceRecorder {
       this.resolveStop = resolve;
       this.mediaRecorder!.stop();
     });
+  }
+
+  private _startLevelPolling() {
+    if (!this.analyser || !this.audioContext) return;
+    const data = new Uint8Array(this.analyser.frequencyBinCount);
+    const poll = () => {
+      if (!this._recording) return;
+      this.analyser!.getByteFrequencyData(data);
+      // Average volume from frequency data (0-255), normalized to 0-1
+      let sum = 0;
+      for (let i = 0; i < data.length; i++) {
+        sum += data[i];
+      }
+      const avg = sum / data.length / 255;
+      this._audioLevel = Math.round(avg * 100) / 100;
+      this.rafId = requestAnimationFrame(poll);
+    };
+    poll();
   }
 
   private _scheduleSilenceReset() {
@@ -136,6 +178,15 @@ export class VoiceRecorder {
       clearTimeout(this.silenceTimer);
       this.silenceTimer = null;
     }
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    if (this.audioContext) {
+      this.audioContext.close();
+      this.audioContext = null;
+    }
+    this.analyser = null;
     this.mediaStream?.getTracks().forEach((track) => track.stop());
     this.mediaStream = null;
     this.mediaRecorder = null;

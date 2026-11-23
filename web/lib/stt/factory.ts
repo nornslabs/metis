@@ -5,32 +5,25 @@ import { WebSpeechSTTProvider } from "./providers";
 import type { STTProvider } from "./types";
 export type { STTProvider };
 
-/** Factory: returns the STT provider configured by STT_PROVIDER env.
+/** Factory: returns the STT provider based on env configuration.
  *
  * Provider selection:
- * - `sarvam`    -> SarvamSTTProvider (requires SARVAM_API_KEY)
- * - `web-speech` -> WebSpeechSTTProvider (free, browser built-in)
- * - `mock`      -> MockSTTProvider (tests only)
+ * - `STT_PROVIDER=mock`     -> MockSTTProvider (tests only)
+ * - `SARVAM_API_KEY` set    -> SarvamSTTProvider (requires SARVAM_API_KEY)
+ * - otherwise               -> WebSpeechSTTProvider (free, browser built-in)
  *
  * Throws a clear error for unknown providers or missing credentials.
  */
 export function getSTTProvider(): STTProvider {
   const config = getSTTServerConfig();
 
-  switch (config.provider) {
-    case "mock":
-      return new MockSTTProvider();
-    case "web-speech":
-      return new WebSpeechSTTProvider();
-    case "sarvam":
-      if (!config.sarvamApiKey) {
-        throw new Error(
-          "SARVAM_API_KEY is required when STT_PROVIDER=sarvam. Set SARVAM_API_KEY in .env, or use STT_PROVIDER=web-speech for a free fallback.",
-        );
-      }
-      return new SarvamSTTProvider(config.sarvamApiKey);
-    default:
-      const _exhaustive: never = config.provider;
-      throw new Error(`Unknown STT provider: ${config.provider}`);
+  if (config.provider === "mock") {
+    return new MockSTTProvider();
   }
+
+  if (config.sarvamApiKey) {
+    return new SarvamSTTProvider(config.sarvamApiKey);
+  }
+
+  return new WebSpeechSTTProvider();
 }

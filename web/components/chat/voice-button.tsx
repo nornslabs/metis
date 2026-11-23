@@ -9,6 +9,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useVoiceRecorder } from "@/lib/stt/use-voice-recorder";
 import type { VoiceRecorderOptions } from "@/lib/stt/voice-recorder";
 
+// UI strings extracted for i18n readiness
+const VOICE_STRINGS = {
+  startRecording: "Start voice recording",
+  stopRecording: "Stop recording",
+  micDenied: "Microphone access denied. You can still type.",
+  transcriptionFailed: "Voice input failed. You can still type.",
+  nothingHeard: "Nothing heard. Try again.",
+  notSupported: "Voice input not supported in this browser",
+} as const;
+
 interface VoiceButtonProps {
   /** Called when recording stops with the captured audio blob. */
   onBlob: (blob: Blob) => void;
@@ -23,6 +33,7 @@ interface VoiceButtonProps {
 export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel = false }: VoiceButtonProps) {
   const { recording, error, audioLevel, start, stop } = useVoiceRecorder(options);
   const [webSpeechSupported, setWebSpeechSupported] = useState(true);
+  const [errorToasted, setErrorToasted] = useState(false);
 
   const handleStart = useCallback(async () => {
     await start();
@@ -42,18 +53,41 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
     setWebSpeechSupported(supported);
   }, []);
 
-  // Show error toast on permission deny (only when not recording, to avoid spam)
-  if (error && !recording) {
-    toast.error(
-      error.message.includes("microphone")
-        ? "Microphone access denied. You can still type."
-        : "Voice input failed. You can still type.",
-    );
-  }
+  // Show error toast on permission deny (only once per error, not on every render)
+  useEffect(() => {
+    if (error && !recording && !errorToasted) {
+      toast.error(
+        error.message.includes("microphone")
+          ? VOICE_STRINGS.micDenied
+          : VOICE_STRINGS.transcriptionFailed,
+      );
+      setErrorToasted(true);
+    } else if (!error) {
+      setErrorToasted(false);
+    }
+  }, [error, recording]);
 
-  // Hide button entirely if Web Speech API is not supported
+  // Show button with tooltip when Web Speech API not supported
   if (!webSpeechSupported || disabled) {
-    return null;
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-xs"
+              disabled
+              aria-label={VOICE_STRINGS.notSupported}
+              className="size-6.5 opacity-50 min-h-[44px] min-w-[44px]"
+            />
+          }
+        >
+          <MicOff size={14} strokeWidth={2} />
+        </TooltipTrigger>
+        <TooltipContent>{VOICE_STRINGS.notSupported}</TooltipContent>
+      </Tooltip>
+    );
   }
 
   return (
@@ -66,13 +100,13 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
             size="icon-xs"
             onClick={recording ? handleStop : handleStart}
             disabled={!recording && error !== null}
-            aria-label={recording ? "Stop recording" : "Start voice recording"}
+            aria-label={recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}
             className="size-6.5 min-h-[44px] min-w-[44px]" // ≥44px touch target
           >
             {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
           </Button>
         } />
-        <TooltipContent>{recording ? "Stop recording" : "Start voice recording"}</TooltipContent>
+        <TooltipContent>{recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}</TooltipContent>
       </Tooltip>
       {showAudioLevel && recording && audioLevel > 0 ? (
         <AudioLevelMeter level={audioLevel} />
@@ -81,7 +115,7 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
   );
 }
 
-/** Audio level meter: animated bars that reflect input volume. */
+/** Audio level meter: animated bars that reflect real mic input volume via AnalyserNode. */
 export function AudioLevelMeter({ level }: { level: number }) {
   const bars = Array.from({ length: 5 }, (_, i) => i);
   const height = Math.min(level * 100, 1);
