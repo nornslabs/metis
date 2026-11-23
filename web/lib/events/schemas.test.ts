@@ -167,4 +167,13 @@ describe("parseRunEvent", () => {
     const parsed = parseRunEvent("interrupt", frame("interrupt", payload));
     expect(parsed).toMatchObject({ type: "notice", code: UNREADABLE_PAUSE_CODE });
   });
+
+  test("reads a spec_review interrupt", () => {
+    expect(
+      parseRunEvent("interrupt", frame("interrupt", { type: "spec_review", spec_version_id: "sv1", number: 1, kind: "software" })),
+    ).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "spec_review", text: "sv1", specVersionId: "sv1", number: 1 },
+    });
+  });
 });

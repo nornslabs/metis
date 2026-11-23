@@ -7,9 +7,13 @@ import { LoadFailure } from "@/components/panel/load-failure";
 import { ScorePaneBody, ScorePaneFooter } from "@/components/panel/score-pane";
 import { SuggestionsPaneBody, SuggestionsPaneFooter } from "@/components/panel/suggestions-pane";
 import { ResearchPaneBody, ResearchPaneFooter } from "@/components/panel/research-pane";
+import { SpecPaneBody, SpecPaneFooter } from "@/components/panel/spec-pane";
 import { useResearch } from "@/lib/api/queries/use-research";
+import { useSpec } from "@/lib/api/queries/use-spec";
 import { SourceIndexProvider } from "@/lib/research/source-context";
 import { buildSourceIndex, evidenceSources } from "@/lib/research/sources";
+import { isLocked } from "@/lib/spec/spec-editor";
+import { useSpecEditor, useSpecEditorState } from "@/lib/spec/use-spec-editor";
 import { countOf } from "@/lib/text/count";
 import { useScoreOutputs } from "@/lib/scores/use-score-outputs";
 import { deltaText } from "@/lib/scores/versions";
@@ -28,9 +32,11 @@ interface OutputCardsProps {
   runActive: boolean;
   scoringStarted: boolean;
   researchStarted: boolean;
+  /** True once the run can have a spec (the Architect started, the spec is awaiting review, or the idea is past it). */
+  specStarted: boolean;
 }
 
-const AUTO_OPEN_ORDER = ["score", "suggestions"] as const;
+const AUTO_OPEN_ORDER = ["score", "suggestions", "spec"] as const;
 type AutoOpenPane = (typeof AUTO_OPEN_ORDER)[number];
 
 /**
@@ -61,10 +67,23 @@ function useAutoOpen(ideaId: string, arrived: Readonly<Record<AutoOpenPane, bool
  * One numbered source index (research, then the score's evidence) is shared by the Score and
  * Research panes, so a chip means the same source in both.
  */
-export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, researchStarted }: OutputCardsProps) {
+export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, researchStarted, specStarted }: OutputCardsProps) {
   const { latest, score, suggestions, versions, newestSuggestions } = useScoreOutputs(ideaId);
   const research = useResearch(ideaId, researchStarted);
   const { pane, outputOpen, openOutput } = useWorkspacePanels();
+  const spec = useSpec(ideaId, specStarted);
+  const specEditor = useSpecEditor(ideaId);
+  const specState = useSpecEditorState(specEditor);
+  const specData = spec.data;
+  useEffect(() => {
+    if (specData) specEditor.sync(specData);
+  }, [specData, specEditor]);
+  // Leaving the page inside the autosave delay must not lose the last edit (best effort).
+  useEffect(() => {
+    const flush = () => void specEditor.flush();
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, [specEditor]);
 
   const current = score ? versions.find((version) => version.id === score.id) : undefined;
   const view = research.data ?? null;
@@ -124,7 +143,23 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
   );
   useRegisterOutput("score", scoreOutput, ideaId);
   useRegisterOutput("suggestions", suggestionsOutput, ideaId);
+  const specNumber = specState.latest?.number ?? null;
+  const specId = specState.latest?.id ?? null;
+  const specLocked = isLocked(specState);
+  const specOutput = useMemo<PaneOutput | null>(
+    () =>
+      specNumber === null || specId === null
+        ? null
+        : {
+            version: specId,
+            count: specLocked ? `v${specNumber} ✓` : `v${specNumber}`,
+            body: <SpecPaneBody ideaId={ideaId} />,
+            footer: <SpecPaneFooter ideaId={ideaId} />,
+          },
+    [specNumber, specId, specLocked, ideaId],
+  );
   useRegisterOutput("research", researchOutput, ideaId);
+  useRegisterOutput("spec", specOutput, ideaId);
 
   // Live outputs open the panel once. The suggestions count as live too when the score was.
   const scoreLive = useLiveArrival(ideaId, !latest.isPending, score !== null);
@@ -132,7 +167,11 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
   const scoreWasLive = scoreLive.startedAbsent === true;
   const suggestionsSettled = suggestionsLive.startedAbsent !== null;
   const suggestionsArrived = newestSuggestions.length > 0 && (suggestionsLive.arrived || (scoreWasLive && suggestionsSettled));
-  const arrived = useMemo(() => ({ score: scoreLive.arrived, suggestions: suggestionsArrived }), [scoreLive.arrived, suggestionsArrived]);
+  const specLive = useLiveArrival(ideaId, specData !== undefined, specData?.latest != null);
+  const arrived = useMemo(
+    () => ({ score: scoreLive.arrived, suggestions: suggestionsArrived, spec: specLive.arrived }),
+    [scoreLive.arrived, suggestionsArrived, specLive.arrived],
+  );
   useAutoOpen(ideaId, arrived);
 
   const isOpen = (name: OutputPane) => outputOpen && pane === name;
@@ -170,6 +209,15 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
           title="Research"
           meta={`${countOf(sourceIndex.entries.length, "source")} · ${countOf(view.competitors.length, "competitor")}`}
           open={isOpen("research")}
+          onOpen={openOutput}
+        />
+      ) : null}
+      {specNumber !== null ? (
+        <OutputCard
+          pane="spec"
+          title={specLocked ? `Spec v${specNumber}` : `Spec draft v${specNumber}`}
+          meta={specLocked ? "Confirmed" : specState.latest?.source === "user" ? "Draft · edited" : "Draft"}
+          open={isOpen("spec")}
           onOpen={openOutput}
         />
       ) : null}
