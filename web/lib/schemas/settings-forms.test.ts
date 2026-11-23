@@ -5,8 +5,10 @@ import { isValidBudget, isValidSteps, keysFormSchema, workspaceNameSchema } from
 const valid = {
   llm: { base_url: "", model: "", value: "" },
   exa: { value: "" },
+  sarvam: { value: "" },
   run_budget_usd: "2.00",
   max_steps: "50",
+  stt_provider: "web-speech",
 };
 
 function issuePaths(input: unknown): string[] {

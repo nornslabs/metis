@@ -15,10 +15,11 @@ import { useSettings } from "@/lib/api/queries/use-settings";
 import type { components } from "@/lib/api/schema";
 import { keysFormSchema, type KeysFormValues } from "@/lib/schemas/settings-forms";
 
-import { ExaKeyFields, LlmKeyFields } from "./key-fields";
+import { ExaKeyFields, LlmKeyFields, SarvamKeyFields } from "./key-fields";
 import { RunLimitsFields } from "./run-limits-fields";
 import { SettingsFooter } from "./settings-footer";
 import { SettingsGroup } from "./settings-field";
+import { SttProviderField } from "./stt-provider-field";
 
 type SettingsResponse = components["schemas"]["SettingsResponse"];
 
@@ -27,11 +28,15 @@ const CONFLICT_NOTICE = "Settings changed elsewhere; reloaded.";
 const BUDGET_DECIMALS = 2;
 
 function formValuesOf(settings: SettingsResponse): KeysFormValues {
+  const s = settings.settings as SettingsResponse["settings"] & { stt_provider: string };
+  const k = settings.keys as SettingsResponse["keys"] & { sarvam: components["schemas"]["ProviderKeyView"] | null | undefined };
   return {
     llm: { base_url: "", model: "", value: "" },
     exa: { value: "" },
-    run_budget_usd: settings.settings.run_budget_usd.toFixed(BUDGET_DECIMALS),
-    max_steps: String(settings.settings.max_steps),
+    sarvam: { value: "" },
+    run_budget_usd: s.run_budget_usd.toFixed(BUDGET_DECIMALS),
+    max_steps: String(s.max_steps),
+    stt_provider: s.stt_provider,
   };
 }
 
@@ -67,6 +72,7 @@ type KeysFormProps = {
 function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormProps) {
   const [replacingLlm, setReplacingLlm] = useState(false);
   const [replacingExa, setReplacingExa] = useState(false);
+  const [replacingSarvam, setReplacingSarvam] = useState(false);
   const saveKey = useSaveKey();
   const updateSettings = useUpdateSettings();
   const [formError, setFormError] = useState<string | null>(null);
@@ -84,7 +90,7 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
     setFormError(null);
     onNotice(null);
     // The key being saved: the API names its fields `base_url`, the form nests them as `llm.base_url`.
-    let savingKind: "llm" | "exa" | null = null;
+    let savingKind: "llm" | "exa" | "sarvam" | null = null;
     try {
       if (values.llm.value.trim() !== "") {
         savingKind = "llm";
@@ -101,23 +107,32 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
         savingKind = "exa";
         await saveKey.mutateAsync({ kind: "exa", body: { value: values.exa.value.trim() } });
       }
+      if (values.sarvam.value.trim() !== "") {
+        savingKind = "sarvam";
+        await saveKey.mutateAsync({ kind: "sarvam" as unknown as components["schemas"]["ProviderKind"], body: { value: values.sarvam.value.trim() } });
+      }
       savingKind = null;
-      if (dirtyFields.run_budget_usd || dirtyFields.max_steps) {
+      if (dirtyFields.run_budget_usd || dirtyFields.max_steps || dirtyFields.stt_provider) {
         await updateSettings.mutateAsync({
           version: settings.settings.version,
           run_budget_usd: Number(values.run_budget_usd).toFixed(BUDGET_DECIMALS),
           max_steps: Number(values.max_steps),
-        });
+          stt_provider: values.stt_provider,
+        } as never);
       }
       // Secrets are never kept: inputs empty, the saved key shows masked.
       reset({
         ...values,
         llm: { base_url: "", model: "", value: "" },
         exa: { value: "" },
+        sarvam: { value: "" },
         run_budget_usd: Number(values.run_budget_usd).toFixed(BUDGET_DECIMALS),
+        max_steps: String(settings.settings.max_steps),
+        stt_provider: (settings.settings as unknown as { stt_provider: string }).stt_provider,
       });
       setReplacingLlm(false);
       setReplacingExa(false);
+      setReplacingSarvam(false);
       toast.success("Settings saved");
     } catch (error) {
       if (!isApiError(error)) throw error;
@@ -163,6 +178,21 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
                 canWrite={canWrite}
                 replacing={replacingExa}
                 onReplacingChange={setReplacingExa}
+              />
+            </SettingsGroup>
+            <SettingsGroup title="Speech-to-text">
+              <SarvamKeyFields
+                view={(settings.keys as { sarvam: components["schemas"]["ProviderKeyView"] | null | undefined }).sarvam}
+                canWrite={canWrite}
+                replacing={replacingSarvam}
+                onReplacingChange={setReplacingSarvam}
+              />
+            </SettingsGroup>
+            <SettingsGroup title="STT provider">
+              <SttProviderField
+                value={(settings.settings as unknown as { stt_provider: string }).stt_provider}
+                canWrite={canWrite}
+                onChange={(value) => form.setValue("stt_provider", value)}
               />
             </SettingsGroup>
             <SettingsGroup title="Run limits">

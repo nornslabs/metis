@@ -157,3 +157,51 @@ export function ExaKeyFields({ view, canWrite, replacing, onReplacingChange }: K
     </div>
   );
 }
+
+/** The Sarvam speech-to-text API key; write-only like the Exa key. */
+export function SarvamKeyFields({ view, canWrite, replacing, onReplacingChange }: KeyFieldsProps) {
+  const { register, resetField, formState } = useFormContext<KeysFormValues>();
+  const error = formState.errors.sarvam?.value?.message;
+
+  if (view && !replacing) {
+    return (
+      <SavedKey kind={"sarvam" as unknown as components["schemas"]["ProviderKind"]} view={view} canWrite={canWrite} onReplace={() => onReplacingChange(true)} />
+    );
+  }
+  if (!canWrite) return <NotSet />;
+
+  return (
+    <div className="grid gap-2.5">
+      <Field
+        id="sarvam-key"
+        label="Sarvam API key"
+        hint="Encrypted on save and never shown again."
+        error={error}
+      >
+        <Input
+          id="sarvam-key"
+          type="password"
+          autoComplete="off"
+          placeholder="Paste your Sarvam key"
+          aria-invalid={error ? true : undefined}
+          className={MONO_INPUT}
+          {...register("sarvam.value")}
+        />
+      </Field>
+      {view ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="justify-self-start"
+          onClick={() => {
+            resetField("sarvam");
+            onReplacingChange(false);
+          }}
+        >
+          Keep the saved key
+        </Button>
+      ) : null}
+    </div>
+  );
+}

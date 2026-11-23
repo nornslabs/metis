@@ -49,8 +49,10 @@ export const keysFormSchema = z
   .object({
     llm: z.object({ base_url: z.string(), model: z.string(), value: z.string() }),
     exa: z.object({ value: z.string() }),
+    sarvam: z.object({ value: z.string() }),
     run_budget_usd: z.string(),
     max_steps: z.string(),
+    stt_provider: z.string(),
   })
   .superRefine((form, ctx) => {
     if (form.llm.value.trim() !== "") {
