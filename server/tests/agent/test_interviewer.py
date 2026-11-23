@@ -135,7 +135,9 @@ async def test_the_interview_asks_adapts_and_hands_over_to_research(
     await _answer_all(ctx, run, [A_PROBLEM, "It reminds them.", "Them, $9.", "Yes."])
 
     assert first.status == "awaiting_user"
-    assert first.pending_interrupt == {"type": "question", "question": Q_PROBLEM}
+    assert first.pending_interrupt is not None
+    assert first.pending_interrupt.items() >= {"type": "question", "question": Q_PROBLEM}.items()
+    assert first.pending_interrupt["options"] == []  # no options offered for an open question
     assert await _questions(redis, run) == [Q_PROBLEM, Q_SOLUTION, Q_PAYMENT, Q_FEASIBILITY]
     assert A_PROBLEM in llm.shown(2)  # the model saw the answer before adapting
     assert await _turns(engine, run) == [
