@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { EdgeToggle } from "@/components/chat/edge-toggle";
 import { HistoryPanel } from "@/components/history/history-panel";
 import { OutputPanel } from "@/components/panel/output-panel";
+import { SourceNavProvider } from "@/lib/research/source-context";
 import { OutputRegistryProvider } from "@/lib/workspace/output-registry";
 import { RunActivityProvider } from "@/lib/workspace/run-activity";
 import { useNarrow } from "@/lib/workspace/use-narrow";
@@ -55,7 +56,9 @@ export function WorkspaceLayout({ children }: { children: ReactNode }) {
     <OutputRegistryProvider>
       <RunActivityProvider>
         <WorkspacePanelsProvider>
-          <WorkspaceRow>{children}</WorkspaceRow>
+          <SourceNavProvider>
+            <WorkspaceRow>{children}</WorkspaceRow>
+          </SourceNavProvider>
         </WorkspacePanelsProvider>
       </RunActivityProvider>
     </OutputRegistryProvider>

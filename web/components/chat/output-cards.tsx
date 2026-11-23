@@ -6,8 +6,10 @@ import { OutputCard } from "@/components/chat/output-card";
 import { LoadFailure } from "@/components/panel/load-failure";
 import { ScorePaneBody, ScorePaneFooter } from "@/components/panel/score-pane";
 import { SuggestionsPaneBody, SuggestionsPaneFooter } from "@/components/panel/suggestions-pane";
-import { ResearchSection } from "@/components/research/research-section";
+import { ResearchPaneBody, ResearchPaneFooter } from "@/components/panel/research-pane";
 import { useResearch } from "@/lib/api/queries/use-research";
+import { SourceIndexProvider } from "@/lib/research/source-context";
+import { buildSourceIndex, evidenceSources } from "@/lib/research/sources";
 import { countOf } from "@/lib/text/count";
 import { useScoreOutputs } from "@/lib/scores/use-score-outputs";
 import { deltaText } from "@/lib/scores/versions";
@@ -55,8 +57,9 @@ function useAutoOpen(ideaId: string, arrived: Readonly<Record<AutoOpenPane, bool
 
 /**
  * The outputs of a run as one-line cards in the chat, and the registration of their panes in the
- * output panel. The reports never render in the chat. Score and Suggestions have their own panes;
- * Research stays the existing view in a padded body until SHIP-291.
+ * output panel. The reports never render in the chat. Each pane registers its own body and footer.
+ * One numbered source index (research, then the score's evidence) is shared by the Score and
+ * Research panes, so a chip means the same source in both.
  */
 export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, researchStarted }: OutputCardsProps) {
   const { latest, score, suggestions, versions, newestSuggestions } = useScoreOutputs(ideaId);
@@ -65,6 +68,12 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
 
   const current = score ? versions.find((version) => version.id === score.id) : undefined;
   const view = research.data ?? null;
+  const scoreParams = score?.params;
+  // Without research there is no Research pane, so no chip could land anywhere.
+  const sourceIndex = useMemo(
+    () => buildSourceIndex(view, view && scoreParams ? evidenceSources(scoreParams) : []),
+    [view, scoreParams],
+  );
 
   const scoreId = score?.id ?? null;
   const scoreCreatedAt = score?.created_at ?? null;
@@ -75,10 +84,14 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
         : {
             version: scoreId,
             count: versions.length > 0 ? String(versions.length) : undefined,
-            body: <ScorePaneBody ideaId={ideaId} />,
+            body: (
+              <SourceIndexProvider index={sourceIndex}>
+                <ScorePaneBody ideaId={ideaId} />
+              </SourceIndexProvider>
+            ),
             footer: <ScorePaneFooter ideaId={ideaId} ideaTitle={ideaTitle} runActive={runActive} createdAt={scoreCreatedAt} />,
           },
-    [scoreId, scoreCreatedAt, versions.length, ideaId, ideaTitle, runActive],
+    [scoreId, scoreCreatedAt, versions.length, ideaId, ideaTitle, runActive, sourceIndex],
   );
   const advisedRunId = newestSuggestions[0]?.score_run_id ?? null;
   const suggestionsOutput = useMemo<PaneOutput | null>(
@@ -93,22 +106,21 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
           },
     [advisedRunId, newestSuggestions.length, ideaId],
   );
-  const researchItems = view?.items.length ?? null;
-  const researchCompetitors = view?.competitors.length ?? 0;
   const researchOutput = useMemo<PaneOutput | null>(
     () =>
-      researchItems === null
+      view === null
         ? null
         : {
-            version: `${researchItems}:${researchCompetitors}`,
-            count: String(researchItems),
+            version: view.id,
+            count: String(sourceIndex.entries.length),
             body: (
-              <div className="flex flex-col gap-3 p-4">
-                <ResearchSection ideaId={ideaId} researchStarted={researchStarted} />
-              </div>
+              <SourceIndexProvider index={sourceIndex}>
+                <ResearchPaneBody view={view} />
+              </SourceIndexProvider>
             ),
+            footer: <ResearchPaneFooter ideaTitle={ideaTitle} entries={sourceIndex.entries} />,
           },
-    [researchItems, researchCompetitors, ideaId, researchStarted],
+    [view, sourceIndex, ideaTitle],
   );
   useRegisterOutput("score", scoreOutput, ideaId);
   useRegisterOutput("suggestions", suggestionsOutput, ideaId);
@@ -156,7 +168,7 @@ export function OutputCards({ ideaId, ideaTitle, runActive, scoringStarted, rese
         <OutputCard
           pane="research"
           title="Research"
-          meta={`${countOf(view.items.length, "source")} · ${countOf(view.competitors.length, "competitor")}`}
+          meta={`${countOf(sourceIndex.entries.length, "source")} · ${countOf(view.competitors.length, "competitor")}`}
           open={isOpen("research")}
           onOpen={openOutput}
         />
