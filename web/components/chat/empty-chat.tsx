@@ -8,12 +8,14 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Composer } from "@/components/chat/composer";
+import { VoiceButton } from "@/components/chat/voice-button";
 import { KEY_GATE_NOTICE_ID, KeyGateNotice } from "@/components/chat/key-gate-notice";
 import { Button } from "@/components/ui/button";
 import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
 import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
+import { getSTTClientProvider } from "@/lib/stt/config";
 import { llmNotReadyMessage } from "@/lib/keys/readiness";
 import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
 
@@ -73,6 +75,25 @@ export function EmptyChat() {
     error instanceof ApiError ? fieldErrors(error).find(({ name }) => name === "raw_text" || name === "title") : undefined;
   const composerError = fieldError ?? serverFieldError?.error.message ?? (error ? describeError(error) : null);
 
+  /** Voice input: transcribe the recorded blob and populate the text field. */
+  const voice = (
+    <VoiceButton
+      onBlob={async (blob) => {
+        try {
+          const provider = getSTTClientProvider();
+          const transcript = await provider.transcribe(blob);
+          if (transcript.trim()) {
+            form.setValue("text", transcript);
+          } else {
+            toast.error("Nothing heard. Try again.");
+          }
+        } catch {
+          toast.error("Transcription failed. You can still type.");
+        }
+      }}
+    />
+  );
+
   return (
     <>
       <section className="flex flex-1 flex-col items-center justify-center gap-1.5 px-5 py-8 text-center">
@@ -106,6 +127,7 @@ export function EmptyChat() {
         action="send"
         canSend={!pending && !blocked && text.trim() !== ""}
         above={<KeyGateNotice gate={gate} includeExa />}
+        voice={voice}
         onSubmit={form.handleSubmit(submit)}
         error={composerError}
       />
