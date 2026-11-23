@@ -5,8 +5,8 @@ import { createCn } from "cn/config";
 export const cn = createCn({
   extend: {
     theme: {
-      text: ["micro", "eyebrow", "meta", "note", "control", "body", "title", "score", "total", "display"],
-      tracking: ["eyebrow", "divider", "label", "score"],
+      text: ["micro", "eyebrow", "meta", "note", "control", "body", "title", "score", "total", "display", "ascii", "ascii-phone"],
+      tracking: ["eyebrow", "divider", "label", "score", "ascii", "ascii-phone"],
       spacing: ["control", "badge", "track", "tick"],
       container: ["pitch", "headline", "lead", "card", "crumb", "crumb-narrow"],
     },

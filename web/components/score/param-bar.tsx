@@ -66,7 +66,7 @@ export function ParamBar({ param }: { param: ScoreParamResult }) {
         <span className="h-1 bg-muted" aria-hidden="true">
           <span
             className={cn(
-              "block h-full transition-[width] duration-800 ease-out motion-reduce:transition-none",
+              "block h-full transition-[width] duration-800 ease-panel motion-reduce:transition-none",
               weak ? "bg-warning" : "bg-primary",
               filled ? "w-(--bar)" : "w-0 motion-reduce:w-(--bar)",
             )}

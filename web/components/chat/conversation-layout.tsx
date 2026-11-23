@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
 import { AgentMessage } from "@/components/chat/agent-message";
+import { AsciiOwl } from "@/components/chat/ascii-owl";
 import { Thread } from "@/components/chat/thread";
 import type { OwlState } from "@/components/brand/owl-mark";
 import { UserBubble } from "@/components/chat/user-bubble";
@@ -49,8 +50,9 @@ interface ConversationLayoutProps {
 export function ConversationLayout({ idea, interview, body, composer, scrollKey, owl, sentCount = 0 }: ConversationLayoutProps) {
   const endRef = useStickToBottom(scrollKey, sentCount);
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div data-scroll className="min-h-0 flex-1 overflow-y-auto">
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      <AsciiOwl working={owl === "working"} />
+      <div data-scroll className="relative z-1 min-h-0 flex-1 overflow-y-auto">
         <Thread>
           <UserBubble text={idea.raw_text} />
           {interview}
