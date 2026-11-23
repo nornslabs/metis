@@ -32,8 +32,10 @@ function useStickToBottom(dependency: unknown, sentCount: number) {
 
 interface ConversationLayoutProps {
   idea: Idea;
-  /** The interview so far (questions and answers), between the idea and the run's message. */
+  /** The live run's questions and answers, between its prompt and its message. */
   interview?: ReactNode;
+  /** Earlier runs (prompt, questions, message) and the newest run's prompt, before its own questions. */
+  turns?: ReactNode;
   /** The agent message's content. */
   body: ReactNode;
   /** The dock at the bottom: the composer, the answer options or the working bar. */
@@ -47,7 +49,7 @@ interface ConversationLayoutProps {
 }
 
 /** The idea page: the idea, the interview, Metis's message for the run, and the composer. */
-export function ConversationLayout({ idea, interview, body, composer, scrollKey, owl, sentCount = 0 }: ConversationLayoutProps) {
+export function ConversationLayout({ idea, interview, turns, body, composer, scrollKey, owl, sentCount = 0 }: ConversationLayoutProps) {
   const endRef = useStickToBottom(scrollKey, sentCount);
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
@@ -55,6 +57,7 @@ export function ConversationLayout({ idea, interview, body, composer, scrollKey,
       <div data-scroll className="relative z-1 min-h-0 flex-1 overflow-y-auto">
         <Thread>
           <UserBubble text={idea.raw_text} />
+          {turns}
           {interview}
           <AgentMessage
             owl={owl}

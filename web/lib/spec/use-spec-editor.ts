@@ -18,7 +18,7 @@ function createEditor(queryClient: QueryClient, workspaceId: string | null, idea
     confirm: async (number) => {
       const result = await confirmSpecVersion(ideaId, number);
       // The idea moves to `spec_confirmed` and the run moves on: refetch what depends on them.
-      void queryClient.invalidateQueries({ queryKey: queryKeys.latestRun(workspaceId, ideaId) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.runs(workspaceId, ideaId) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.idea(workspaceId, ideaId), exact: true });
       return result;
     },
