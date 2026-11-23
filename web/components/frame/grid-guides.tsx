@@ -27,7 +27,14 @@ export function GridGuides() {
         ))}
       {lines.bandY === null ? null : (
         // The composer starts at `bandY` and paints over its own first row, so the line is the row above.
-        <span style={{ top: lines.bandY - LINE_WIDTH_PX }} className="absolute inset-x-0 h-px bg-border" />
+        <span
+          style={{
+            top: lines.bandY - LINE_WIDTH_PX,
+            left: lines.bandX.start,
+            width: lines.bandX.end - lines.bandX.start,
+          }}
+          className="absolute h-px bg-border"
+        />
       )}
       {lines.ticks.map(({ x, y }) => (
         <CrossTick key={`${x}-${y}`} x={x} y={y} />

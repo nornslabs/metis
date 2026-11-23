@@ -93,6 +93,22 @@
   --container-card: 320px;
   --container-crumb: 260px;
   --container-crumb-narrow: 120px;
+
+  /* Panel transitions: ease-panel with duration-250 */
+  --ease-panel: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+/*
+ * The chat column: up to --col wide and centred in the chat pane (`@container/chat`); a pane of
+ * 920px or less is all column, so a pane narrowed by a panel never overflows (the sample's rule).
+ */
+@utility chat-col {
+  width: 100%;
+  max-width: var(--col);
+  margin-inline: auto;
+  @container chat (max-width: 920px) {
+    max-width: none;
+  }
 }
 
 @utility grid-cols-split {
@@ -250,6 +266,9 @@
   --radius: 0;
   --frame: min(1280px, 100% - 160px);
   --col: 760px;
+  --hist-w: 264px;
+  --panel-w: clamp(360px, 36vw, 500px);
+  --overlay-w: min(320px, 88%);
   --header-h: 44px;
   --footer-h: 32px;
   --owl-blink: 2.6s;
@@ -304,13 +323,6 @@
 @media (max-width: 1040px) {
   :root {
     --frame: calc(100% - 64px);
-  }
-}
-
-/* Under 1080px the frame is at most 920px wide, and the column fills it (the sample's rule). */
-@media (max-width: 1080px) {
-  :root {
-    --col: 100%;
   }
 }
 

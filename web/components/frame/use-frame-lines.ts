@@ -10,13 +10,22 @@ import {
 } from "@/lib/frame/lines";
 
 /** `data-frame` values the frame measures; each is set once, by the component that owns the element. */
-export type FramePart = "safe" | "column" | "header" | "footer" | "band";
+export type FramePart = "safe" | "column" | "header" | "footer" | "band" | "history" | "output";
 
 /** How long measuring keeps running after a width transition starts (panels animate 250ms). */
 const TRANSITION_MEASURE_MS = 400;
 
 function rectOf(part: FramePart): DOMRect | null {
   return document.querySelector(`[data-frame="${part}"]`)?.getBoundingClientRect() ?? null;
+}
+
+/** Below this width (px) a panel counts as closed: its edge line and ticks are gone. */
+const PANEL_VISIBLE_MIN_WIDTH_PX = 1;
+
+/** A panel's rect while it has width (open, or sliding open or shut), else null. */
+function visiblePanelRect(part: "history" | "output"): DOMRect | null {
+  const rect = rectOf(part);
+  return rect && rect.width >= PANEL_VISIBLE_MIN_WIDTH_PX ? rect : null;
 }
 
 function measureFrame(): FrameMeasure | null {
@@ -33,6 +42,8 @@ function measureFrame(): FrameMeasure | null {
     headerBottom: header.bottom,
     footerTop: footer.top,
     bandTop: band ? band.top : null,
+    historyRight: visiblePanelRect("history")?.right ?? null,
+    outputLeft: visiblePanelRect("output")?.left ?? null,
   };
 }
 
@@ -67,7 +78,9 @@ function watchFrame(onChange: () => void): () => void {
   const resizeObserver = new ResizeObserver(schedule);
   observed.forEach((element) => resizeObserver.observe(element));
 
-  const mutationObserver = new MutationObserver(() => {
+  const mutationObserver = new MutationObserver((records) => {
+    // A panel opening or closing flips `data-open` without changing which elements exist.
+    if (records.some((record) => record.type === "attributes")) schedule();
     const current = framePartElements();
     if (sameElements(observed, current)) return;
     observed.forEach((element) => current.has(element) || resizeObserver.unobserve(element));
@@ -75,7 +88,12 @@ function watchFrame(onChange: () => void): () => void {
     observed = current;
     schedule();
   });
-  mutationObserver.observe(document.body, { childList: true, subtree: true });
+  mutationObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["data-open"],
+  });
 
   const onTransitionRun = (event: TransitionEvent) => {
     if (event.propertyName !== "width") return;

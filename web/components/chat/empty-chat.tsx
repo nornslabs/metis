@@ -82,7 +82,7 @@ export function EmptyChat() {
           score it.
         </p>
       </section>
-      <div className="mx-auto flex w-(--col) shrink-0 flex-wrap justify-center gap-1.5 px-5 pb-3 max-guides:px-4">
+      <div className="chat-col flex shrink-0 flex-wrap justify-center gap-1.5 px-5 pb-3 max-guides:px-4">
         {SUGGESTIONS.map((suggestion) => (
           <Button
             key={suggestion}

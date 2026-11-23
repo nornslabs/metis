@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import { SESSION_COOKIE, createSessionToken } from "./support/session";
+import { crossesTick, tickCentres } from "./support/ticks";
 
 const MUTATION_HEADERS = { "X-Metis-Client": "web" };
 const VIEWPORTS = [
@@ -8,7 +9,6 @@ const VIEWPORTS = [
   { name: "1440", width: 1440, height: 900 },
   { name: "375", width: 375, height: 800 },
 ] as const;
-const TICK_TOLERANCE_PX = 1;
 const COLUMN_WIDTH_PX = 760;
 const WIDE = { width: 1440, height: 900 };
 const NARROW_DESKTOP = { width: 1100, height: 800 };
@@ -31,20 +31,6 @@ async function createIdea(page: Page, title: string): Promise<string> {
   });
   expect(response.status()).toBe(201);
   return (await response.json()).id;
-}
-
-/** Page-space centres of every `+` tick. */
-async function tickCentres(page: Page): Promise<{ x: number; y: number }[]> {
-  return page.getByTestId("frame-tick").evaluateAll((ticks) =>
-    ticks.map((tick) => {
-      const rect = tick.getBoundingClientRect();
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    }),
-  );
-}
-
-function crossesTick(ticks: readonly { x: number; y: number }[], x: number, y: number): boolean {
-  return ticks.some((t) => Math.abs(t.x - x) <= TICK_TOLERANCE_PX && Math.abs(t.y - y) <= TICK_TOLERANCE_PX);
 }
 
 async function lineEdges(page: Page) {
