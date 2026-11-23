@@ -74,7 +74,7 @@ export function Composer({ textarea, label, action, canSend, onSubmit, onStop, e
       <form
         noValidate
         onSubmit={onSubmit}
-        className="mx-auto w-(--col) border-x bg-card px-5 pt-3 pb-2 focus-within:ring-1 focus-within:ring-ring focus-within:ring-inset max-guides:px-4"
+        className="chat-col border-x bg-card px-5 pt-3 pb-2 focus-within:ring-1 focus-within:ring-ring focus-within:ring-inset max-guides:px-4"
       >
         {above}
         <label htmlFor={inputId} className="sr-only">

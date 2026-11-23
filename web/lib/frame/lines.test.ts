@@ -9,6 +9,8 @@ const WIDE: FrameMeasure = {
   headerBottom: 44,
   footerTop: 868,
   bandTop: 760,
+  historyRight: null,
+  outputLeft: null,
 };
 
 describe("computeFrameLines", () => {
@@ -67,3 +69,53 @@ describe("sameFrameLines", () => {
     expect(sameFrameLines(null, a)).toBe(false);
   });
 });
+
+describe("computeFrameLines with panels", () => {
+  test("adds panel edges and ends the band at the output panel", () => {
+    // Arrange: output open (500px wide) on a 1440px screen
+    const measure = { ...WIDE, column: { left: 160, right: 860 }, outputLeft: 860 };
+
+    // Act
+    const lines = computeFrameLines(measure);
+
+    // Assert
+    expect(lines.verticals).toContainEqual({ x: 860, kind: "panel", edge: "start" });
+    expect(lines.bandX).toEqual({ start: 0, end: 860 });
+    expect(lines.ticks).toContainEqual({ x: 860, y: 760 });
+    expect(lines.ticks).toContainEqual({ x: 860, y: 44 });
+  });
+
+  test("starts the band at the history panel and keeps the frame edge off it", () => {
+    const lines = computeFrameLines({ ...WIDE, historyRight: 344 });
+
+    expect(lines.bandX).toEqual({ start: 344, end: 1440 });
+    expect(lines.ticks).toContainEqual({ x: 344, y: 760 });
+    expect(lines.ticks).not.toContainEqual({ x: 80, y: 760 });
+    expect(lines.ticks).toContainEqual({ x: 80, y: 44 });
+  });
+
+  test("keeps the band between both panels", () => {
+    const lines = computeFrameLines({ ...WIDE, historyRight: 344, outputLeft: 860 });
+
+    expect(lines.bandX).toEqual({ start: 344, end: 860 });
+    // The guide at 340 is behind the history panel and the frame edges are outside the band.
+    expect(lines.ticks.filter((tick) => tick.y === 760).map((tick) => tick.x).sort((a, b) => a - b)).toEqual([
+      344, 860,
+    ]);
+  });
+
+  test("ignores the panels under 820px, where they are overlays", () => {
+    const lines = computeFrameLines({
+      ...WIDE,
+      viewportWidth: 800,
+      safe: { left: 0, right: 800 },
+      column: { left: 0, right: 800 },
+      historyRight: 320,
+      outputLeft: 0,
+    });
+
+    expect(lines.verticals.every((vertical) => vertical.kind !== "panel")).toBe(true);
+    expect(lines.bandX).toEqual({ start: 0, end: 800 });
+  });
+});
+

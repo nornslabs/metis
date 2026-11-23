@@ -15,7 +15,7 @@ import { queryKeys } from "@/lib/api/queries/keys";
 
 export function ConversationSkeleton() {
   return (
-    <div aria-busy="true" aria-label="Loading idea" className="mx-auto flex w-(--col) flex-col gap-3 px-5 pt-4 max-guides:px-4">
+    <div aria-busy="true" aria-label="Loading idea" className="chat-col flex flex-col gap-3 px-5 pt-4 max-guides:px-4">
       <Skeleton className="ml-auto h-8 w-1/2" />
       <Skeleton className="h-3 w-1/3" />
       <Skeleton className="h-16 w-full" />
