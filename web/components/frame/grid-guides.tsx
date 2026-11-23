@@ -1,23 +1,37 @@
+"use client";
+
 import { CrossTick } from "./cross-tick";
+import { useFrameLines } from "./use-frame-lines";
 
-const GUIDE_LEFT = "left-[calc(50%-var(--col)/2)]";
-const GUIDE_RIGHT = "left-[calc(50%+var(--col)/2)]";
-const HEADER_LINE = "top-(--header-h)";
-const FOOTER_LINE = "top-[calc(100%-var(--footer-h))]";
+/** Line width (px); an `end` guide is drawn this far inside its box's edge. */
+const LINE_WIDTH_PX = 1;
 
-/** Column guides at the chat column's edges, full height, with `+` ticks at the header and footer lines. */
+/**
+ * Column guides, the full-width input band and the `+` ticks where lines cross, all placed from
+ * measured positions so they follow the layout (ui-context.md, Layout: Frame and Grid).
+ */
 export function GridGuides() {
+  const lines = useFrameLines();
+  if (!lines) return null;
+
   return (
-    <div
-      aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 max-guides:hidden"
-    >
-      <span className={`absolute inset-y-0 w-px bg-border ${GUIDE_LEFT}`} />
-      <span className={`absolute inset-y-0 w-px bg-border ${GUIDE_RIGHT}`} />
-      <CrossTick className={`${GUIDE_LEFT} ${HEADER_LINE}`} />
-      <CrossTick className={`${GUIDE_RIGHT} ${HEADER_LINE}`} />
-      <CrossTick className={`${GUIDE_LEFT} ${FOOTER_LINE}`} />
-      <CrossTick className={`${GUIDE_RIGHT} ${FOOTER_LINE}`} />
+    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0">
+      {lines.verticals
+        .filter(({ kind }) => kind === "guide")
+        .map(({ x, edge }) => (
+          <span
+            key={x}
+            style={{ left: edge === "end" ? x - LINE_WIDTH_PX : x }}
+            className="absolute inset-y-0 w-px bg-border"
+          />
+        ))}
+      {lines.bandY === null ? null : (
+        // The composer starts at `bandY` and paints over its own first row, so the line is the row above.
+        <span style={{ top: lines.bandY - LINE_WIDTH_PX }} className="absolute inset-x-0 h-px bg-border" />
+      )}
+      {lines.ticks.map(({ x, y }) => (
+        <CrossTick key={`${x}-${y}`} x={x} y={y} />
+      ))}
     </div>
   );
 }

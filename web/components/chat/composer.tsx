@@ -3,15 +3,8 @@
 import { ArrowUp, Square } from "lucide-react";
 import { useId, type FormEvent, type KeyboardEvent, type ReactNode, type Ref, type TextareaHTMLAttributes } from "react";
 
-import { CrossTick } from "@/components/frame/cross-tick";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-const COLUMN_LEFT = "left-[calc(50%-var(--col)/2)]";
-const COLUMN_RIGHT = "left-[calc(50%+var(--col)/2)]";
-const FRAME_LEFT = "left-[calc(50%-var(--frame)/2)]";
-const FRAME_RIGHT = "left-[calc(50%+var(--frame)/2)]";
-const BAND = "top-0";
 
 /** `send` submits the form; `stop` and `stopping` replace it while a run is active. */
 export type ComposerAction = "send" | "stop" | "stopping";
@@ -77,15 +70,7 @@ export function Composer({ textarea, label, action, canSend, onSubmit, onStop, e
   const hint = action === "stopping" ? "Stopping…" : "Enter to send";
 
   return (
-    <div className="relative shrink-0 border-t">
-      <span aria-hidden="true" className="max-guides:hidden">
-        <CrossTick className={`${COLUMN_LEFT} ${BAND}`} />
-        <CrossTick className={`${COLUMN_RIGHT} ${BAND}`} />
-      </span>
-      <span aria-hidden="true" className="max-compact:hidden">
-        <CrossTick className={`${FRAME_LEFT} ${BAND}`} />
-        <CrossTick className={`${FRAME_RIGHT} ${BAND}`} />
-      </span>
+    <div data-frame="band" className="relative shrink-0">
       <form
         noValidate
         onSubmit={onSubmit}

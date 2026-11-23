@@ -8,7 +8,7 @@ export const cn = createCn({
       text: ["micro", "eyebrow", "meta", "note", "control", "body", "title", "score", "display"],
       tracking: ["eyebrow", "divider", "label", "score"],
       spacing: ["control", "badge", "track", "tick"],
-      container: ["pitch", "headline", "lead", "card"],
+      container: ["pitch", "headline", "lead", "card", "crumb", "crumb-narrow"],
     },
   },
 });
