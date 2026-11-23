@@ -87,8 +87,9 @@ export function EmptyChat() {
           } else {
             toast.error("Nothing heard. Try again.");
           }
-        } catch {
-          toast.error("Transcription failed. You can still type.");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Transcription failed";
+          toast.error(message + ". You can still type.");
         }
       }}
     />

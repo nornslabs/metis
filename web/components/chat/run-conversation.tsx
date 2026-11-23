@@ -175,8 +175,9 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
           } else {
             toast.error("Nothing heard. Try again.");
           }
-        } catch {
-          toast.error("Transcription failed. You can still type.");
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "Transcription failed";
+          toast.error(message + ". You can still type.");
         }
       }}
       options={{ silenceTimeoutMs: 2000 }} // auto-stop after ~2s of silence
