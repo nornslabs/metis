@@ -1,4 +1,4 @@
-"""The ``identity.workspace_settings`` table: per-workspace run limits."""
+"""The ``identity.workspace_settings`` table: per-workspace run limits and STT settings."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from metis.core.models import Base
@@ -15,7 +15,7 @@ from metis.modules.identity.models._schema import SCHEMA
 
 
 class WorkspaceSettingsRow(Base):
-    """Per-workspace run limits; no row means the defaults apply."""
+    """Per-workspace run limits and STT settings; no row means the defaults apply."""
 
     __tablename__ = "workspace_settings"
     __table_args__ = {"schema": SCHEMA}
@@ -25,5 +25,11 @@ class WorkspaceSettingsRow(Base):
     )
     run_budget_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     max_steps: Mapped[int] = mapped_column(Integer)
+    stt_provider: Mapped[str] = mapped_column(
+        String(20), default="web-speech", server_default="web-speech"
+    )
+    sarvam_api_key: Mapped[str | None] = mapped_column(
+        String(512), nullable=True
+    )
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

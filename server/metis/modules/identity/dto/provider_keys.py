@@ -23,6 +23,7 @@ ALLOW_LOCAL_HTTP = "allow_local_http"
 class ProviderKind(StrEnum):
     LLM = "llm"
     EXA = "exa"
+    SARVAM = "sarvam"
 
 
 class KeyReadiness(StrEnum):
@@ -106,6 +107,7 @@ class ProviderKeyView(FrozenModel):
 class ProviderKeys(FrozenModel):
     llm: ProviderKeyView | None = None
     exa: ProviderKeyView | None = None
+    sarvam: ProviderKeyView | None = None
 
 
 class ProviderCredentials(FrozenModel):

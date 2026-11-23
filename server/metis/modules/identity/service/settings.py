@@ -36,7 +36,7 @@ async def get_settings_overview(session: AsyncSession, workspace_id: UUID) -> Se
             for row in await repo.provider_keys.list_for_workspace(session, workspace_id)
         }
         settings = await repo.settings.get(session, workspace_id)
-    return SettingsResponse(keys=ProviderKeys(**keys), settings=_settings_view(settings))
+    return SettingsResponse(keys=ProviderKeys(**keys, sarvam=keys.get("sarvam")), settings=_settings_view(settings))
 
 
 async def update_settings(
@@ -68,7 +68,10 @@ async def update_settings(
 def _settings_view(row: WorkspaceSettingsRow | None) -> WorkspaceSettingsView:
     if row is None:
         return WorkspaceSettingsView(
-            run_budget_usd=DEFAULT_RUN_BUDGET_USD, max_steps=DEFAULT_MAX_STEPS, version=0
+            run_budget_usd=DEFAULT_RUN_BUDGET_USD,
+            max_steps=DEFAULT_MAX_STEPS,
+            stt_provider="web-speech",
+            version=0,
         )
     return WorkspaceSettingsView.model_validate(row)
 
@@ -81,4 +84,6 @@ def _settings_changes(patch: SettingsPatch) -> dict[str, object]:
         changes["run_budget_usd"] = patch.run_budget_usd
     if patch.max_steps is not None:
         changes["max_steps"] = patch.max_steps
+    if patch.stt_provider is not None:
+        changes["stt_provider"] = patch.stt_provider
     return changes
