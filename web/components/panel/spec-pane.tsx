@@ -2,14 +2,20 @@
 
 import { useState, type ReactNode } from "react";
 
+import { LoadFailure } from "@/components/panel/load-failure";
 import { PaneFooter } from "@/components/panel/pane-footer";
 import { ConfirmSpecDialog } from "@/components/spec/confirm-spec-dialog";
+import { SpecCompare } from "@/components/spec/spec-compare";
 import { ListField, TextField } from "@/components/spec/spec-fields";
+import { SpecVersionView } from "@/components/spec/spec-version-view";
+import { VersionBar } from "@/components/spec/version-bar";
 import { Button } from "@/components/ui/button";
+import { useSpecVersions } from "@/lib/api/queries/use-spec-versions";
 import { currentMarkdown, isLocked, type SpecEditorState } from "@/lib/spec/spec-editor";
 import { visibleSections, type SectionView } from "@/lib/spec/sections";
 import { useConfirmSpec } from "@/lib/spec/use-confirm-spec";
 import { useSpecEditor, useSpecEditorState } from "@/lib/spec/use-spec-editor";
+import { compareFrom, olderVersionNumbers, resolveView } from "@/lib/spec/view";
 
 /** The sections as they were when the text last came from outside; typing never reshuffles them. */
 function useSectionSnapshot(state: SpecEditorState): readonly SectionView[] {
@@ -37,15 +43,27 @@ export function SpecPaneBody({ ideaId }: { ideaId: string }) {
   const state = useSpecEditorState(editor);
   const views = useSectionSnapshot(state);
   const locked = isLocked(state);
+  const latestNumber = state.latest?.number ?? null;
+  const versions = useSpecVersions(ideaId, latestNumber);
 
-  if (state.latest === null) {
+  if (state.latest === null || latestNumber === null) {
     return <p className="px-4 py-3.5 text-control text-muted-foreground">The spec is not ready yet.</p>;
   }
+  const view = resolveView(state.view, latestNumber);
+  const fromNumber = compareFrom(view, latestNumber);
   return (
     <div className="px-4 py-3.5">
-      {locked ? null : (
+      <VersionBar
+        versions={versions.data?.items}
+        latestNumber={latestNumber}
+        confirmedNumber={state.confirmed?.number ?? null}
+        view={view}
+        onPick={(number) => (number >= latestNumber ? editor.showEdit() : void editor.showVersion(number))}
+        onToggleCompare={() => (view.mode === "compare" ? editor.showEdit() : void editor.showCompare(null))}
+      />
+      {view.mode === "edit" && !locked ? (
         <p className="mb-3 text-meta text-muted-foreground">Click any section to edit. Changes save automatically.</p>
-      )}
+      ) : null}
       {state.status === "conflict" ? (
         <Banner>
           <span className="min-w-0 flex-1">
@@ -66,28 +84,54 @@ export function SpecPaneBody({ ideaId }: { ideaId: string }) {
           </Button>
         </Banner>
       ) : null}
-      {views.map((view) => (
-        <section key={`${state.epoch}:${view.key}`} aria-label={view.label} className="mb-3.5 last:mb-0">
-          <h4 className="mb-1 text-control font-semibold">{view.label}</h4>
-          {view.kind === "list" ? (
+      {versions.isError ? (
+        <LoadFailure what="version list" error={versions.error} onRetry={() => void versions.refetch()} className="mb-3" />
+      ) : null}
+      {view.mode === "version" ? (
+        <SpecVersionView
+          ideaId={ideaId}
+          number={view.number}
+          latestNumber={latestNumber}
+          latestMarkdown={currentMarkdown(state)}
+          canRestore={!locked && state.status !== "conflict"}
+          onBack={() => editor.showEdit()}
+          onRestore={(contentMd) => void editor.restore(contentMd)}
+        />
+      ) : null}
+      {view.mode === "compare" && fromNumber !== null ? (
+        <SpecCompare
+          ideaId={ideaId}
+          fromOptions={olderVersionNumbers(latestNumber)}
+          from={fromNumber}
+          toNumber={latestNumber}
+          toMarkdown={currentMarkdown(state)}
+          onFrom={(number) => void editor.showCompare(number)}
+        />
+      ) : null}
+      {view.mode === "edit"
+        ? views.map((section) => (
+        <section key={`${state.epoch}:${section.key}`} aria-label={section.label} className="mb-3.5 last:mb-0">
+          <h4 className="mb-1 text-control font-semibold">{section.label}</h4>
+          {section.kind === "list" ? (
             <ListField
-              label={view.label}
-              placeholder={view.placeholder}
+              label={section.label}
+              placeholder={section.placeholder}
               locked={locked}
-              initial={view.items}
-              onChange={(text) => editor.edit(view.key, text)}
+              initial={section.items}
+              onChange={(text) => editor.edit(section.key, text)}
             />
           ) : (
             <TextField
-              label={view.label}
-              placeholder={view.placeholder}
+              label={section.label}
+              placeholder={section.placeholder}
               locked={locked}
-              initial={view.text}
-              onChange={(text) => editor.edit(view.key, text)}
+              initial={section.text}
+              onChange={(text) => editor.edit(section.key, text)}
             />
           )}
         </section>
-      ))}
+        ))
+        : null}
     </div>
   );
 }

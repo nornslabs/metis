@@ -1,6 +1,7 @@
 import { ApiError, describeError } from "@/lib/api/errors";
 import { RUN_ENQUEUE_FAILED, SPEC_CONFLICT, SPEC_NOT_EDITABLE, type SpecConfirmed, type SpecOverview, type SpecVersion } from "@/lib/schemas/spec";
 import { applySectionEdit } from "@/lib/spec/sections";
+import { EDIT_VIEW, type SpecView } from "@/lib/spec/view";
 
 /** How long after the last keystroke a change is saved. */
 export const AUTOSAVE_DELAY_MS = 700;
@@ -32,6 +33,8 @@ export interface SpecEditorState {
   readonly confirmProblem: ConfirmProblem;
   /** Grows when the text is replaced from outside (reload, newer server version): fields restart from it. */
   readonly epoch: number;
+  /** Which version the pane shows; the footer follows it (Confirm is only for the newest draft). */
+  readonly view: SpecView;
 }
 
 const INITIAL: SpecEditorState = {
@@ -43,6 +46,7 @@ const INITIAL: SpecEditorState = {
   confirming: false,
   confirmProblem: null,
   epoch: 0,
+  view: EDIT_VIEW,
 };
 
 /** True once the newest version is the confirmed one: nothing can be edited. */
@@ -202,6 +206,32 @@ export class SpecEditor {
       return;
     }
     this.set({ confirmProblem: "failed", error: describeError(caught) });
+  }
+
+  /** Shows an older version read-only, once text typed is saved (a failed save or a conflict keeps the pane where it is). */
+  async showVersion(number: number): Promise<void> {
+    if (!(await this.flush())) return;
+    this.set({ view: { mode: "version", number } });
+  }
+
+  /** Shows the diff of an older version (`from`, or the one before the newest) with the newest. */
+  async showCompare(from: number | null = null): Promise<void> {
+    if (!(await this.flush())) return;
+    this.set({ view: { mode: "compare", from } });
+  }
+
+  /** Back to the newest version; the fields restart from what was typed. */
+  showEdit(): void {
+    if (this.state.view.mode === "edit") return;
+    this.set({ view: EDIT_VIEW, epoch: this.state.epoch + 1 });
+  }
+
+  /** Saves `contentMd` (an older version's text) as a new version through the usual save path. */
+  async restore(contentMd: string): Promise<void> {
+    const { latest, status } = this.state;
+    if (latest === null || isLocked(this.state) || status === "conflict" || contentMd === latest.content_md) return;
+    this.set({ draftMd: contentMd, status: "dirty", error: null, view: EDIT_VIEW, epoch: this.state.epoch + 1 });
+    await this.flush();
   }
 
   private schedule(): void {

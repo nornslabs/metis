@@ -31,6 +31,12 @@ export const queryKeys = {
     ["ideas", workspaceId, ideaId, "scores", "run", scoreRunId] as const,
   /** The idea's latest and confirmed spec versions (also under the idea key). */
   spec: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId, "spec"] as const,
+  /** The version list; `latestNumber` is in the key so a newer version refetches it. */
+  specVersions: (workspaceId: string | null, ideaId: string, latestNumber: number | null) =>
+    ["ideas", workspaceId, ideaId, "spec-versions", latestNumber] as const,
+  /** One version with its text. Immutable, never stale. */
+  specVersion: (workspaceId: string | null, ideaId: string, number: number) =>
+    ["ideas", workspaceId, ideaId, "spec-version", number] as const,
   /** The idea's newest plan, or null while there is none (also under the idea key). */
   plan: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId, "plan"] as const,
   suggestions: (workspaceId: string | null, ideaId: string) =>
