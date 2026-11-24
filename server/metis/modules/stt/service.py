@@ -7,7 +7,7 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.core.crypto import decrypt
+from metis.core.crypto import decrypt, seal_from_json
 from metis.core.db import WORKSPACE_SETTING
 from metis.modules.identity import repo
 from metis.modules.identity.dto import ProviderKind
@@ -73,7 +73,7 @@ async def _transcribe_sarvam(
 
     try:
         # Decrypt the API key
-        sealed = repo.provider_keys.seal_from_json(key_row.sealed)
+        sealed = seal_from_json(key_row.sealed)
         api_key = decrypt(sealed, workspace_id)
 
         # Call Sarvam API
