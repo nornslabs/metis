@@ -17,12 +17,17 @@ async def get(session: AsyncSession, workspace_id: UUID) -> WorkspaceSettingsRow
 
 
 async def create(
-    session: AsyncSession, workspace_id: UUID, *, run_budget_usd: Decimal, max_steps: int
+    session: AsyncSession, workspace_id: UUID, *, run_budget_usd: Decimal, max_steps: int, stt_provider: str = "web-speech"
 ) -> WorkspaceSettingsRow | None:
     """Create the settings row at version 1; ``None`` if one already exists."""
     stmt = (
         insert(WorkspaceSettingsRow)
-        .values(workspace_id=workspace_id, run_budget_usd=run_budget_usd, max_steps=max_steps)
+        .values(
+            workspace_id=workspace_id,
+            run_budget_usd=run_budget_usd,
+            max_steps=max_steps,
+            stt_provider=stt_provider,
+        )
         .on_conflict_do_nothing(index_elements=[WorkspaceSettingsRow.workspace_id])
         .returning(WorkspaceSettingsRow)
     )

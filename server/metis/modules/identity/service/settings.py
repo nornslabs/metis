@@ -37,7 +37,7 @@ async def get_settings_overview(session: AsyncSession, workspace_id: UUID) -> Se
         }
         settings = await repo.settings.get(session, workspace_id)
     return SettingsResponse(
-        keys=ProviderKeys(**keys, sarvam=keys.get("sarvam")),
+        keys=ProviderKeys(**keys),
         settings=_settings_view(settings),
     )
 
@@ -58,6 +58,7 @@ async def update_settings(
                 workspace_id,
                 run_budget_usd=patch.run_budget_usd or DEFAULT_RUN_BUDGET_USD,
                 max_steps=patch.max_steps or DEFAULT_MAX_STEPS,
+                stt_provider=patch.stt_provider or "web-speech",
             )
         else:
             row = await repo.settings.update_at_version(
