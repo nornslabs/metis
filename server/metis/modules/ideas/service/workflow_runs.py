@@ -172,15 +172,28 @@ async def prepare_resume(
     """The run and the checked value to resume it with; only an ``awaiting_user`` run resumes.
 
     An export approval carries the id of the user who answered (``decided_by``, set here from the
-    session, never from the request body), so the export record names who approved.
+    session, never from the request body), so the export record names who approved, and the plan
+    version the preview showed (``plan_version``, from the pending interrupt), so the export can
+    tell whether the plan changed after the approval.
     """
     run = await get_run(session, workspace_id, run_id)
     if run.status != RunStatus.AWAITING_USER:
         raise IllegalRunTransition(f"A run that is {run.status.value} cannot be resumed")
     checked = check_resume_value(run.pending_interrupt, value)
     if (run.pending_interrupt or {}).get("type") == EXPORT_APPROVAL and isinstance(checked, dict):
-        checked = {**checked, "decided_by": str(acting_user_id)}
+        checked = {
+            **checked,
+            "decided_by": str(acting_user_id),
+            "plan_version": _previewed_plan_version(run.pending_interrupt),
+        }
     return run, checked
+
+
+def _previewed_plan_version(pending_interrupt: dict[str, Any] | None) -> int | None:
+    """The plan version in the pending export preview, or ``None`` when it names none."""
+    preview = (pending_interrupt or {}).get("preview")
+    version = preview.get("plan_version") if isinstance(preview, dict) else None
+    return version if isinstance(version, int) and not isinstance(version, bool) else None
 
 
 async def cancel_run(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> WorkflowRun:

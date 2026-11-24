@@ -1,5 +1,5 @@
-"""The Integrator, first step (SHIP-252): choose the Linear team, show the export preview and
-get the user's approval. It writes nothing to Linear.
+"""The Integrator: choose the Linear team, show the export preview, get the user's approval
+(SHIP-252), then write the Linear project and its milestones (SHIP-253).
 
 At ``planning`` the node (no model call):
 
@@ -12,10 +12,13 @@ At ``planning`` the node (no model call):
 4. records the decision (who, when, the preview) in ``export_jobs``, saves the chosen team, and
    on approval records it in state ``pending_approval`` (the gate the write tools check).
 
-The run then ends (``export_state``) with the stage left at ``planning``; the writes are a later
-step. Re-running the node after a resume replays the same interrupts in the same order, so the
-team is saved only once both are answered, and the decision record is idempotent per run. A re-run
-that finds the run's decision already recorded asks nothing and just finishes (``_replay``).
+After an approval, and only if the plan is still the version the user saw, the node marks the
+run's export job ``running`` and creates or updates the project and one milestone per phase
+(``export_writes``). The run then ends (``export_state``) with the stage left at ``planning``;
+the issues are a later step. Re-running the node after a resume replays the same interrupts in
+the same order, so the team is saved only once both are answered, and the decision record is
+idempotent per run. A re-run that finds the run's decision already recorded asks nothing and goes
+straight to the writes, which carry on from the refs already saved (``_replay``).
 """
 
 from __future__ import annotations
@@ -40,15 +43,23 @@ from metis.agent.tools.export_linear import (
     read_teams,
 )
 from metis.agent.tools.export_preview import ExportPreview, ExportTeam, build_export_preview
+from metis.agent.tools.export_project import ProjectScore, idea_url
+from metis.agent.tools.export_writes import ProjectSource, write_project_and_milestones
 from metis.agent.tools.mcp import McpRunContext, load_mcp_tools
 from metis.agent.tools.mcp_policy import INTEGRATOR_POLICY, ApprovalLedger
 from metis.agent.tools.research_kb import SessionOpener
-from metis.core.errors import NoLinearTeamError, NoPlanToExportError, PlanNotFoundError
+from metis.core.config import get_settings
+from metis.core.errors import (
+    ExportPlanChangedError,
+    NoLinearTeamError,
+    NoPlanToExportError,
+    PlanNotFoundError,
+)
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
-from metis.modules import ideas, identity, integrations, planning
+from metis.modules import ideas, identity, integrations, planning, scoring
 from metis.modules.integrations import (
     ExportJob,
     ExportStatus,
@@ -58,11 +69,13 @@ from metis.modules.integrations import (
 from metis.modules.planning import Plan
 
 EXPORT_ACTION = "export"
+# A recorded job in these statuses has an approval whose writes may still need to carry on.
+_WRITING_STATUSES = frozenset({ExportStatus.APPROVED, ExportStatus.RUNNING})
 STATE_APPROVED = "approved"
 STATE_DECLINED = "declined"
-NOTICE_WRITES_PENDING = "export.writes_pending"
-NOTICE_WRITES_PENDING_TEXT = (
-    "Your approval is saved. Creating the items in Linear is not available yet."
+NOTICE_ISSUES_PENDING = "export.issues_pending"
+NOTICE_ISSUES_PENDING_TEXT = (
+    "The project and milestones are in Linear. Creating the issues is not available yet."
 )
 
 logger = get_logger(__name__)
@@ -104,12 +117,16 @@ def build_integrator(
             links=preview.blocked_by_links,
         )
         answer = interrupt({"type": EXPORT_APPROVAL, "preview": preview.model_dump(mode="json")})
-        approved, decided_by = _decision(answer)
-        await _record(open_session, workspace_id, run_id, source, preview, approved, decided_by)
+        approved, decided_by, previewed = _decision(answer)
+        await _record(
+            open_session, workspace_id, run_id, source, preview, approved, decided_by, previewed
+        )
         if chosen:
             await _save_team(open_session, workspace_id, team)
         logger.info("export.decided", approved=approved)
-        return await _finish(state, context, ledger, preview, approved)
+        if approved:
+            await _write(context, ledger, tools, source, preview, previewed)
+        return await _finish(state, context, ledger, approved)
 
     return node
 
@@ -126,10 +143,14 @@ async def _replay(
     record and the checkpoint). It asks nothing: the saved team may already have changed, which
     would shift the order of the interrupts the stored answers belong to."""
     preview = ExportPreview.model_validate(decided.summary)
+    approved = decided.status in _WRITING_STATUSES
     if preview.team.id != source.saved_team_id:
         await _save_team(open_session, context.workspace_id, preview.team)
-    logger.info("export.decision_replayed", approved=decided.status is ExportStatus.APPROVED)
-    return await _finish(state, context, ledger, preview, decided.status is ExportStatus.APPROVED)
+    logger.info("export.decision_replayed", approved=approved)
+    if approved:
+        tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
+        await _write(context, ledger, tools, source, preview, _stored_plan_version(decided))
+    return await _finish(state, context, ledger, approved)
 
 
 class _Source:
@@ -144,6 +165,8 @@ class _Source:
         project_ref: bool,
         phase_refs: frozenset[UUID],
         task_refs: frozenset[UUID],
+        spec_text: str,
+        score: ProjectScore | None,
     ) -> None:
         self.idea_id = idea_id
         self.title = title
@@ -152,6 +175,8 @@ class _Source:
         self.project_ref = project_ref
         self.phase_refs = phase_refs
         self.task_refs = task_refs
+        self.spec_text = spec_text
+        self.score = score
 
 
 async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: UUID) -> _Source:
@@ -178,6 +203,7 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
         task_refs = await integrations.list_external_refs(
             session, workspace_id, provider, LocalKind.TASK, [t.id for t in tasks]
         )
+        latest = await scoring.latest_score(session, workspace_id, idea_id)
     return _Source(
         idea_id,
         idea.title,
@@ -186,6 +212,8 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
         idea_id in project,
         frozenset(phases),
         frozenset(task_refs),
+        spec.content_md,
+        None if latest is None else ProjectScore(latest.total, latest.band.value),
     )
 
 
@@ -228,11 +256,15 @@ async def _record(
     preview: ExportPreview,
     approved: bool,
     decided_by: UUID,
+    previewed_plan_version: int | None,
 ) -> None:
+    """Record the decision. ``summary`` keeps the plan version the user saw; an approval that
+    names none keeps the current one (the export then stops, see ``_write``)."""
+    version = source.plan.version if previewed_plan_version is None else previewed_plan_version
     summary = {
         **preview.model_dump(mode="json"),
         "plan_id": str(source.plan.id),
-        "plan_version": source.plan.version,
+        "plan_version": version,
     }
     async with open_session(workspace_id) as session:
         await integrations.record_export_decision(
@@ -254,24 +286,60 @@ async def _save_team(open_session: SessionOpener, workspace_id: UUID, team: Expo
     logger.info("export.team_chosen", team_id=team.id)
 
 
-async def _finish(
-    state: MetisState,
+async def _write(
     context: McpRunContext,
     ledger: ApprovalLedger,
+    tools: dict[str, BaseTool],
+    source: _Source,
     preview: ExportPreview,
-    approved: bool,
+    previewed_plan_version: int | None,
+) -> None:
+    """Create or update the project and milestones for an approved export.
+
+    Stops before any write if the plan is not the version the user saw (an approval that names no
+    version counts as a mismatch: the guard never passes by default). The approval is recorded
+    in the ledger first (the write tools refuse to run without it), then the export job moves to
+    ``running``.
+    """
+    if previewed_plan_version is None or source.plan.version != previewed_plan_version:
+        raise ExportPlanChangedError(
+            "The plan changed after you approved the export; export again to review it",
+            meta={
+                "approved_version": previewed_plan_version,
+                "current_version": source.plan.version,
+            },
+        )
+    ledger.grant(EXPORT_ACTION, preview.summary_line())
+    async with context.open_session(context.workspace_id) as session:
+        await integrations.mark_export_running(session, context.workspace_id, context.run_id)
+    await write_project_and_milestones(
+        context,
+        tools,
+        ProjectSource(
+            idea_id=source.idea_id,
+            title=source.title,
+            url=idea_url(get_settings().web_base_url, source.idea_id),
+            spec_text=source.spec_text,
+            score=source.score,
+            plan=source.plan,
+            team_id=preview.team.id,
+        ),
+    )
+
+
+async def _finish(
+    state: MetisState, context: McpRunContext, ledger: ApprovalLedger, approved: bool
 ) -> dict[str, Any]:
     update: dict[str, Any] = {
         "export_state": STATE_APPROVED if approved else STATE_DECLINED,
         "step_count": state["step_count"] + 1,
     }
     if approved:
-        ledger.grant(EXPORT_ACTION, preview.summary_line())
         update["pending_approval"] = ledger.record
         await publish(
             str(context.run_id),
             RunEventType.NOTICE,
-            {"code": NOTICE_WRITES_PENDING, "text": NOTICE_WRITES_PENDING_TEXT},
+            {"code": NOTICE_ISSUES_PENDING, "text": NOTICE_ISSUES_PENDING_TEXT},
             redis=context.redis,
         )
     get_stream_writer()(
@@ -280,13 +348,21 @@ async def _finish(
     return update
 
 
-def _decision(answer: object) -> tuple[bool, UUID]:
-    """``(approved, decided_by)`` from the resume value (the API stamps ``decided_by``)."""
+def _stored_plan_version(job: ExportJob) -> int | None:
+    version = job.summary.get("plan_version")
+    return version if isinstance(version, int) and not isinstance(version, bool) else None
+
+
+def _decision(answer: object) -> tuple[bool, UUID, int | None]:
+    """``(approved, decided_by, plan_version)`` from the resume value. The API stamps
+    ``decided_by`` and the plan version the preview showed (``None`` when it names none)."""
     if not isinstance(answer, dict) or not isinstance(answer.get("approved"), bool):
         raise ValueError("The export approval answer must be {approved: bool}")
     if "decided_by" not in answer:
         raise ValueError("The export approval answer names no user (the resume route adds one)")
-    return answer["approved"], UUID(str(answer["decided_by"]))
+    version = answer.get("plan_version")
+    previewed = version if isinstance(version, int) and not isinstance(version, bool) else None
+    return answer["approved"], UUID(str(answer["decided_by"])), previewed
 
 
 def _export_team(team: dict[str, str]) -> ExportTeam:

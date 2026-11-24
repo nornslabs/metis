@@ -141,6 +141,7 @@ class ErrorCode(StrEnum):
     EXPORT_CANCELLED = "export.cancelled"
     EXPORT_NO_LINEAR_TEAM = "export.no_linear_team"
     EXPORT_NO_PLAN = "export.no_plan"
+    EXPORT_PLAN_CHANGED = "export.plan_changed"
 
 
 @dataclass(frozen=True)
@@ -590,6 +591,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="No Plan To Export",
         retryable=False,
     ),
+    ErrorCode.EXPORT_PLAN_CHANGED: ErrorSpec(
+        status=409,
+        title="Plan Changed Since Approval",
+        retryable=False,
+    ),
 }
 
 
@@ -932,6 +938,13 @@ class NoPlanToExportError(ConflictError):
     code: ErrorCode = ErrorCode.EXPORT_NO_PLAN
 
 
+class ExportPlanChangedError(ConflictError):
+    """409: the plan changed after the user approved the export preview; export again to see
+    and approve the new plan. ``meta`` holds ``approved_version`` and ``current_version``."""
+
+    code: ErrorCode = ErrorCode.EXPORT_PLAN_CHANGED
+
+
 class PlanNotFoundError(NotFoundError):
     """404: no such plan, phase or task in the caller's workspace (or its idea is archived)."""
 
@@ -992,6 +1005,7 @@ __all__ = [
     "IntegrationNotFoundError",
     "NoLinearTeamError",
     "NoPlanToExportError",
+    "ExportPlanChangedError",
     "IntegrationProviderUnsupportedError",
     "IntegrationOAuthStateInvalidError",
     "IntegrationOAuthFailedError",

@@ -61,9 +61,11 @@ class PreviewLabels(FrozenModel):
 
 
 class ExportPreview(FrozenModel):
-    """The whole preview: what will be created or updated, and where."""
+    """The whole preview: what will be created or updated, and where. ``plan_version`` is the
+    plan it was built from, so the export can tell whether the plan changed after approval."""
 
     team: ExportTeam
+    plan_version: int
     project: PreviewProject
     milestones: PreviewMilestones
     issues: PreviewIssues
@@ -100,6 +102,7 @@ def build_export_preview(
     updated_milestones = sum(1 for m in milestones if m.action == "update")
     return ExportPreview(
         team=team,
+        plan_version=plan.version,
         project=PreviewProject(name=idea_title, action=_action(project_exists)),
         milestones=PreviewMilestones(
             total=len(milestones),

@@ -211,7 +211,7 @@ async def test_an_idea_with_no_plan_fails_with_no_plan(
 
 
 # -------------------------------------------------------------------- approval
-async def test_approving_records_who_and_when_and_ends_the_run_at_planning(
+async def test_approving_records_who_and_when_writes_the_project_and_ends_the_run_at_planning(
     engine: AsyncEngine,
     ctx: dict[str, Any],
     app_sessions: Any,
@@ -226,7 +226,7 @@ async def test_approving_records_who_and_when_and_ends_the_run_at_planning(
     assert (await run_row(engine, run)).status == "succeeded"
     assert await idea_stage(engine, run) == "planning"
     jobs = await export_jobs(engine, run)
-    assert [j["status"] for j in jobs] == ["approved"]
+    assert [j["status"] for j in jobs] == ["running"]
     assert jobs[0]["summary"]["plan_version"] == 1
     assert jobs[0]["summary"]["issues"]["total"] == 3
     assert await saved_team(engine, run) == "team-2"
@@ -235,8 +235,13 @@ async def test_approving_records_who_and_when_and_ends_the_run_at_planning(
     assert values["export_state"] == "approved"
     assert await plan_status(engine, run) == "draft"
     notices = [e for e in await events_of(redis, run) if e.type is RunEventType.NOTICE]
-    assert [n.data["code"] for n in notices] == ["export.writes_pending"]
-    assert linear.write_calls == []
+    assert [n.data["code"] for n in notices] == ["export.issues_pending"]
+    assert linear.write_calls == [
+        "save_project",
+        "save_milestone",
+        "save_milestone",
+        "save_milestone",
+    ]
 
 
 async def test_rejecting_records_the_decision_and_leaves_everything_as_it_was(
