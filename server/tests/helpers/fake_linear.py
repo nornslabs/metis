@@ -389,7 +389,13 @@ class _Transport(httpx.AsyncBaseTransport):
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         if request.url.host == MCP_HOST and request.url.path == httpx.URL(SERVER_URL).path:
             limit = self._fake.expire_after_writes
-            if limit is not None and len(self._fake.write_calls) >= limit:
+            # The lapse is seen at the start of a call (``initialize``), never between the steps
+            # of one call, so a write that Linear has made is also answered.
+            if (
+                limit is not None
+                and _is_initialize(request)
+                and len(self._fake.write_calls) >= limit
+            ):
                 self._fake.expire_after_writes = None
                 self._fake.revoke_access_tokens()
                 self._fake.refresh_status = 400
@@ -402,3 +408,11 @@ class _Transport(httpx.AsyncBaseTransport):
                 return httpx.Response(self._fake.mcp_error_status)
             return await self._mcp.handle_async_request(request)
         return self._fake._oauth(request)
+
+
+def _is_initialize(request: httpx.Request) -> bool:
+    try:
+        body = json.loads(request.content)
+    except ValueError:
+        return False
+    return isinstance(body, dict) and body.get("method") == "initialize"
