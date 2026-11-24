@@ -39,6 +39,8 @@ export interface WorkspacePanels {
   /** Opens the output panel on `pane`, or on the last pane used (else the first with content). */
   openOutput: (pane?: OutputPane) => void;
   closeOutput: () => void;
+  /** The history panel's search box, which `/` focuses. */
+  searchRef: RefObject<HTMLInputElement | null>;
   /** The toggles, so focus can return to the one whose panel just closed. */
   toggleRefs: Record<PanelName, RefObject<HTMLButtonElement | null>>;
 }
@@ -86,6 +88,8 @@ export function WorkspacePanelsProvider({ children }: { children: ReactNode }) {
   const restoreFocusTo = useRef<PanelName | null>(null);
   const historyToggle = useRef<HTMLButtonElement>(null);
   const outputToggle = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const focusSearchWhenOpen = useRef(false);
   const toggleRefs = useMemo(() => ({ history: historyToggle, output: outputToggle }), []);
 
   const commit = useCallback((nextPanels: PanelState, nextPane: OutputPane | null) => {
@@ -155,6 +159,13 @@ export function WorkspacePanelsProvider({ children }: { children: ReactNode }) {
     toggleRefs[closed].current?.focus();
   }, [panels, toggleRefs]);
 
+  // `/` while history was closed: focus the search box once the panel is open (it is inert before).
+  useEffect(() => {
+    if (!panels.historyOpen || !focusSearchWhenOpen.current) return;
+    focusSearchWhenOpen.current = false;
+    searchRef.current?.focus();
+  }, [panels.historyOpen]);
+
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.defaultPrevented || isTypingTarget(event.target) || hasOpenOverlay()) return;
@@ -169,7 +180,11 @@ export function WorkspacePanelsProvider({ children }: { children: ReactNode }) {
       const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
       if (event.key === HISTORY_SHORTCUT && plain) {
         event.preventDefault();
-        openHistory();
+        if (panelsRef.current.historyOpen) searchRef.current?.focus();
+        else {
+          focusSearchWhenOpen.current = true;
+          openHistory();
+        }
       }
     }
     document.addEventListener("keydown", onKeyDown);
@@ -185,9 +200,10 @@ export function WorkspacePanelsProvider({ children }: { children: ReactNode }) {
       outputOpen: panels.outputOpen,
       openOutput,
       closeOutput,
+      searchRef,
       toggleRefs,
     }),
-    [panels, pane, openHistory, closeHistory, openOutput, closeOutput, toggleRefs],
+    [panels, pane, openHistory, closeHistory, openOutput, closeOutput, searchRef, toggleRefs],
   );
 
   return (

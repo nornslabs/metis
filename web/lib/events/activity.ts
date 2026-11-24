@@ -7,6 +7,12 @@ export const RESEARCHER_NODE = "researcher";
 /** The Scorer's graph node. */
 export const SCORER_NODE = "scorer";
 
+/** The Architect's graph node: it writes the spec. */
+export const ARCHITECT_NODE = "architect";
+
+/** The Planner's graph node: it proposes phases and writes the tasks. */
+export const PLANNER_NODE = "planner";
+
 /**
  * What the run is doing now, for the shimmer: the running step's name, plus its latest tool call
  * ("Researching… web_search_exa"), else what the run is waiting for.

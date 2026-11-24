@@ -4,11 +4,10 @@ export type ResearchView = components["schemas"]["ResearchView"];
 export type ResearchItem = ResearchView["items"][number];
 export type Competitor = ResearchView["competitors"][number];
 
-export const MAX_SOURCE_CHIPS = 5;
+/** A competitor overlapping the idea by at least this much is Direct, else Adjacent. */
+export const DIRECT_OVERLAP = 0.5;
 const HIGH_CONFIDENCE = 0.7;
 const MEDIUM_CONFIDENCE = 0.4;
-
-export type SourceChip = { readonly domain: string; readonly href: string; readonly letter: string };
 
 /** The link to open, or `null` unless it is an http(s) URL: agent- and web-sourced links are untrusted. */
 export function safeHref(url: string | null | undefined): string | null {
@@ -32,6 +31,12 @@ export function overlapPercent(overlap: number): string {
   return `${Math.round(overlap * 100)}%`;
 }
 
+export type CompetitorRelation = "Direct" | "Adjacent";
+
+export function competitorRelation(overlap: number): CompetitorRelation {
+  return overlap >= DIRECT_OVERLAP ? "Direct" : "Adjacent";
+}
+
 export function confidenceLabel(confidence: number): "High" | "Medium" | "Low" {
   if (confidence >= HIGH_CONFIDENCE) return "High";
   if (confidence >= MEDIUM_CONFIDENCE) return "Medium";
@@ -53,21 +58,4 @@ export function marketFacts(view: ResearchView): readonly ResearchItem[] {
 /** Trends and risks: findings that do not need a source. */
 export function otherFindings(view: ResearchView): readonly ResearchItem[] {
   return view.items.filter((item) => item.kind === "trend" || item.kind === "risk");
-}
-
-/** One chip per source domain (competitors first, then sourced items), at most `limit`, and how many were left out. */
-export function sourceChips(view: ResearchView, limit = MAX_SOURCE_CHIPS): { chips: SourceChip[]; more: number } {
-  const urls = [
-    ...view.competitors.map((competitor) => competitor.url),
-    ...view.items.filter((item) => item.kind !== "trend" && item.kind !== "risk").map((item) => item.url),
-  ];
-  const byDomain = new Map<string, SourceChip>();
-  for (const url of urls) {
-    const domain = domainOf(url);
-    const href = safeHref(url);
-    if (!domain || !href || byDomain.has(domain)) continue;
-    byDomain.set(domain, { domain, href, letter: domain.charAt(0).toUpperCase() });
-  }
-  const all = [...byDomain.values()];
-  return { chips: all.slice(0, limit), more: Math.max(0, all.length - limit) };
 }

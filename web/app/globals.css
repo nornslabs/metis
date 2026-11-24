@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
+/* A short window (the empty state drops its owl): `short:hidden` */
+@custom-variant short (@media (max-height: 640px));
 
 @theme inline {
   --color-background: var(--background);
@@ -70,6 +72,12 @@
   --text-body: 13px;
   --text-title: 17px;
   --text-score: 28px;
+  --text-total: 40px;
+  /* The ASCII owl's characters: one cell is 6px wide, so the type is 9px (6px on phones) */
+  --text-ascii: 9px;
+  --text-ascii--line-height: 9px;
+  --text-ascii-phone: 6px;
+  --text-ascii-phone--line-height: 6px;
   --text-display: clamp(1.5rem, 2.6vw, 2rem);
   --text-display--line-height: 1.12;
   --text-display--letter-spacing: -0.03em;
@@ -79,12 +87,17 @@
   --tracking-divider: 0.08em;
   --tracking-label: 0.06em;
   --tracking-score: -0.04em;
+  --tracking-ascii: 0.6px;
+  --tracking-ascii-phone: 0.4px;
 
   /* Fixed sizes: h-control, h-badge, h-track, size-tick */
   --spacing-control: 30px;
   --spacing-badge: 18px;
   --spacing-track: 3px;
   --spacing-tick: 9px;
+
+  /* A source row flashed by a chip (1.6s, accent fading out) */
+  --animate-src-flash: src-flash 1.6s ease-out;
 
   /* Max widths: max-w-pitch, max-w-headline, max-w-lead, max-w-card */
   --container-pitch: 480px;
@@ -128,12 +141,12 @@
   grid-template-columns: 100px 1fr;
 }
 
-/* Param bar row: label, track, mark out of 10, weighted points. */
+/* Param bar row: label and weight, track, mark out of 100. */
 @utility grid-cols-param-row {
-  grid-template-columns: minmax(0, 130px) 1fr 40px 36px;
+  grid-template-columns: minmax(0, 150px) 1fr 28px;
   /* the `compact` breakpoint */
   @media (width < 700px) {
-    grid-template-columns: minmax(0, 96px) 1fr 36px 32px;
+    grid-template-columns: minmax(0, 110px) 1fr 28px;
   }
 }
 
@@ -237,6 +250,16 @@
   }
   to {
     background-position: 0 0;
+  }
+}
+
+@keyframes src-flash {
+  0%,
+  40% {
+    background: var(--accent);
+  }
+  100% {
+    background: transparent;
   }
 }
 

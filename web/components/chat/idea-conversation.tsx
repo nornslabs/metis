@@ -8,7 +8,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, describeError } from "@/lib/api/errors";
 import { useQueryClient } from "@tanstack/react-query";
 import { useIdea } from "@/lib/api/queries/use-idea";
-import { useLatestRun } from "@/lib/api/queries/use-latest-run";
+import { outputsRunId } from "@/lib/api/queries/runs-order";
+import { useRuns } from "@/lib/api/queries/use-runs";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 
 import { queryKeys } from "@/lib/api/queries/keys";
@@ -38,7 +39,7 @@ function ConversationProblem({ title, children }: { title: string; children: Rea
 /** `/ideas/[ideaId]`: the idea and its latest run, live (ui-context.md, Routes). */
 export function IdeaConversation({ ideaId }: { ideaId: string }) {
   const idea = useIdea(ideaId);
-  const run = useLatestRun(ideaId);
+  const runs = useRuns(ideaId);
   const workspaceId = useWorkspaceId();
   const queryClient = useQueryClient();
 
@@ -53,15 +54,25 @@ export function IdeaConversation({ ideaId }: { ideaId: string }) {
     }
   }, [ideaId, queryClient]);
 
-  if (idea.isPending || run.isPending) return <ConversationSkeleton />;
-  const error = idea.error ?? run.error;
+  if (idea.isPending || runs.isPending) return <ConversationSkeleton />;
+  const error = idea.error ?? runs.error;
   if (error instanceof ApiError && error.status === 404) {
     return <ConversationProblem title="Idea not found">It may have been archived, or it belongs to another workspace.</ConversationProblem>;
   }
   if (error || !idea.data) {
     return <ConversationProblem title="Could not load this idea">{describeError(error)}</ConversationProblem>;
   }
-  if (!run.data) return <NoRunConversation idea={idea.data} />;
+  const all = runs.data ?? [];
+  const latest = all.at(-1);
+  if (!latest) return <NoRunConversation idea={idea.data} />;
   // A new run, or a new workspace, starts from a fresh state: the stream replays from the start.
-  return <RunConversation key={`${workspaceId}:${run.data.id}`} idea={idea.data} run={run.data} />;
+  return (
+    <RunConversation
+      key={`${workspaceId}:${latest.id}`}
+      idea={idea.data}
+      run={latest}
+      history={all.slice(0, -1)}
+      outputsRunId={outputsRunId(all)}
+    />
+  );
 }

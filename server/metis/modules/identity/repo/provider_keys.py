@@ -2,40 +2,17 @@
 
 from __future__ import annotations
 
-from base64 import b64decode, b64encode
 from datetime import datetime
-from typing import Any
 from uuid import UUID
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.core.crypto import SealedSecret
-from metis.core.errors import SecretDecryptError
+from metis.core.crypto import SealedSecret, seal_to_json
 from metis.helpers.ids import uuid7
 from metis.modules.identity.dto import ProviderKind
 from metis.modules.identity.models import ProviderKeyRow
-
-_SEALED_BYTES_FIELDS = ("ciphertext", "nonce", "wrapped_key")
-_UNREADABLE_SECRET = "A stored secret could not be read. Please re-enter it."
-
-
-def seal_to_json(sealed: SealedSecret) -> dict[str, Any]:
-    """Storage form of a sealed secret: byte fields as base64 text."""
-    stored: dict[str, Any] = {
-        name: b64encode(getattr(sealed, name)).decode() for name in _SEALED_BYTES_FIELDS
-    }
-    return {**stored, "key_version": sealed.key_version}
-
-
-def seal_from_json(stored: dict[str, Any]) -> SealedSecret:
-    """Inverse of ``seal_to_json``; a malformed row fails like a tampered one."""
-    try:
-        fields = {name: b64decode(stored[name]) for name in _SEALED_BYTES_FIELDS}
-        return SealedSecret(**fields, key_version=int(stored["key_version"]))
-    except (KeyError, TypeError, ValueError):
-        raise SecretDecryptError(_UNREADABLE_SECRET) from None
 
 
 async def upsert(

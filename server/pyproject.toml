@@ -93,13 +93,14 @@ forbidden_modules = [
   "metis.modules.research",
   "metis.modules.scoring",
   "metis.modules.planning",
+  "metis.modules.integrations",
 ]
 
 [[tool.importlinter.contracts]]
-name = "research, scoring and planning sit above ideas, ideas above identity, identity above auth"
+name = "research, scoring, planning and integrations sit above ideas, ideas above identity, identity above auth"
 type = "layers"
 layers = [
-  "metis.modules.research | metis.modules.scoring | metis.modules.planning",
+  "metis.modules.research | metis.modules.scoring | metis.modules.planning | metis.modules.integrations",
   "metis.modules.ideas",
   "metis.modules.identity",
   "metis.modules.auth",
@@ -216,6 +217,27 @@ forbidden_modules = [
   "metis.modules.auth.models",
   "metis.modules.auth.repo",
   "metis.modules.auth.service",
+]
+allow_indirect_imports = true
+
+[[tool.importlinter.contracts]]
+name = "integrations uses only the public surface of identity and auth"
+type = "forbidden"
+source_modules = ["metis.modules.integrations"]
+forbidden_modules = [
+  "metis.modules.identity.controller",
+  "metis.modules.identity.dto",
+  "metis.modules.identity.helpers",
+  "metis.modules.identity.models",
+  "metis.modules.identity.repo",
+  "metis.modules.identity.service",
+  "metis.modules.auth.cache",
+  "metis.modules.auth.controller",
+  "metis.modules.auth.dto",
+  "metis.modules.auth.models",
+  "metis.modules.auth.repo",
+  "metis.modules.auth.service",
+  "metis.modules.ideas",
 ]
 allow_indirect_imports = true
 

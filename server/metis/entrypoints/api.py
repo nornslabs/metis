@@ -28,6 +28,7 @@ from metis.modules.docs import router as docs_router
 from metis.modules.health import router as health_router
 from metis.modules.identity import router as identity_router
 from metis.modules.ideas import router as ideas_router
+from metis.modules.integrations import router as integrations_router
 from metis.modules.planning import router as planning_router
 from metis.modules.research import router as research_router
 from metis.modules.scoring import router as scoring_router
@@ -59,6 +60,7 @@ OPENAPI_TAGS = [
     {"name": "research", "description": "Research snapshots and findings."},
     {"name": "planning", "description": "Plans: phases, tasks and dependencies."},
     {"name": "stt", "description": "Speech-to-text transcription."},
+    {"name": "integrations", "description": "MCP connections (Linear): OAuth and tools."},
 ]
 
 
@@ -109,6 +111,7 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(scoring_router)
     app.include_router(planning_router)
     app.include_router(stt_router)
+    app.include_router(integrations_router)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

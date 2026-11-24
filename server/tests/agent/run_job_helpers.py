@@ -61,6 +61,8 @@ def job_ctx(
     advise: bool = False,
     architect: bool = False,
     planner: bool = False,
+    oauth: ClientFactory | None = None,
+    mcp: Any = None,
 ) -> dict[str, Any]:
     """The Arq ``ctx`` a worker would pass, with the runner pointed at the test database.
 
@@ -68,7 +70,8 @@ def job_ctx(
     ``llm`` the real specialists run against that scripted model; the Researcher stays a stub
     unless ``exa`` (the Exa HTTP client factory, e.g. a ``FakeExaMcp`` transport) is given, and
     the Scorer stays a stub unless ``score`` is true, the Advisor unless ``advise`` is, and the
-    Architect unless ``architect`` is, and the Planner unless ``planner`` is.
+    Architect unless ``architect`` is, and the Planner unless ``planner`` is. ``oauth`` and
+    ``mcp`` route a Linear token refresh and Linear's MCP sessions to a fake.
     """
     if llm is None:
         specialists = {**stub_specialists(), **(specialists or {})}
@@ -90,6 +93,8 @@ def job_ctx(
         specialists=specialists,
         llm_http_client=llm.client if llm else None,
         exa_http_client=exa,
+        oauth_http_client=oauth,
+        mcp_http_client=mcp,
     )
     return {"redis": redis, "run_deps": deps}
 

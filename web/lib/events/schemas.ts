@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { reviewedPhaseSchema, type ReviewedPhase } from "@/lib/schemas/plan";
+
 /**
  * Zod schemas for the run events the server streams (`core.events.RunEventType`). Each SSE frame's
  * `data` is the envelope `{run_id, type, data, ts}`; the payload shape depends on `type`.
@@ -70,7 +72,11 @@ export type AdviceInterrupt = {
   total: number;
   band: z.infer<typeof scoreBandSchema>;
 };
-export type RunInterrupt = QuestionInterrupt | ApprovalInterrupt | AdviceInterrupt;
+/** The run paused for the user to confirm the spec; `text` is the draft's version id. */
+export type SpecReviewInterrupt = { kind: "spec_review"; text: string; specVersionId: string; number: number };
+/** The run paused for the user to review the Planner's phases; `text` is their names, so a new proposal is a new pause. */
+export type PhaseReviewInterrupt = { kind: "phase_review"; text: string; phases: readonly ReviewedPhase[] };
+export type RunInterrupt = QuestionInterrupt | ApprovalInterrupt | AdviceInterrupt | SpecReviewInterrupt | PhaseReviewInterrupt;
 
 const questionOptionSchema = z.object({
   id: z.string().min(1),
@@ -121,11 +127,19 @@ export const interruptSchema = z
       total: z.number(),
       band: scoreBandSchema,
     }),
+    z.object({ type: z.literal("spec_review"), spec_version_id: z.string(), number: z.number().int().positive() }),
+    z.object({ type: z.literal("phase_review"), phases: z.array(reviewedPhaseSchema).min(1) }),
   ])
   .transform((value): RunInterrupt => {
     if (value.type === "question") return toQuestionInterrupt(value);
     if (value.type === "advice_decision") {
       return { kind: "advice_decision", text: value.score_run_id, scoreRunId: value.score_run_id, total: value.total, band: value.band };
+    }
+    if (value.type === "spec_review") {
+      return { kind: "spec_review", text: value.spec_version_id, specVersionId: value.spec_version_id, number: value.number };
+    }
+    if (value.type === "phase_review") {
+      return { kind: "phase_review", text: JSON.stringify(value.phases), phases: value.phases };
     }
     const details = typeof value.details === "string" && value.details.trim() !== "" ? value.details : undefined;
     return { kind: "approval", text: value.action, ...(details && { details }) };

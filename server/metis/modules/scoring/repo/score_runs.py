@@ -6,6 +6,7 @@ uuid7 ``id``. There is no update or delete: score runs are immutable.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -68,6 +69,18 @@ async def latest_for_idea(
         .limit(1)
     )
     return (await session.scalars(stmt)).one_or_none()
+
+
+async def list_for_ideas(
+    session: AsyncSession, workspace_id: UUID, idea_ids: Sequence[UUID]
+) -> list[ScoreRunRow]:
+    """The score runs of all ``idea_ids`` in one query, oldest first (uuid7 order)."""
+    stmt = (
+        select(ScoreRunRow)
+        .where(ScoreRunRow.workspace_id == workspace_id, ScoreRunRow.idea_id.in_(idea_ids))
+        .order_by(ScoreRunRow.id.asc())
+    )
+    return list((await session.scalars(stmt)).all())
 
 
 async def list_for_idea(

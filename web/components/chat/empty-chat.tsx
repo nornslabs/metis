@@ -9,6 +9,7 @@ import { toast } from "sonner";
 
 import { Composer } from "@/components/chat/composer";
 import { VoiceButton } from "@/components/chat/voice-button";
+import { EmptyState } from "@/components/chat/empty-state";
 import { KEY_GATE_NOTICE_ID, KeyGateNotice } from "@/components/chat/key-gate-notice";
 import { Button } from "@/components/ui/button";
 import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
@@ -91,13 +92,7 @@ export function EmptyChat() {
 
   return (
     <>
-      <section className="flex flex-1 flex-col items-center justify-center gap-1.5 px-5 py-8 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">What are you building?</h1>
-        <p className="max-w-lead text-body text-muted-foreground">
-          Describe your idea in a sentence or two. Metis will ask a few questions, research the market and
-          score it.
-        </p>
-      </section>
+      <EmptyState />
       <div className="chat-col flex shrink-0 flex-wrap justify-center gap-1.5 px-5 pb-3 max-guides:px-4">
         {SUGGESTIONS.map((suggestion) => (
           <Button

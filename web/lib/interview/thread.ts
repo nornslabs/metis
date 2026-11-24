@@ -5,8 +5,8 @@ type InterviewTurn = components["schemas"]["InterviewTurn"];
 
 /** One message of the interview: a question from Metis or the user's answer. */
 export type InterviewMessage =
-  | { readonly role: "agent"; readonly key: string; readonly text: string }
-  | { readonly role: "user"; readonly key: string; readonly text: string; readonly picked?: boolean };
+  | { readonly role: "agent"; readonly key: string; readonly runId: string; readonly text: string }
+  | { readonly role: "user"; readonly key: string; readonly runId: string; readonly text: string; readonly picked?: boolean };
 
 /**
  * An answer sent from this page that the turns list may not show yet (the worker saves it a moment
@@ -22,6 +22,8 @@ export type SentAnswer = {
 };
 
 export type InterviewThreadInput = {
+  /** The live run: the owner of the question it waits on before the turns list holds it. */
+  readonly runId: string;
   readonly turns: readonly InterviewTurn[];
   /** The question the run waits on now, from the stream or the run view. */
   readonly interrupt: RunInterrupt | null;
@@ -45,8 +47,15 @@ function wasPicked(sent: readonly SentAnswer[], question: string, text: string):
   return sent.some((entry) => entry.picked === true && entry.question === question && entry.text === text);
 }
 
-function userMessage(key: string, question: string, text: string, sent: readonly SentAnswer[]): InterviewMessage {
-  return wasPicked(sent, question, text) ? { role: "user", key, text, picked: true } : { role: "user", key, text };
+function userMessage(key: string, runId: string, question: string, text: string, sent: readonly SentAnswer[]): InterviewMessage {
+  return wasPicked(sent, question, text) ? { role: "user", key, runId, text, picked: true } : { role: "user", key, runId, text };
+}
+
+/** The messages grouped by the run that asked them, each group in its original order. */
+export function groupByRun(messages: readonly InterviewMessage[]): ReadonlyMap<string, readonly InterviewMessage[]> {
+  const groups = new Map<string, InterviewMessage[]>();
+  for (const message of messages) groups.set(message.runId, [...(groups.get(message.runId) ?? []), message]);
+  return groups;
 }
 
 /**
@@ -55,7 +64,7 @@ function userMessage(key: string, question: string, text: string, sent: readonly
  * it counts as answered by an answer sent for this interrupt. Older open turns take an answer sent
  * for an earlier interrupt. The current question is added when the turns list does not hold it yet.
  */
-export function buildInterviewThread({ turns, interrupt, interruptSeq, sent }: InterviewThreadInput): InterviewThread {
+export function buildInterviewThread({ runId, turns, interrupt, interruptSeq, sent }: InterviewThreadInput): InterviewThread {
   const asked = turns.filter((turn) => turn.source === "asked");
   const pendingText = interrupt?.kind === "question" ? interrupt.text : null;
   const pendingIndex =
@@ -68,10 +77,10 @@ export function buildInterviewThread({ turns, interrupt, interruptSeq, sent }: I
   let pendingQuestion: string | null = null;
 
   asked.forEach((turn, index) => {
-    messages.push({ role: "agent", key: `${turn.id}:q`, text: turn.question });
+    messages.push({ role: "agent", key: `${turn.id}:q`, runId: turn.run_id, text: turn.question });
     const isPending = index === pendingIndex;
     const answer = turn.answer ?? (isPending ? answeredNow(turn.question) : sentAnswer(sent, turn.question, (seq) => seq <= olderLimit));
-    if (answer !== undefined && answer !== null) messages.push(userMessage(`${turn.id}:a`, turn.question, answer, sent));
+    if (answer !== undefined && answer !== null) messages.push(userMessage(`${turn.id}:a`, turn.run_id, turn.question, answer, sent));
     else if (isPending) pendingQuestion = turn.question;
   });
 
@@ -79,8 +88,8 @@ export function buildInterviewThread({ turns, interrupt, interruptSeq, sent }: I
     const answer = answeredNow(pendingText);
     const alreadyShown = answer !== undefined && asked.some((turn) => turn.question === pendingText);
     if (!alreadyShown) {
-      messages.push({ role: "agent", key: "pending:q", text: pendingText });
-      if (answer !== undefined) messages.push(userMessage("pending:a", pendingText, answer, sent));
+      messages.push({ role: "agent", key: "pending:q", runId, text: pendingText });
+      if (answer !== undefined) messages.push(userMessage("pending:a", runId, pendingText, answer, sent));
       else pendingQuestion = pendingText;
     }
   }

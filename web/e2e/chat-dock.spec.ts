@@ -294,7 +294,7 @@ test.describe("outputs are cards, not inline reports", () => {
 
     const card = page.locator('[data-pane="research"]');
     await expect(card).toBeVisible();
-    await expect(card).toContainText("2 sources · 2 competitors");
+    await expect(card).toContainText("3 sources · 2 competitors");
     await expect(card).toHaveAttribute("aria-pressed", "false");
     // Nothing of the report is in the chat.
     await expect(page.getByRole("log", { name: "Conversation" }).getByText("A crowded but fragmented market.")).toHaveCount(0);
@@ -303,7 +303,7 @@ test.describe("outputs are cards, not inline reports", () => {
 
     await expect(page).toHaveURL(/panel=research/);
     await expect(card).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("tabpanel").getByText("2 competitors · 1 fact")).toBeVisible();
+    await expect(page.getByRole("tabpanel").getByRole("region", { name: "Competitors" })).toContainText("Acme CRM");
   });
 
   test("finished work is one collapsible line", async ({ page }) => {

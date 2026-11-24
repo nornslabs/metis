@@ -76,11 +76,7 @@ def route(state: MetisState) -> str:
             return Specialist.SCORER.value
         return END
     specialist = STAGE_ROUTES[state["stage"]]
-    if (
-        state["last_error"] is not None
-        or specialist is None
-        or state.get("advice_stopped")
-    ):
+    if state["last_error"] is not None or specialist is None or state.get("advice_stopped"):
         return END
     if state.get("clarification"):
         return Specialist.INTERVIEWER.value

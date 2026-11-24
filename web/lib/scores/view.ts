@@ -55,6 +55,20 @@ export function daysAgoLabel(iso: string, now: Date = new Date()): string {
   return days === 1 ? "1 day ago" : `${days} days ago`;
 }
 
+const MS_PER_MINUTE = 60_000;
+const MINUTES_PER_HOUR = 60;
+
+/** "just now", "5 min ago", "3 h ago", then days: how long ago something was updated. */
+export function updatedAgoLabel(iso: string, now: Date = new Date()): string {
+  const created = new Date(iso).getTime();
+  if (Number.isNaN(created)) return "";
+  const minutes = Math.floor((now.getTime() - created) / MS_PER_MINUTE);
+  if (minutes < 1) return "just now";
+  if (minutes < MINUTES_PER_HOUR) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / MINUTES_PER_HOUR);
+  return hours < 24 ? `${hours} h ago` : daysAgoLabel(iso, now);
+}
+
 /** `2026-11-20T10:00:00Z` → `Nov 20, 2026`. */
 export function formatDay(iso: string): string {
   const parsed = new Date(iso);

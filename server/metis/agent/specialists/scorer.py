@@ -97,9 +97,8 @@ def build_scorer(
                 state, {"stage": _next_stage(existing, state), "rescore_after": None}
             )
         ledger = SubmissionLedger()
-        omit_previous_research = (
-            state.get("run_kind") == RunKind.MARKET_RECHECK
-            and state.get("research_skipped", False)
+        omit_previous_research = state.get("run_kind") == RunKind.MARKET_RECHECK and state.get(
+            "research_skipped", False
         )
         counter = RESCORE_SEARCH_COUNTER if rescore else SEARCH_COUNTER
         if not await _score(

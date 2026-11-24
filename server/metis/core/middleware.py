@@ -40,9 +40,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     5. Clears context after response is sent
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         """Process the request with context management and logging."""
         logger = get_logger(__name__)
 

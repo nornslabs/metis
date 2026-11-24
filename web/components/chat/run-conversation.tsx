@@ -13,6 +13,7 @@ import { OutputCards } from "@/components/chat/output-cards";
 import { RunApprovals } from "@/components/chat/run-approvals";
 import { RunDock } from "@/components/chat/run-dock";
 import { KeyGateNotice } from "@/components/chat/key-gate-notice";
+import { PastRunTurn } from "@/components/chat/past-run-turn";
 import { InterviewMessages } from "@/components/chat/interview-messages";
 import { QuickReplies } from "@/components/chat/quick-replies";
 import { RunNote, StartRunButton } from "@/components/chat/run-notice";
@@ -33,13 +34,17 @@ import { toast } from "sonner";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 import { pickedLabel } from "@/lib/chat/choice";
-import { RESEARCHER_NODE, SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
+import { SCORER_NODE, finishedResearchSteps, runActivity } from "@/lib/events/activity";
 import { isActiveStatus, isTerminalStatus } from "@/lib/events/reducer";
+import { outputStarts } from "@/lib/events/output-starts";
 import { useRunEvents } from "@/lib/events/use-run-events";
 import { stepCounter } from "@/lib/events/work-summary";
-import { buildInterviewThread } from "@/lib/interview/thread";
+import { countQuestions, splitSegments } from "@/lib/interview/segments";
+import { buildInterviewThread, groupByRun } from "@/lib/interview/thread";
 import { answerSchema, pickValue, textValue, toAnswer, type AnswerFormValues } from "@/lib/schemas/answer";
 import { acceptedFor } from "@/lib/scores/decision";
+import { useReportRunBusy } from "@/lib/workspace/run-activity";
+import { useWorkspacePanels } from "@/lib/workspace/workspace-panels";
 
 type Idea = components["schemas"]["Idea"];
 type RunView = components["schemas"]["RunView"];
@@ -48,11 +53,13 @@ const NO_ANSWER_PLACEHOLDER = "Nothing to answer right now";
 const WORKING_PLACEHOLDER = "Metis is working…";
 const APPROVAL_PLACEHOLDER = "Approve or reject above";
 const ADVICE_PLACEHOLDER = "Decide above";
+const SPEC_REVIEW_PLACEHOLDER = "Confirm the spec above";
+const PHASE_REVIEW_PLACEHOLDER = "Approve the phases above";
 const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
 /** Refetches the interview turns, the research and the scores when the run produces something new for them. */
-function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number, scoreRunId: string | null) {
+function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDone: number, scoreRunId: string | null, specVersionId: string | null) {
   const queryClient = useQueryClient();
   const workspaceId = useWorkspaceId();
   useEffect(() => {
@@ -68,28 +75,47 @@ function useRefetchOnProgress(ideaId: string, interruptCount: number, researchDo
     void queryClient.invalidateQueries({ queryKey: queryKeys.scoreHistory(workspaceId, ideaId) });
     void queryClient.invalidateQueries({ queryKey: queryKeys.suggestions(workspaceId, ideaId) });
   }, [queryClient, workspaceId, ideaId, scoreRunId]);
+  // The Architect saved a draft and waits for the review: no event carries the spec, so read it.
+  useEffect(() => {
+    if (specVersionId === null) return;
+    void queryClient.invalidateQueries({ queryKey: queryKeys.spec(workspaceId, ideaId) });
+  }, [queryClient, workspaceId, ideaId, specVersionId]);
 }
 
 type PlaceholderInput = {
   answering: boolean;
   approval: boolean;
   advice: boolean;
+  specReview: boolean;
+  phaseReview: boolean;
   canContinue: boolean;
   starting: boolean;
   active: boolean;
 };
 
 /** What the composer says: what it takes now, or why it waits. */
-function composerPlaceholder({ answering, approval, advice, canContinue, starting, active }: PlaceholderInput): string {
+function composerPlaceholder({ answering, approval, advice, specReview, phaseReview, canContinue, starting, active }: PlaceholderInput): string {
   if (answering) return ANSWER_PLACEHOLDER;
   if (approval) return APPROVAL_PLACEHOLDER;
   if (advice) return ADVICE_PLACEHOLDER;
+  if (specReview) return SPEC_REVIEW_PLACEHOLDER;
+  if (phaseReview) return PHASE_REVIEW_PLACEHOLDER;
   if (canContinue) return starting ? "Sending…" : "Continue this chat…";
   return active ? WORKING_PLACEHOLDER : NO_ANSWER_PLACEHOLDER;
 }
 
-/** One run, live: the interview, the research, and a composer that answers the run's questions. */
-export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
+interface RunConversationProps {
+  idea: Idea;
+  /** The newest run: the live one. */
+  run: RunView;
+  /** Earlier runs, oldest first, shown read-only above it. */
+  history: readonly RunView[];
+  /** The run whose message carries the output cards. */
+  outputsRunId: string | null;
+}
+
+/** The newest run, live: the interview, the research, and a composer that answers the run's questions. */
+export function RunConversation({ idea, run, history, outputsRunId }: RunConversationProps) {
   const refresh = useRefreshIdea(idea.id);
   // A refetch when the feed ends picks up the new stage, and a lost session redirects to sign-in.
   const { state, stream, sync } = useRunEvents(run.id, run, () => void refresh());
@@ -105,11 +131,20 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const interrupt = state.interrupt;
   const seq = state.interruptCount;
   const thread = useMemo(
-    () => buildInterviewThread({ turns: turns.data ?? [], interrupt, interruptSeq: seq, sent: answers.sent }),
-    [turns.data, interrupt, seq, answers.sent],
+    () => buildInterviewThread({ runId: run.id, turns: turns.data ?? [], interrupt, interruptSeq: seq, sent: answers.sent }),
+    [run.id, turns.data, interrupt, seq, answers.sent],
   );
+  // Each earlier run keeps its own questions; the live run takes the rest, so none are lost.
+  const byRun = useMemo(() => groupByRun(thread.messages), [thread.messages]);
+  const liveInterview = useMemo(() => {
+    const earlier = new Set(history.map((past) => past.id));
+    return thread.messages.filter((message) => !earlier.has(message.runId));
+  }, [thread.messages, history]);
+  const liveText = useMemo(() => splitSegments(state.segments, countQuestions(liveInterview)), [state.segments, liveInterview]);
   const researchDone = finishedResearchSteps(state);
-  useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId);
+  const specReviewId = interrupt?.kind === "spec_review" ? interrupt.specVersionId : null;
+  useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId, specReviewId);
+  const { openOutput } = useWorkspacePanels();
 
   const form = useForm<AnswerFormValues>({ resolver: zodResolver(answerSchema), defaultValues: { text: "" } });
   const text = useWatch({ control: form.control, name: "text" });
@@ -120,7 +155,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const active = isActiveStatus(state.status) && !streamLost;
   const canContinue = isTerminalStatus(state.status);
   const canSubmitPrompt = canContinue && !starting;
-  const { awaiting, question, offered, approval, advice, answeredHere, mode } = useRunPrompts({
+  const { awaiting, question, offered, approval, advice, specReview, phaseReview, answeredHere, mode } = useRunPrompts({
     state,
     streamLost,
     turnsPending: turns.isPending,
@@ -130,13 +165,18 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   });
   const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
-  const researcherStarted = state.steps.some((step) => step.node === RESEARCHER_NODE);
+  const starts = outputStarts(state.steps, idea.stage);
+  const researcherStarted = starts.researchStarted;
+  const specStarted = specReviewId !== null || starts.specStarted;
+  const planStarted = phaseReview !== null || starts.planStarted;
   const sourceCount = useResearch(idea.id, researcherStarted).data?.items.length ?? null;
 
   const placeholder = composerPlaceholder({
     answering: question !== null,
     approval: approval !== null,
     advice: advice !== null,
+    specReview: specReview !== null,
+    phaseReview: phaseReview !== null,
     canContinue,
     starting,
     active,
@@ -211,6 +251,7 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
     />
   );
 
+  useReportRunBusy(idea.id, mode === "busy");
   const waiting = awaiting && !answeredHere;
   const owl = waiting ? "waiting" : mode === "busy" ? "working" : "idle";
   return (
@@ -218,10 +259,19 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
       idea={idea}
       owl={owl}
       sentCount={answers.sent.length + answers.decisions.length + answers.adviceChoices.length}
-      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}`}
-      interview={
+      scrollKey={`${state.status}:${state.steps.length}:${state.text.length}:${thread.messages.length}:${answers.decisions.length}:${answers.adviceChoices.length}:${history.length}`}
+      interview={<InterviewMessages messages={liveInterview} leads={liveText.leads} />}
+      turns={
         <>
-          <InterviewMessages messages={thread.messages} />
+          {history.map((past) => (
+            <PastRunTurn
+              key={past.id}
+              idea={idea}
+              run={past}
+              interview={byRun.get(past.id) ?? []}
+              showOutputs={past.id === outputsRunId}
+            />
+          ))}
           {run.user_prompt ? <UserBubble text={run.user_prompt} /> : null}
         </>
       }
@@ -244,21 +294,33 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
       body={
         <RunMessageBody
           state={state}
+          text={liveText.tail}
           streamLost={streamLost}
           sourceCount={sourceCount}
           retry={<StartRunButton label="Retry" pending={starting} onClick={() => start()} blocked={gate.llmBlock !== null} />}
           outputs={
-            <OutputCards
-              ideaId={idea.id}
-              runActive={active || state.status === "awaiting_user"}
-              scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
-              researchStarted={researcherStarted}
-            />
+            run.id === outputsRunId ? (
+              <OutputCards
+                ideaId={idea.id}
+                ideaTitle={idea.title}
+                runActive={active || state.status === "awaiting_user"}
+                scoringStarted={state.steps.some((step) => step.node === SCORER_NODE)}
+                researchStarted={researcherStarted}
+                specStarted={specStarted}
+                planStarted={planStarted}
+                runId={run.id}
+                runStatus={state.status}
+                phaseReview={phaseReview}
+              />
+            ) : null
           }
           approval={
             <RunApprovals
               advice={advice}
               approval={approval}
+              specReview={specReview}
+              phaseReview={phaseReview}
+              ideaId={idea.id}
               ideaText={idea.raw_text}
               accepted={acceptedFor(suggestions.data ?? [], advice?.scoreRunId ?? "")}
               adviceChoices={answers.adviceChoices}
@@ -266,6 +328,8 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
               disabled={answers.pending}
               onAdvise={(value, decision) => answers.advise(seq, value, decision)}
               onDecide={(approved) => answers.decide(seq, approved)}
+              onOpenSpec={() => openOutput("spec")}
+              onOpenPhases={() => openOutput("plan")}
             />
           }
         />

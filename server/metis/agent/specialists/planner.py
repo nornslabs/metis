@@ -18,7 +18,9 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+from langchain_mcp_adapters.sessions import McpHttpClientFactory
 from langgraph.config import get_stream_writer
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.agent.llm import LLMGateway
@@ -28,12 +30,15 @@ from metis.agent.specialists.idea_context import idea_seed_parts
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
+from metis.agent.tools.mcp import McpRunContext, load_optional_mcp_tools
+from metis.agent.tools.mcp_policy import PLANNER_POLICY
 from metis.agent.tools.planning import SAVE_PLAN, PlanLedger, PlanRefused, planning_tools
 from metis.agent.tools.research_kb import ResearchScope, SessionOpener
 from metis.agent.tools.scoring import SourceBook
 from metis.core.errors import ErrorCode, PlanNotFoundError
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
+from metis.helpers.http import ClientFactory
 from metis.modules import ideas, planning
 from metis.modules.ideas import SpecVersion, Stage
 
@@ -46,8 +51,14 @@ STEP_LIMIT = 20
 logger = get_logger(__name__)
 
 
-def build_planner(gateway: LLMGateway, open_session: SessionOpener) -> SpecialistNode:
-    """The Planner node for one run."""
+def build_planner(
+    gateway: LLMGateway,
+    open_session: SessionOpener,
+    redis: Redis,
+    make_client: ClientFactory,
+    mcp_http_client: McpHttpClientFactory | None = None,
+) -> SpecialistNode:
+    """The Planner node for one run. Linear's read tools join its loop when Linear is connected."""
 
     async def node(state: MetisState) -> dict[str, Any]:
         scope = ResearchScope(
@@ -65,7 +76,16 @@ def build_planner(gateway: LLMGateway, open_session: SessionOpener) -> Specialis
                 return _finish_node(state, {"last_error": ErrorCode.SPEC_NOT_FOUND.value})
             if await _has_plan(session, scope, spec):
                 return _finish_node(state, {"stage": Stage.PLANNING})
-        failure = await _plan(scope, spec)
+        mcp = McpRunContext(
+            workspace_id=scope.workspace_id,
+            run_id=scope.run_id,
+            open_session=open_session,
+            redis=redis,
+            make_client=make_client,
+            mcp_http_client=mcp_http_client,
+            specialist=Specialist.PLANNER.value,
+        )
+        failure = await _plan(scope, spec, mcp)
         if failure is not None:
             return _finish_node(state, {"last_error": failure})
         return _finish_node(state, {"stage": Stage.PLANNING})
@@ -81,15 +101,16 @@ async def _has_plan(session: AsyncSession, scope: ResearchScope, spec: SpecVersi
     return True
 
 
-async def _plan(scope: ResearchScope, spec: SpecVersion) -> str | None:
+async def _plan(scope: ResearchScope, spec: SpecVersion, mcp: McpRunContext) -> str | None:
     """Run the loop; ``None`` when a plan was saved, else the error code to fail the run with."""
     ledger = PlanLedger()
     async with scope.session() as session:
         model = await scope.gateway.chat_model(session, PURPOSE)
         seed = await _seed(session, scope, spec)
+    linear_tools = await load_optional_mcp_tools(mcp, PLANNER_POLICY)
     loop = build_react_specialist(
         load_prompt(PROMPT),
-        planning_tools(scope, ledger, spec.id),
+        [*linear_tools, *planning_tools(scope, ledger, spec.id)],
         model,
         step_limit=STEP_LIMIT,
         finish_tools={SAVE_PLAN},

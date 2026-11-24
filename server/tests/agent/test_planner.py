@@ -18,7 +18,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from metis.agent.prompts import load_prompt
+from metis.core.events import RunEventType
 from tests.agent.interview_helpers import Reply, ScriptedLLM
+from tests.agent.linear_helpers import connect_workspace, mcp_client, oauth_client
 from tests.agent.planner_helpers import (
     PHASES,
     TASKS,
@@ -34,6 +36,7 @@ from tests.agent.planner_helpers import (
 )
 from tests.agent.run_job_helpers import QueuedRun, events_of, idea_stage, job_ctx, run_job, run_row
 from tests.agent.score_helpers import finished
+from tests.helpers.fake_linear import FakeLinear
 
 
 @pytest.fixture
@@ -281,3 +284,92 @@ async def test_the_planner_prompt_asks_for_non_engineering_tasks_for_other_ideas
     prompt = load_prompt("planner")
 
     assert "not software" in prompt and "non-engineering" in prompt
+
+
+LINEAR_READ_TOOLS = {"list_teams", "list_projects", "list_issues"}
+LINEAR_SERVER_TOOLS = (*LINEAR_READ_TOOLS, "save_issue", "save_project", "delete_issue")
+
+
+def _tool_names(llm: ScriptedLLM) -> set[str]:
+    return {t["function"]["name"] for t in llm.bodies[0]["tools"]}
+
+
+async def test_a_connected_linear_gives_the_planner_its_read_tools_only(
+    engine: AsyncEngine,
+    llm: ScriptedLLM,
+    redis: Redis,
+    checkpointer: AsyncPostgresSaver,
+    app_sessions: Any,
+) -> None:
+    async with FakeLinear(tools=LINEAR_SERVER_TOOLS).running() as linear:
+        ctx = job_ctx(
+            redis,
+            app_sessions,
+            llm=llm,
+            planner=True,
+            oauth=oauth_client(linear),
+            mcp=mcp_client(linear),
+        )
+        run = await planning_run(engine, app_sessions)
+        await connect_workspace(engine, app_sessions, run.workspace_id, linear)
+        llm.add(propose())
+
+        await run_job(ctx, run)
+
+    assert _tool_names(llm) == {"propose_phases", "save_plan", *LINEAR_READ_TOOLS}
+    assert (await run_row(engine, run)).status == "awaiting_user"
+
+
+async def test_an_expired_linear_leaves_the_planner_working_with_a_notice(
+    engine: AsyncEngine,
+    llm: ScriptedLLM,
+    redis: Redis,
+    checkpointer: AsyncPostgresSaver,
+    app_sessions: Any,
+) -> None:
+    async with FakeLinear(tools=LINEAR_SERVER_TOOLS).running() as linear:
+        ctx = job_ctx(
+            redis,
+            app_sessions,
+            llm=llm,
+            planner=True,
+            oauth=oauth_client(linear),
+            mcp=mcp_client(linear),
+        )
+        run = await planning_run(engine, app_sessions)
+        await connect_workspace(engine, app_sessions, run.workspace_id, linear, status="expired")
+        llm.add(propose())
+
+        await run_job(ctx, run)
+
+    assert _tool_names(llm) == {"propose_phases", "save_plan"}
+    notices = [e for e in await events_of(redis, run) if e.type is RunEventType.NOTICE]
+    assert [n.data["code"] for n in notices] == ["mcp.expired"]
+    assert (await run_row(engine, run)).status == "awaiting_user"
+
+
+async def test_a_run_pausing_on_the_phase_review_resumes_with_linear_tools_loaded(
+    engine: AsyncEngine,
+    llm: ScriptedLLM,
+    redis: Redis,
+    checkpointer: AsyncPostgresSaver,
+    app_sessions: Any,
+) -> None:
+    async with FakeLinear(tools=LINEAR_SERVER_TOOLS).running() as linear:
+        ctx = job_ctx(
+            redis,
+            app_sessions,
+            llm=llm,
+            planner=True,
+            oauth=oauth_client(linear),
+            mcp=mcp_client(linear),
+        )
+        run = await planning_run(engine, app_sessions)
+        await connect_workspace(engine, app_sessions, run.workspace_id, linear)
+        llm.add(propose(), save_plan())
+        await run_job(ctx, run)
+
+        await _review(engine, ctx, run, PHASES)
+
+    assert (await stored_plans(engine, run))[0]["status"] == "draft"
+    assert (await run_row(engine, run)).status == "succeeded"

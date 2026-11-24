@@ -38,6 +38,8 @@ class MetisState(TypedDict):
     summary: str
     step_count: int
     budget: Budget
+    # ``{action, details, approved: True}`` once the user approved an export's external writes
+    # (read by ``agent/tools/mcp_policy.ApprovalLedger``); ``None`` otherwise.
     pending_approval: dict[str, Any] | None
     last_error: str | None
     # Researcher → Interviewer round trip (SHIP-238). Read with ``.get``: checkpoints written

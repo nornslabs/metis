@@ -24,9 +24,12 @@ from metis.helpers.validation import validate_input
 from metis.modules import ideas
 from metis.modules.scoring import repo
 from metis.modules.scoring.dto import (
+    IdeaScoreSummary,
+    IdeaScoreSummaryList,
     NewParamScore,
     ParamDiff,
     Rubric,
+    ScoreBand,
     ScoreDiff,
     ScoreHistory,
     ScoreParam,
@@ -123,6 +126,31 @@ async def score_history(session: AsyncSession, workspace_id: UUID, idea_id: UUID
     await ideas.get_idea(session, workspace_id, idea_id)
     rows = await repo.score_runs.list_for_idea(session, workspace_id, idea_id)
     return ScoreHistory(items=tuple(_summary(row) for row in rows))
+
+
+async def score_summaries(
+    session: AsyncSession, workspace_id: UUID, idea_ids: Sequence[UUID]
+) -> IdeaScoreSummaryList:
+    """Score trends of the scored ideas among ``idea_ids``, in one query.
+
+    Foreign, unknown, archived and unscored ideas are left out. ``totals`` is oldest first
+    and ``band`` is the newest run's.
+    """
+    live = await ideas.live_idea_ids(session, workspace_id, list(set(idea_ids)))
+    rows = await repo.score_runs.list_for_ideas(session, workspace_id, list(live))
+    by_idea: dict[UUID, list[ScoreRunRow]] = {}
+    for row in rows:
+        by_idea.setdefault(row.idea_id, []).append(row)
+    return IdeaScoreSummaryList(
+        items=tuple(
+            IdeaScoreSummary(
+                idea_id=idea_id,
+                band=ScoreBand(runs[-1].band),
+                totals=tuple(run.total for run in runs),
+            )
+            for idea_id, runs in by_idea.items()
+        )
+    )
 
 
 async def get_score_run(session: AsyncSession, workspace_id: UUID, score_run_id: UUID) -> ScoreRun:

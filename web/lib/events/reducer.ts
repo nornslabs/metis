@@ -32,6 +32,12 @@ export type RunState = {
   /** Notices in the order they arrived, one per code (a replay does not repeat them). */
   readonly notices: readonly RunNotice[];
   readonly text: string;
+  /**
+   * The same text cut at each question the run asked: `segments[i]` is what Metis wrote after the
+   * answer to question i and before question i + 1, so each reply stays next to the answer it
+   * follows. Always has at least one entry; the last one is still being written.
+   */
+  readonly segments: readonly string[];
   readonly error: RunError | null;
   readonly interrupt: RunInterrupt | null;
   /**
@@ -74,7 +80,7 @@ export function initialRunState(seed: RunSeed): RunState {
   const interrupt = parsed?.success ? parsed.data : null;
   const notices: readonly RunNotice[] =
     parsed && !parsed.success ? [{ code: UNREADABLE_PAUSE_CODE, text: UNREADABLE_PAUSE_TEXT }] : [];
-  return { status, steps: [], notices, text: "", error, interrupt, interruptCount: 0, scoreRunId: null };
+  return { status, steps: [], notices, text: "", segments: [""], error, interrupt, interruptCount: 0, scoreRunId: null };
 }
 
 function lastIndexOfNode(steps: readonly RunStep[], node: string): number {
@@ -129,6 +135,10 @@ function addTool(steps: readonly RunStep[], node: string, name: string): readonl
   return replaceStep(steps, index, { ...last, tools: [...last.tools, name] });
 }
 
+function appendToLast(segments: readonly string[], text: string): readonly string[] {
+  return [...segments.slice(0, -1), `${segments.at(-1) ?? ""}${text}`];
+}
+
 function sameInterrupt(a: RunInterrupt | null, b: RunInterrupt | null): boolean {
   return a === b || (a !== null && b !== null && a.kind === b.kind && a.text === b.text);
 }
@@ -150,6 +160,7 @@ function syncWithView(state: RunState, seed: RunSeed): RunState {
     error: view.error,
     interrupt: view.interrupt,
     interruptCount: newPause ? state.interruptCount + 1 : state.interruptCount,
+    segments: newPause && view.interrupt?.kind === "question" ? [...state.segments, ""] : state.segments,
   };
 }
 
@@ -174,12 +185,17 @@ export function runReducer(state: RunState, event: RunAction): RunState {
     case "tool_call":
       return { ...state, steps: addTool(state.steps, event.node, event.name) };
     case "token":
-      return { ...state, text: state.text + event.text };
+      return { ...state, text: state.text + event.text, segments: appendToLast(state.segments, event.text) };
     case "notice":
       return addNotice(state, { code: event.code, text: event.text });
     case "score":
       return { ...state, scoreRunId: event.scoreRunId };
     case "interrupt":
-      return { ...state, interrupt: event.interrupt, interruptCount: state.interruptCount + 1 };
+      return {
+        ...state,
+        interrupt: event.interrupt,
+        interruptCount: state.interruptCount + 1,
+        segments: event.interrupt.kind === "question" ? [...state.segments, ""] : state.segments,
+      };
   }
 }

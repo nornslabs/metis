@@ -7,6 +7,7 @@ RLS context. Every read and write is scoped to the workspace id as well.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,9 +24,11 @@ from metis.modules import auth
 from metis.modules.ideas import repo
 from metis.modules.ideas.dto import (
     DEFAULT_PAGE_SIZE,
+    IN_PROGRESS_STAGES,
     MAX_RAW_TEXT_LENGTH,
     MIN_RAW_TEXT_LENGTH,
     Idea,
+    IdeaFilter,
     IdeaPage,
     IdeaPatch,
     NewIdea,
@@ -70,18 +73,40 @@ async def get_idea(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> 
     return Idea.model_validate(await _get_row(session, workspace_id, idea_id))
 
 
+async def live_idea_ids(
+    session: AsyncSession, workspace_id: UUID, idea_ids: Sequence[UUID]
+) -> set[UUID]:
+    """The ids among ``idea_ids`` that are unarchived ideas of the workspace (others dropped)."""
+    return await repo.ideas.live_ids(session, workspace_id, idea_ids)
+
+
 async def list_ideas(
     session: AsyncSession,
     workspace_id: UUID,
     cursor: str | None = None,
     limit: int = DEFAULT_PAGE_SIZE,
+    q: str | None = None,
+    filter: IdeaFilter = IdeaFilter.ALL,  # noqa: A002 - the HTTP parameter name
 ) -> IdeaPage:
-    """One page of the workspace's ideas, newest first, resuming after ``cursor``."""
+    """One page of the workspace's ideas, most recently active first, resuming after ``cursor``.
+
+    ``q`` keeps ideas whose title contains it (blank means no search); ``filter`` keeps the
+    ideas in progress (before ``spec_confirmed``) or those with a score.
+    """
     after = decode_cursor(cursor) if cursor is not None else None
-    rows = await repo.ideas.list_page(session, workspace_id, after=after, limit=limit + 1)
+    search = (q or "").strip() or None
+    rows = await repo.ideas.list_page(
+        session,
+        workspace_id,
+        after=after,
+        limit=limit + 1,
+        title_contains=search,
+        stages=[s.value for s in IN_PROGRESS_STAGES] if filter is IdeaFilter.IN_PROGRESS else None,
+        scored_only=filter is IdeaFilter.SCORED,
+    )
     page = rows[:limit]
     has_more = len(rows) > limit
-    next_cursor = encode_cursor(page[-1].created_at, page[-1].id) if has_more else None
+    next_cursor = encode_cursor(page[-1].updated_at, page[-1].id) if has_more else None
     return IdeaPage(items=[Idea.model_validate(row) for row in page], next_cursor=next_cursor)
 
 

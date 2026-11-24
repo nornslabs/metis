@@ -179,7 +179,7 @@ test.describe("workspace panels", () => {
 
     await historyToggle(page).click();
     await expect(page.getByTestId("history-scrim")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Close history" })).toBeFocused();
+    await expect(page.getByRole("searchbox", { name: "Search ideas" })).toBeFocused();
     const noOverflow = () =>
       page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth);
     expect(await noOverflow()).toBe(true);

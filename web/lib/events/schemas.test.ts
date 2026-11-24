@@ -167,4 +167,32 @@ describe("parseRunEvent", () => {
     const parsed = parseRunEvent("interrupt", frame("interrupt", payload));
     expect(parsed).toMatchObject({ type: "notice", code: UNREADABLE_PAUSE_CODE });
   });
+
+  test("reads a spec_review interrupt", () => {
+    expect(
+      parseRunEvent("interrupt", frame("interrupt", { type: "spec_review", spec_version_id: "sv1", number: 1, kind: "software" })),
+    ).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "spec_review", text: "sv1", specVersionId: "sv1", number: 1 },
+    });
+  });
+
+  test("reads a phase_review interrupt", () => {
+    const phases = [{ name: "Foundations", goal: "Set up", exit_criteria: "Builds" }];
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "phase_review", phases }))).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "phase_review", text: JSON.stringify(phases), phases },
+    });
+  });
+
+  test("turns a malformed phase_review into the unreadable-pause notice", () => {
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "phase_review", phases: [{ name: "x" }] }))).toMatchObject({
+      type: "notice",
+      code: UNREADABLE_PAUSE_CODE,
+    });
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "phase_review", phases: [] }))).toMatchObject({
+      type: "notice",
+      code: UNREADABLE_PAUSE_CODE,
+    });
+  });
 });

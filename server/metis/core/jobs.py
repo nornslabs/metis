@@ -66,9 +66,7 @@ async def enqueue(
         return await pool.enqueue_job(job_name, *args, _job_id=job_id, _queue_name=queue, **kwargs)
 
     async with await create_pool(redis_settings()) as owned:
-        return await owned.enqueue_job(
-            job_name, *args, _job_id=job_id, _queue_name=queue, **kwargs
-        )
+        return await owned.enqueue_job(job_name, *args, _job_id=job_id, _queue_name=queue, **kwargs)
 
 
 def logged_job(fn: JobFunction) -> JobFunction:

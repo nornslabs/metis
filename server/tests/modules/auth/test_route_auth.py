@@ -31,6 +31,8 @@ PUBLIC_ROUTES = frozenset(
         ("GET", "/v1/auth/google/login"),
         ("GET", "/v1/auth/google/callback"),
         ("POST", "/v1/auth/logout"),
+        # A browser navigation: it checks the session itself and redirects to sign-in.
+        ("GET", "/v1/integrations/{provider}/callback"),
     }
 )
 PATH_PARAM = re.compile(r"\{(\w+)(?::\w+)?\}")

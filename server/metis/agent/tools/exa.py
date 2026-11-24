@@ -12,16 +12,14 @@ from dataclasses import asdict, dataclass
 from typing import Any
 from uuid import UUID
 
-import httpx
 from langchain_core.tools import BaseTool, StructuredTool
 from langchain_mcp_adapters.tools import load_mcp_tools
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.core.errors import UpstreamError
 from metis.core.events import RunEventType, publish
 from metis.helpers.http import ClientFactory, FailureReason, provider_error
-from metis.helpers.mcp import open_mcp_session
+from metis.helpers.mcp import failure_reason, open_mcp_session
 from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
 
 PROVIDER = "exa"
@@ -164,7 +162,7 @@ def _wrap_tool(tool: BaseTool, name: str, run_id: str, redis: Redis) -> BaseTool
                         result = await tool.ainvoke(args)
                     break
                 except Exception as exc:  # noqa: BLE001 - MCP errors are normalized below
-                    reason = _tool_failure_reason(exc)
+                    reason = failure_reason(exc)
                     retryable = {FailureReason.RATE_LIMITED, FailureReason.SERVER_ERROR}
                     if reason not in retryable or attempt == len(RETRY_DELAYS):
                         raise provider_error(PROVIDER, reason) from None
@@ -202,29 +200,6 @@ def _cache_key(run_id: str, tool_name: str, args: Mapping[str, Any]) -> str:
     encoded = json.dumps(args, sort_keys=True, separators=(",", ":"))
     digest = hashlib.sha256(encoded.encode()).hexdigest()
     return f"agent:exa:{run_id}:{tool_name}:{digest}"
-
-
-def _tool_failure_reason(exc: Exception) -> FailureReason:
-    if isinstance(exc, UpstreamError):
-        reason = (exc.meta or {}).get("reason")
-        if not isinstance(reason, str):
-            return FailureReason.BAD_RESPONSE
-        try:
-            return FailureReason(reason)
-        except ValueError:
-            return FailureReason.BAD_RESPONSE
-    if isinstance(exc, TimeoutError | httpx.TimeoutException):
-        return FailureReason.TIMEOUT
-    if isinstance(exc, httpx.TransportError):
-        return FailureReason.UNREACHABLE
-    message = str(exc)
-    if "(401)" in message or "(403)" in message:
-        return FailureReason.UNAUTHORIZED
-    if re.search(r"\(?429\)?", message):
-        return FailureReason.RATE_LIMITED
-    if re.search(r"\(?(50[0-9])\)?", message):
-        return FailureReason.SERVER_ERROR
-    return FailureReason.BAD_RESPONSE
 
 
 def _research_hits(result: Any) -> list[ResearchHit]:

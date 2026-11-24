@@ -179,7 +179,10 @@ export interface paths {
         };
         /**
          * List Ideas
-         * @description The workspace's ideas, newest first; pass ``next_cursor`` as ``cursor`` for the next page.
+         * @description The workspace's ideas, most recently active first (``updated_at``).
+         *
+         *     ``q`` searches titles; ``filter`` is ``all``, ``in_progress`` or ``scored``. Pass
+         *     ``next_cursor`` as ``cursor`` for the next page.
          */
         get: operations["list_ideas_v1_ideas_get"];
         put?: never;
@@ -487,6 +490,107 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/integrations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Integrations
+         * @description Each provider's connection status in the current workspace.
+         */
+        get: operations["list_integrations_v1_integrations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect
+         * @description Disconnect the provider (owners only).
+         */
+        delete: operations["disconnect_v1_integrations__provider__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Callback
+         * @description Finish the OAuth flow and return to the web app. Any failure stores nothing.
+         */
+        get: operations["callback_v1_integrations__provider__callback_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect
+         * @description Start the OAuth flow (owners only); the web sends the browser to ``authorize_url``.
+         */
+        post: operations["connect_v1_integrations__provider__connect_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/integrations/{provider}/tools": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Tools
+         * @description The tools the connected server offers. An expired connection is returned as a 409
+         *     problem, not raised, so the ``expired`` mark still commits.
+         */
+        get: operations["list_tools_v1_integrations__provider__tools_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/plans/{plan_id}/phases": {
         parameters: {
             query?: never;
@@ -638,6 +742,26 @@ export interface paths {
          * @description Answer the question or approval the run waits on.
          */
         post: operations["resume_run_v1_runs__run_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/scores/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Score Summaries
+         * @description Score totals per version (oldest first) and the latest band, for several ideas at once.
+         */
+        get: operations["get_score_summaries_v1_scores_summaries_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -861,6 +985,19 @@ export interface components {
             number: number;
         };
         /**
+         * ConnectRequest
+         * @description Body of ``POST /v1/integrations/{provider}/connect``.
+         */
+        ConnectRequest: {
+            /** Redirect To */
+            redirect_to?: string | null;
+        };
+        /** ConnectStarted */
+        ConnectStarted: {
+            /** Authorize Url */
+            authorize_url: string;
+        };
+        /**
          * CreateWorkspaceRequest
          * @description Body of ``POST /v1/workspaces``; the service validates and trims ``name``.
          */
@@ -977,13 +1114,19 @@ export interface components {
             workspace_id: string;
         };
         /**
+         * IdeaFilter
+         * @description Which ideas ``GET /v1/ideas`` lists: all, those before ``spec_confirmed``, or scored.
+         * @enum {string}
+         */
+        IdeaFilter: "all" | "in_progress" | "scored";
+        /**
          * IdeaKind
          * @enum {string}
          */
         IdeaKind: "software" | "other";
         /**
          * IdeaPage
-         * @description One page of ideas, newest first; ``next_cursor`` is ``None`` on the last page.
+         * @description One page of ideas, latest activity first; ``next_cursor`` is ``None`` on the last page.
          */
         IdeaPage: {
             /** Items */
@@ -1005,6 +1148,66 @@ export interface components {
             /** Title */
             title?: string | null;
             /** Version */
+            version: number;
+        };
+        /**
+         * IdeaScoreSummary
+         * @description One idea's score trend: run totals oldest first and the newest run's band.
+         */
+        IdeaScoreSummary: {
+            band: components["schemas"]["ScoreBand"];
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Totals */
+            totals: number[];
+        };
+        /**
+         * IdeaScoreSummaryList
+         * @description Summaries of the scored ideas among those asked for (any order).
+         */
+        IdeaScoreSummaryList: {
+            /** Items */
+            items: components["schemas"]["IdeaScoreSummary"][];
+        };
+        /** IntegrationList */
+        IntegrationList: {
+            /** Items */
+            items: components["schemas"]["IntegrationView"][];
+        };
+        /**
+         * IntegrationProvider
+         * @description MCP providers; matches the ``mcp_connections.provider`` CHECK.
+         * @enum {string}
+         */
+        IntegrationProvider: "linear" | "notion";
+        /**
+         * IntegrationStatus
+         * @description What a member sees: a revoked connection reads as ``not_connected``.
+         * @enum {string}
+         */
+        IntegrationStatus: "not_connected" | "connected" | "expired";
+        /**
+         * IntegrationView
+         * @description One provider's connection as members see it. Never carries a token or a secret.
+         */
+        IntegrationView: {
+            /** Connected At */
+            connected_at?: string | null;
+            /** Connected By */
+            connected_by?: string | null;
+            /** Expires At */
+            expires_at?: string | null;
+            provider: components["schemas"]["IntegrationProvider"];
+            /** Scopes */
+            scopes?: string[];
+            status: components["schemas"]["IntegrationStatus"];
+            /**
+             * Version
+             * @default 0
+             */
             version: number;
         };
         /**
@@ -1786,6 +1989,21 @@ export interface components {
             title: string;
         };
         /**
+         * ToolInfo
+         * @description One tool a server offers.
+         */
+        ToolInfo: {
+            /** Description */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /** ToolList */
+        ToolList: {
+            /** Items */
+            items: components["schemas"]["ToolInfo"][];
+        };
+        /**
          * TurnSource
          * @description ``asked``: a question the user saw. ``noted``: taken from the idea or an earlier answer.
          * @enum {string}
@@ -2051,6 +2269,8 @@ export interface operations {
             query?: {
                 cursor?: string | null;
                 limit?: number;
+                q?: string | null;
+                filter?: components["schemas"]["IdeaFilter"];
             };
             header?: {
                 "X-Workspace-Id"?: string | null;
@@ -2737,6 +2957,178 @@ export interface operations {
             };
         };
     };
+    list_integrations_v1_integrations_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IntegrationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    disconnect_v1_integrations__provider__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    callback_v1_integrations__provider__callback_get: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    connect_v1_integrations__provider__connect_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_tools_v1_integrations__provider__tools_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                provider: components["schemas"]["IntegrationProvider"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ToolList"];
+                };
+            };
+            /** @description Not connected, or expired */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     edit_phases_v1_plans__plan_id__phases_patch: {
         parameters: {
             query?: never;
@@ -3006,6 +3398,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RunStarted"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_score_summaries_v1_scores_summaries_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated idea ids, 1 to 50 */
+                idea_ids: string;
+            };
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdeaScoreSummaryList"];
                 };
             };
             /** @description Validation Error */

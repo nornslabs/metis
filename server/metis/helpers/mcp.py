@@ -9,6 +9,7 @@ including tool calls, becomes a safe ``UpstreamError``.
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
 
@@ -71,4 +72,29 @@ def _reason(exc: BaseException) -> FailureReason:
         return FailureReason.TIMEOUT
     if any(isinstance(leaf, httpx.TransportError) for leaf in leaves):
         return FailureReason.UNREACHABLE
+    return FailureReason.BAD_RESPONSE
+
+
+_STATUS_IN_MESSAGE = (
+    (re.compile(r"\(40[13]\)"), FailureReason.UNAUTHORIZED),
+    (re.compile(r"\(?429\)?"), FailureReason.RATE_LIMITED),
+    (re.compile(r"\(?50[0-9]\)?"), FailureReason.SERVER_ERROR),
+)
+
+
+def failure_reason(exc: BaseException) -> FailureReason:
+    """The safe reason an MCP call failed, from an adapter error, a transport error (possibly
+    inside exception groups) or, last, a status code named in an error message."""
+    if isinstance(exc, UpstreamError):
+        try:
+            return FailureReason(str((exc.meta or {}).get("reason")))
+        except ValueError:
+            return FailureReason.BAD_RESPONSE
+    reason = _reason(exc)
+    if reason is not FailureReason.BAD_RESPONSE:
+        return reason
+    message = str(exc)
+    for pattern, matched in _STATUS_IN_MESSAGE:
+        if pattern.search(message):
+            return matched
     return FailureReason.BAD_RESPONSE
