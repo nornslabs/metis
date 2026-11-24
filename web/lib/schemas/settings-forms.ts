@@ -52,7 +52,6 @@ export const keysFormSchema = z
     sarvam: z.object({ value: z.string() }),
     run_budget_usd: z.string(),
     max_steps: z.string(),
-    stt_provider: z.string(),
   })
   .superRefine((form, ctx) => {
     if (form.llm.value.trim() !== "") {

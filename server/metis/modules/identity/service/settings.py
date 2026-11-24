@@ -58,7 +58,6 @@ async def update_settings(
                 workspace_id,
                 run_budget_usd=patch.run_budget_usd or DEFAULT_RUN_BUDGET_USD,
                 max_steps=patch.max_steps or DEFAULT_MAX_STEPS,
-                stt_provider=patch.stt_provider or "web-speech",
             )
         else:
             row = await repo.settings.update_at_version(
@@ -81,7 +80,6 @@ def _settings_view(row: WorkspaceSettingsRow | None) -> WorkspaceSettingsView:
         return WorkspaceSettingsView(
             run_budget_usd=DEFAULT_RUN_BUDGET_USD,
             max_steps=DEFAULT_MAX_STEPS,
-            stt_provider="web-speech",
             version=0,
         )
     return WorkspaceSettingsView.model_validate(row)
@@ -95,6 +93,4 @@ def _settings_changes(patch: SettingsPatch) -> dict[str, object]:
         changes["run_budget_usd"] = patch.run_budget_usd
     if patch.max_steps is not None:
         changes["max_steps"] = patch.max_steps
-    if patch.stt_provider is not None:
-        changes["stt_provider"] = patch.stt_provider
     return changes

@@ -1,8 +1,8 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState, useEffect, useRef } from "react";
-import { FormProvider, useForm, useWatch } from "react-hook-form";
+import { useState } from "react";
+import { FormProvider, useForm } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,6 @@ import { ExaKeyFields, LlmKeyFields, SarvamKeyFields } from "./key-fields";
 import { RunLimitsFields } from "./run-limits-fields";
 import { SettingsFooter } from "./settings-footer";
 import { SettingsGroup } from "./settings-field";
-import { SttProviderField } from "./stt-provider-field";
 
 type SettingsResponse = components["schemas"]["SettingsResponse"];
 
@@ -36,7 +35,6 @@ function formValuesOf(settings: SettingsResponse): KeysFormValues {
     sarvam: { value: "" },
     run_budget_usd: s.run_budget_usd.toFixed(BUDGET_DECIMALS),
     max_steps: String(s.max_steps),
-    stt_provider: s.stt_provider,
   };
 }
 
@@ -86,30 +84,6 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
   // Read at render so react-hook-form re-renders on each of them (it only tracks what is read).
   const { isDirty, isValid, dirtyFields } = form.formState;
 
-  // Auto-save STT provider when it changes
-  const sttProviderValue = useWatch({ control: form.control, name: "stt_provider" });
-  const initialSttProvider = settings.settings.stt_provider;
-  const sttProviderInitialized = useRef(initialSttProvider === sttProviderValue);
-
-  useEffect(() => {
-    if (!sttProviderInitialized.current) {
-      sttProviderInitialized.current = true;
-      return;
-    }
-    if (sttProviderValue !== initialSttProvider && canWrite) {
-      updateSettings.mutateAsync({
-        version: settings.settings.version,
-        run_budget_usd: settings.settings.run_budget_usd.toFixed(BUDGET_DECIMALS),
-        max_steps: settings.settings.max_steps,
-        stt_provider: sttProviderValue,
-      } as never).then(() => {
-        toast.success("STT provider saved");
-      }).catch(() => {
-        toast.error("Failed to save STT provider");
-      });
-    }
-  }, [sttProviderValue, initialSttProvider, canWrite, settings.settings.version, settings.settings.run_budget_usd, settings.settings.max_steps, updateSettings]);
-
   const submit = handleSubmit(async (values) => {
     setFormError(null);
     onNotice(null);
@@ -136,12 +110,11 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
         await saveKey.mutateAsync({ kind: "sarvam" as unknown as components["schemas"]["ProviderKind"], body: { value: values.sarvam.value.trim() } });
       }
       savingKind = null;
-      if (dirtyFields.run_budget_usd || dirtyFields.max_steps || dirtyFields.stt_provider) {
+      if (dirtyFields.run_budget_usd || dirtyFields.max_steps) {
         await updateSettings.mutateAsync({
           version: settings.settings.version,
           run_budget_usd: Number(values.run_budget_usd).toFixed(BUDGET_DECIMALS),
           max_steps: Number(values.max_steps),
-          stt_provider: values.stt_provider,
         } as never);
       }
       // Secrets are never kept: inputs empty, the saved key shows masked.
@@ -152,7 +125,6 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
         sarvam: { value: "" },
         run_budget_usd: Number(values.run_budget_usd).toFixed(BUDGET_DECIMALS),
         max_steps: String(settings.settings.max_steps),
-        stt_provider: values.stt_provider,
       });
       setReplacingLlm(false);
       setReplacingExa(false);
@@ -210,13 +182,6 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
                 canWrite={canWrite}
                 replacing={replacingSarvam}
                 onReplacingChange={setReplacingSarvam}
-              />
-            </SettingsGroup>
-            <SettingsGroup title="STT provider">
-              <SttProviderField
-                value={(settings.settings as unknown as { stt_provider: string }).stt_provider}
-                canWrite={canWrite}
-                onChange={(value) => form.setValue("stt_provider", value)}
               />
             </SettingsGroup>
             <SettingsGroup title="Run limits">

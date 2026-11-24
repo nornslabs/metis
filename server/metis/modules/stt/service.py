@@ -22,6 +22,10 @@ async def transcribe_audio(
 ) -> TranscribeResponse | STTErrorResponse:
     """Transcribe audio using the workspace's configured STT provider.
 
+    Provider selection:
+    - If Sarvam API key is configured → use Sarvam (server-side)
+    - Otherwise → web-speech (client-side)
+
     Args:
         session: Database session
         workspace_id: Workspace ID
@@ -31,26 +35,17 @@ async def transcribe_audio(
     Returns:
         TranscribeResponse with transcript, or STTErrorResponse on failure
     """
+    # Check if Sarvam API key exists for this workspace
     async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
-        # Get STT provider setting
-        settings_row = await repo.settings.get(session, workspace_id)
-        stt_provider = settings_row.stt_provider if settings_row else "web-speech"
+        key_row = await repo.provider_keys.get(session, workspace_id, ProviderKind.SARVAM)
 
-    if stt_provider == "web-speech":
-        return STTErrorResponse(
-            error="client_side_provider",
-            detail="Use client-side Web Speech API for this provider",
-        )
-
-    if stt_provider == "mock":
-        return TranscribeResponse(transcript="This is a mock transcription.")
-
-    if stt_provider == "sarvam":
+    if key_row:
         return await _transcribe_sarvam(session, workspace_id, audio_content, content_type)
 
+    # No Sarvam key: use client-side Web Speech API
     return STTErrorResponse(
-        error="unknown_provider",
-        detail=f"Unknown STT provider: {stt_provider}",
+        error="client_side_provider",
+        detail="Use client-side Web Speech API for this provider",
     )
 
 
