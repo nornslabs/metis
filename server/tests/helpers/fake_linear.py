@@ -57,6 +57,14 @@ class FakeLinear:
         ]
     )
     label_names: list[str] = field(default_factory=lambda: ["backend", "bug"])
+    # What ``save_project`` and ``save_milestone`` created, by Linear id, in creation order.
+    projects: dict[str, dict[str, Any]] = field(default_factory=dict)
+    milestones: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # Fail the Nth ``save_*`` call (1-based, counted over the fake's life) once, as a provider
+    # error, before it changes anything; ``None`` never fails.
+    fail_save_at: int | None = None
+    # Answer ``save_*`` with text that holds no id.
+    save_without_id: bool = False
     revocation_status: int = 200
     registrations: list[dict[str, Any]] = field(default_factory=list)
     token_requests: list[dict[str, str]] = field(default_factory=list)
@@ -74,7 +82,7 @@ class FakeLinear:
             transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
         for name in self.tools:
-            self._server.add_tool(self._tool(name), name=name, description=f"Linear {name}")
+            self._server.add_tool(self._tool_for(name), name=name, description=f"Linear {name}")
         self._mcp_app = self._server.streamable_http_app()
 
     # ------------------------------------------------------------------ test API
@@ -130,6 +138,72 @@ class FakeLinear:
         self._valid_access.add(access)
         self._valid_refresh.add(refresh)
         return access, refresh
+
+    def _tool_for(self, name: str) -> Any:
+        if name == "save_project":
+            return self._save_project_tool()
+        if name == "save_milestone":
+            return self._save_milestone_tool()
+        return self._tool(name)
+
+    def _check_save(self, name: str, arguments: dict[str, Any]) -> None:
+        self.tool_calls.append((name, arguments))
+        if self.fail_save_at is not None and len(self.write_calls) == self.fail_save_at:
+            self.fail_save_at = None
+            raise RuntimeError("Linear could not save the item")
+
+    def _answer(self, kind: str, store: dict[str, dict[str, Any]], key: str) -> str:
+        if self.save_without_id:
+            return "saved"
+        item = store[key]
+        return json.dumps({"id": key, "url": f"https://linear.app/{kind}/{key}", **item})
+
+    def _save_project_tool(self) -> Any:
+        async def save_project(
+            name: str = "",
+            description: str = "",
+            id: str = "",  # noqa: A002 - Linear's argument name
+            addTeams: list[str] | None = None,  # noqa: N803
+        ) -> str:
+            arguments = {"name": name, "description": description, "id": id, "teams": addTeams}
+            self._check_save("save_project", arguments)
+            if id and id not in self.projects:
+                raise RuntimeError("Project not found")
+            key = id or f"project-{len(self.projects) + 1}"
+            teams = addTeams if addTeams is not None else self.projects.get(key, {}).get("teams")
+            self.projects[key] = {"name": name, "description": description, "teams": teams}
+            return self._answer("project", self.projects, key)
+
+        return save_project
+
+    def _save_milestone_tool(self) -> Any:
+        async def save_milestone(
+            project: str = "",
+            name: str = "",
+            description: str = "",
+            sortOrder: int = 0,  # noqa: N803
+            id: str = "",  # noqa: A002 - Linear's argument name
+        ) -> str:
+            arguments = {
+                "project": project,
+                "name": name,
+                "description": description,
+                "sort_order": sortOrder,
+                "id": id,
+            }
+            self._check_save("save_milestone", arguments)
+            if project not in self.projects or (id and id not in self.milestones):
+                raise RuntimeError("Project or milestone not found")
+            key = id or f"milestone-{len(self.milestones) + 1}"
+            self.milestones[key] = {
+                "project": project,
+                "name": name,
+                "description": description,
+                "sort_order": sortOrder,
+            }
+            return self._answer("milestone", self.milestones, key)
+
+        return save_milestone
 
     def _tool(self, name: str) -> Any:
         async def tool(query: str = "", title: str = "") -> str:

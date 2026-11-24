@@ -96,9 +96,41 @@ async def owner_of(engine: AsyncEngine, run: QueuedRun) -> UUID:
     return value
 
 
-async def approval(engine: AsyncEngine, run: QueuedRun, *, approved: bool) -> dict[str, Any]:
-    """The resume value the API sends for an export approval (it stamps ``decided_by``)."""
-    return {"approved": approved, "decided_by": str(await owner_of(engine, run))}
+async def approval(
+    engine: AsyncEngine, run: QueuedRun, *, approved: bool, plan_version: int = 1
+) -> dict[str, Any]:
+    """The resume value the API sends for an export approval: it stamps ``decided_by`` and the
+    plan version the preview showed (a fresh plan is version 1)."""
+    return {
+        "approved": approved,
+        "decided_by": str(await owner_of(engine, run)),
+        "plan_version": plan_version,
+    }
+
+
+async def bump_plan_version(engine: AsyncEngine, run: QueuedRun) -> None:
+    """Change the run's plan after the preview (an edit bumps its version)."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "UPDATE planning.plans SET version = version + 1 WHERE idea_id = "
+                "(SELECT idea_id FROM ideas.workflow_runs WHERE id = :run)"
+            ),
+            {"run": run.run_id},
+        )
+
+
+async def external_refs(engine: AsyncEngine, run: QueuedRun) -> dict[tuple[str, UUID], str]:
+    """The workspace's Linear refs as ``{(local_kind, local_id): external_id}``."""
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT local_kind, local_id, external_id FROM integrations.external_refs "
+                "WHERE workspace_id = :ws AND provider = 'linear'"
+            ),
+            {"ws": run.workspace_id},
+        )
+        return {(row[0], row[1]): row[2] for row in result.all()}
 
 
 async def save_team(engine: AsyncEngine, run: QueuedRun, team_id: str) -> None:

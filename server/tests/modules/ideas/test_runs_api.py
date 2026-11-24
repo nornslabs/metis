@@ -38,7 +38,7 @@ CHOOSE_TEAM = {
     ],
     "saved_team_id": None,
 }
-EXPORT_APPROVAL = {"type": "export_approval", "preview": {}}
+EXPORT_APPROVAL = {"type": "export_approval", "preview": {"plan_version": 4}}
 PHASES = [
     {"name": "Foundations", "goal": "Set up.", "exit_criteria": "Base runs."},
     {"name": "Launch", "goal": "Ship.", "exit_criteria": "Live."},
@@ -924,7 +924,23 @@ async def test_an_export_approval_is_stamped_with_the_user_who_answered(
     response = await _resume(client, ada, run_id, {"approved": approved})
 
     assert response.status_code == 202, response.text
-    assert queue[0]["resume"] == {"approved": approved, "decided_by": ada.user_id}
+    assert queue[0]["resume"] == {
+        "approved": approved,
+        "decided_by": ada.user_id,
+        "plan_version": 4,
+    }
+
+
+async def test_an_export_approval_carries_no_plan_version_when_the_preview_names_none(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, {"type": "export_approval", "preview": {}})
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"approved": True})
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"]["plan_version"] is None
 
 
 async def test_the_approver_cannot_be_named_in_the_request(

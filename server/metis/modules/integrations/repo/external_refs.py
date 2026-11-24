@@ -6,8 +6,10 @@ from collections.abc import Collection
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.helpers.ids import uuid7
 from metis.modules.integrations.models import ExternalRefRow
 
 
@@ -30,3 +32,30 @@ async def list_for(
         )
     )
     return list(rows)
+
+
+async def upsert(
+    session: AsyncSession,
+    workspace_id: UUID,
+    provider: str,
+    local_kind: str,
+    local_id: UUID,
+    external_id: str,
+    external_url: str | None,
+) -> ExternalRefRow:
+    """Insert the ref, or update the Linear id and url of the existing row for the same
+    ``(workspace, provider, local_kind, local_id)``; never a second row."""
+    base = insert(ExternalRefRow).values(
+        id=uuid7(),
+        workspace_id=workspace_id,
+        provider=provider,
+        local_kind=local_kind,
+        local_id=local_id,
+        external_id=external_id,
+        external_url=external_url,
+    )
+    stmt = base.on_conflict_do_update(
+        constraint="uq_external_refs_local",
+        set_={"external_id": base.excluded.external_id, "external_url": base.excluded.external_url},
+    ).returning(ExternalRefRow)
+    return (await session.scalars(stmt)).one()

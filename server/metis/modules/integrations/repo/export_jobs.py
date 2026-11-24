@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,3 +56,25 @@ async def create_once(
         .returning(ExportJobRow)
     )
     return (await session.scalars(stmt)).one_or_none()
+
+
+async def mark_running(
+    session: AsyncSession, workspace_id: UUID, run_id: UUID, *, from_status: str, to_status: str
+) -> ExportJobRow | None:
+    """Move the run's ``approved`` job to ``running``. A job already ``running`` is returned as
+    it is; a job in any other status (or none) is ``None`` and nothing changes."""
+    result = await session.scalars(
+        update(ExportJobRow)
+        .where(
+            ExportJobRow.workspace_id == workspace_id,
+            ExportJobRow.run_id == run_id,
+            ExportJobRow.status == from_status,
+        )
+        .values(status=to_status)
+        .returning(ExportJobRow)
+    )
+    row = result.one_or_none()
+    if row is not None:
+        return row
+    current = await get_by_run(session, workspace_id, run_id)
+    return current if current is not None and current.status == to_status else None

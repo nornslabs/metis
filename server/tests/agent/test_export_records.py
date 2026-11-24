@@ -16,12 +16,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from metis.core.errors import ConflictError
 from metis.modules import identity, integrations
-from metis.modules.integrations import ExportStatus, LocalKind
+from metis.modules.integrations import ExportStatus, IntegrationProvider, LocalKind
 from tests.agent.export_helpers import (
     add_refs,
     export_jobs,
     export_run,
+    external_refs,
     local_ids,
     owner_of,
     saved_team,
@@ -194,3 +196,74 @@ async def test_a_workspace_never_sees_another_workspaces_linear_team(
         overview = await identity.get_settings_overview(session, other.workspace_id)
 
     assert overview.settings.linear_team_id is None
+
+
+async def test_saving_a_ref_twice_updates_the_one_row(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+    idea_id = await idea_of(engine, run)
+
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        for external_id in ("project-1", "project-2"):
+            await integrations.save_external_ref(
+                session,
+                run.workspace_id,
+                IntegrationProvider.LINEAR,
+                LocalKind.IDEA,
+                idea_id,
+                external_id,
+                f"https://linear.app/{external_id}",
+            )
+
+    assert await external_refs(engine, run) == {("idea", idea_id): "project-2"}
+
+
+async def test_a_saved_ref_is_found_by_its_workspace_only(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+    other = await export_run(engine, app_sessions, sub="bob")
+    idea_id = await idea_of(engine, run)
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        await integrations.save_external_ref(
+            session,
+            run.workspace_id,
+            IntegrationProvider.LINEAR,
+            LocalKind.IDEA,
+            idea_id,
+            "project-1",
+            None,
+        )
+
+    async with in_workspace(app_sessions, other.workspace_id) as session:
+        found = await integrations.list_external_refs(
+            session, other.workspace_id, IntegrationProvider.LINEAR, LocalKind.IDEA, [idea_id]
+        )
+
+    assert found == {}
+
+
+async def test_marking_an_approved_export_running_twice_changes_nothing_more(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        first = await integrations.mark_export_running(session, run.workspace_id, run.run_id)
+        second = await integrations.mark_export_running(session, run.workspace_id, run.run_id)
+
+    assert first.id == second.id and second.status is ExportStatus.RUNNING
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["running"]
+
+
+async def test_a_declined_export_cannot_be_marked_running(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=False)
+
+    with pytest.raises(ConflictError):
+        async with in_workspace(app_sessions, run.workspace_id) as session:
+            await integrations.mark_export_running(session, run.workspace_id, run.run_id)
+
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["declined"]

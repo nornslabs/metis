@@ -25,7 +25,9 @@ from metis.modules.integrations.service.connections import (
 from metis.modules.integrations.service.exports import (
     get_export_decision,
     list_external_refs,
+    mark_export_running,
     record_export_decision,
+    save_external_ref,
 )
 
 __all__ = [
@@ -40,7 +42,9 @@ __all__ = [
     "get_export_decision",
     "get_mcp_client",
     "list_external_refs",
+    "mark_export_running",
     "record_export_decision",
     "refresh_connection",
+    "save_external_ref",
     "router",
 ]

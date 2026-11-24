@@ -86,3 +86,37 @@ async def get_export_decision(
     await set_workspace(session, workspace_id)
     row = await repo.export_jobs.get_by_run(session, workspace_id, run_id)
     return None if row is None else ExportJob.model_validate(row)
+
+
+async def save_external_ref(
+    session: AsyncSession,
+    workspace_id: UUID,
+    provider: IntegrationProvider,
+    local_kind: LocalKind,
+    local_id: UUID,
+    external_id: str,
+    external_url: str | None,
+) -> ExternalRef:
+    """Record (or update) a Metis record's id in the external tool. One row per record: a second
+    save for the same record changes its Linear id and url and adds nothing."""
+    await set_workspace(session, workspace_id)
+    row = await repo.external_refs.upsert(
+        session, workspace_id, provider.value, local_kind.value, local_id, external_id, external_url
+    )
+    return ExternalRef.model_validate(row)
+
+
+async def mark_export_running(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> ExportJob:
+    """Move the run's approved export to ``running`` as its writes start. Idempotent: a job
+    already ``running`` is returned unchanged. A run with no approved export is a conflict."""
+    await set_workspace(session, workspace_id)
+    row = await repo.export_jobs.mark_running(
+        session,
+        workspace_id,
+        run_id,
+        from_status=ExportStatus.APPROVED.value,
+        to_status=ExportStatus.RUNNING.value,
+    )
+    if row is None:
+        raise ConflictError("The run has no approved export to start")
+    return ExportJob.model_validate(row)
