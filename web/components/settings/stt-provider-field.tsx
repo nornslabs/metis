@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import type { KeysFormValues } from "@/lib/schemas/settings-forms";
@@ -18,7 +19,12 @@ const STT_PROVIDERS = [
 
 /** Dropdown to select the speech-to-text provider. */
 export function SttProviderField({ value, canWrite, onChange }: SttProviderFieldProps) {
-  const { setValue } = useFormContext<KeysFormValues>();
+  const { setValue, watch } = useFormContext<KeysFormValues>();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const val = event.target.value;
@@ -26,14 +32,18 @@ export function SttProviderField({ value, canWrite, onChange }: SttProviderField
     onChange(val);
   };
 
+  // Use watched value only after hydration to avoid mismatch
+  const currentValue = mounted ? watch("stt_provider", value) : value;
+
   return (
     <div className="grid gap-2.5">
       <label className="text-xs text-muted-foreground">STT provider</label>
       <select
-        defaultValue={value}
+        value={currentValue}
         disabled={!canWrite}
         onChange={handleChange}
         className="w-full h-control rounded-md border border-input bg-background px-2 py-1 text-note disabled:opacity-50"
+        suppressHydrationWarning
       >
         {STT_PROVIDERS.map((provider) => (
           <option key={provider.value} value={provider.value}>
