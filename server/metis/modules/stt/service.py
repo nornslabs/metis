@@ -2,20 +2,16 @@
 
 from __future__ import annotations
 
-import httpx
 from uuid import UUID
 
-from sqlalchemy import select
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.core.config import get_settings
 from metis.core.crypto import decrypt
 from metis.core.db import WORKSPACE_SETTING
-from metis.core.errors import UpstreamError
 from metis.modules.identity import repo
 from metis.modules.identity.dto import ProviderKind
-from metis.modules.identity.models import ProviderKeyRow, WorkspaceSettingsRow
-from metis.modules.stt.dto import TranscribeResponse, STTErrorResponse
+from metis.modules.stt.dto import STTErrorResponse, TranscribeResponse
 
 
 async def transcribe_audio(

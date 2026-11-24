@@ -26,8 +26,8 @@ from metis.core.redis import close_redis
 from metis.modules.auth import router as auth_router
 from metis.modules.docs import router as docs_router
 from metis.modules.health import router as health_router
-from metis.modules.identity import router as identity_router
 from metis.modules.ideas import router as ideas_router
+from metis.modules.identity import router as identity_router
 from metis.modules.integrations import router as integrations_router
 from metis.modules.planning import router as planning_router
 from metis.modules.research import router as research_router
