@@ -168,7 +168,7 @@ async def test_new_workspace_has_no_keys_and_default_settings(
 ) -> None:
     body = await get_settings_body(client, await sign_in(engine))
 
-    assert body["keys"] == {"llm": None, "exa": None}
+    assert body["keys"] == {"llm": None, "exa": None, "sarvam": None}
     assert body["settings"] == {
         "run_budget_usd": 2.0,
         "max_steps": 50,
@@ -626,5 +626,5 @@ async def test_keys_and_settings_are_scoped_to_their_workspace(
     with pytest.raises(ProviderNotConfiguredError):
         await key_for_use(engine, bob_workspace)
 
-    assert bobs_view["keys"] == {"llm": None, "exa": None}
+    assert bobs_view["keys"] == {"llm": None, "exa": None, "sarvam": None}
     assert bobs_view["settings"]["max_steps"] == 50
