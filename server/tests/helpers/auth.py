@@ -7,7 +7,7 @@ Fixtures (``engine``, ``redis``, ``client``, ``http``) live in
 from __future__ import annotations
 
 import os
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -17,6 +17,9 @@ from metis.modules.auth import service as auth_service
 from metis.modules.auth.deps import CLIENT_HEADER, WEB_CLIENT
 from metis.modules.auth.providers.base import AuthProviderName, ProviderProfile
 from metis.modules.identity.deps import WORKSPACE_HEADER
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/metis"

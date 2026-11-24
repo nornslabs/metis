@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
 from enum import StrEnum
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.research.dto._fields import Fraction, LongText, Summary, Title, WebUrl
+
+if TYPE_CHECKING:
+    from datetime import date, datetime
+    from uuid import UUID
 
 
 class ResearchItemKind(StrEnum):

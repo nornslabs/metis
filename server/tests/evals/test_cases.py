@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from evals.cases import BAND_TOTALS, CASES_PATH, CaseFileError, load_cases
 from metis.modules.scoring import ScoreBand
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 MIN_CASES, MAX_CASES = 12, 15
 

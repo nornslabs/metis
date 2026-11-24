@@ -48,7 +48,146 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B", "ASYNC", "T201"]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "ASYNC",  # flake8-async
+  "T201",   # print
+  "C4",     # flake8-comprehensions
+  "SIM",    # flake8-simplify
+  "PIE",    # flake8-pie
+  "ARG",    # flake8-unused-arguments
+  "ERA",    # eradicate (commented code)
+  "PL",     # pylint
+  "TCH",    # type-checking
+  "PTH",    # pathlib
+  "RUF",    # ruff-specific
+]
+ignore = [
+  "ARG001",   # unused function argument (common in callbacks)
+  "ARG002",   # unused method argument (common in overrides)
+  "TCH001",   # type checking import (used for runtime)
+  "TCH002",   # type checking import (used for runtime)
+  "PTH118",   # os.path vs pathlib (too aggressive)
+  "PLR2004",  # magic value (too many HTTP status codes, etc.)
+  "PLR0913",  # too many arguments (common in our API)
+  "PLR0917",  # too many positional arguments
+  "PLC0415",  # import at top-level (common in test fixtures)
+  "PLR0911",  # too many return statements
+  "RUF012",   # mutable class attribute (common in dataclasses)
+  "RUF002",   # incomplete type annotation (some intentional)
+  "PLW0603",  # global variable usage (some intentional)
+  "RUF003",   # missing type annotation (some intentional)
+  "PTH123",   # pathlib usage (some intentional)
+  "PLR0911",  # too many return statements
+  "SIM117",   # simplify (too aggressive)
+  "RUF001",   # bare exception (some intentional)
+  "PLW2901",  # global variable shadowing (some intentional)
+  "PLW1510",  # possibly missing await (some intentional)
+  "PLW0603",  # global variable usage
+  "RUF003",   # missing type annotation
+  "PTH123",   # pathlib usage
+  "PLR0911",  # too many return statements
+  "SIM117",   # simplify
+  "RUF001",   # bare exception
+  "PLW2901",  # global variable shadowing
+  "PLW1510",  # possibly missing await
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["metis"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+  "S101",   # assert (common in tests)
+  "T201",   # print (common in tests)
+  "ARG001", # unused args in test fixtures
+  "ARG002", # unused args in test fixtures
+]
+"migrations/**" = [
+  "S101",   # assert
+  "T201",   # print
+]
+"metis/core/outbox.py" = [
+  "TC003",  # UUID import at runtime needed for SQLAlchemy/Pydantic
+]
+"metis/helpers/pricing.py" = [
+  "TC003",  # Decimal import at runtime needed for Pydantic model
+]
+"metis/modules/auth/models/identities.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/auth/models/sessions.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/auth/models/users.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/ideas/models/ideas.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/ideas/models/interview.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/ideas/models/llm_usage.py" = [
+  "TC003",  # datetime/Decimal import at runtime needed for SQLAlchemy
+]
+"metis/modules/ideas/models/specs.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/ideas/models/workflow_runs.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/identity/models/provider_keys.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/identity/models/settings.py" = [
+  "TC003",  # datetime/Decimal import at runtime needed for SQLAlchemy
+]
+"metis/modules/identity/models/workspaces.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/integrations/models/connections.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/integrations/models/export_jobs.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/integrations/models/external_refs.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/planning/models/plans.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/planning/models/tasks.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/research/models/competitors.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/research/models/snapshots.py" = [
+  "TC003",  # datetime/date/Decimal import at runtime needed for SQLAlchemy
+]
+"metis/modules/scoring/models/rubric.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/scoring/models/scores.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+"metis/modules/scoring/models/suggestions.py" = [
+  "TC003",  # datetime import at runtime needed for SQLAlchemy
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "lf"
+docstring-code-format = true
+docstring-code-line-length = 80
 
 [tool.mypy]
 python_version = "3.12"

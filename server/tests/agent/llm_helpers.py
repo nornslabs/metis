@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import httpx
 from sqlalchemy import text
@@ -16,6 +15,10 @@ from metis.modules import auth, identity
 from metis.modules.identity import MemberRole, Membership, ProviderKind
 from metis.modules.identity.service.provider_keys import set_key
 from tests.helpers.auth import create_user
+
+if TYPE_CHECKING:
+    from decimal import Decimal
+    from uuid import UUID
 
 LLM_KEY = "sk-test-secret-key-0123456789"
 LLM_BASE_URL = "https://llm.example.com/v1"

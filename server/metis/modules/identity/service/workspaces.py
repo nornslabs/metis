@@ -7,7 +7,7 @@ owns the transaction. Each function sets the RLS context it needs (``app.user_id
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,6 +17,9 @@ from metis.helpers.validation import validate_input
 from metis.modules import auth
 from metis.modules.identity import repo
 from metis.modules.identity.dto import MemberRole, Membership, Workspace, WorkspaceName
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 PERSONAL_WORKSPACE_NAME = "Personal"
 

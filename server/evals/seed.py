@@ -11,8 +11,8 @@ Everything a case makes lives in one workspace owned by one throwaway user, and
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
-from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
@@ -24,6 +24,9 @@ from metis.modules import auth, identity
 from metis.modules.ideas import InterviewBrief, InterviewEnd, InterviewTopic
 from metis.modules.identity import MemberRole, Membership, ProviderKind
 from metis.modules.identity.service.provider_keys import set_key
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 SCORING_STAGE = "scoring"
 CHECKLIST = (
@@ -93,7 +96,7 @@ async def remove_case(engine: AsyncEngine, seeded: Seeded) -> None:
     async with engine.begin() as conn:
         for table in CHECKPOINT_TABLES:
             await conn.execute(
-                text(f"DELETE FROM agent.{table} WHERE thread_id = :thread"),  # noqa: S608
+                text(f"DELETE FROM agent.{table} WHERE thread_id = :thread"),
                 {"thread": str(seeded.run_id)},
             )
         # The outbox has no foreign key to the workspace, so its rows are not cascaded.

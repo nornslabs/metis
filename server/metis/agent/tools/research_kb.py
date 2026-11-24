@@ -14,8 +14,7 @@ import json
 from collections.abc import Callable, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass
-from datetime import date
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -27,6 +26,9 @@ from metis.core.errors import MetisError, UpstreamError
 from metis.core.logging import get_logger
 from metis.modules import research
 from metis.modules.research import NewCompetitor, NewResearchItem, ResearchItemKind
+
+if TYPE_CHECKING:
+    from datetime import date
 
 KB_LOOKUP = "kb_lookup"
 KB_UPSERT_COMPETITOR = "kb_upsert_competitor"

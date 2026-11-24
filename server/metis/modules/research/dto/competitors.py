@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import Field
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.research.dto._fields import LongText, Pricing, ShortText, WebUrl
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 EMBEDDING_DIMENSIONS = 1536
 DEFAULT_KB_MATCHES = 5

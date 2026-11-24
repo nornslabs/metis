@@ -9,8 +9,7 @@ stored (refs, export job) and what the user sees (events, run status), not inter
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
@@ -38,6 +37,9 @@ from tests.agent.planner_helpers import idea_of
 from tests.agent.run_job_helpers import QueuedRun, events_of, run_job, run_row
 from tests.helpers.fake_linear import FakeLinear
 from tests.modules.scoring.scoring_helpers import in_workspace
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 PHASES = ["Phase 1 — Foundations", "Phase 2 — Core", "Phase 3 — Launch"]
 

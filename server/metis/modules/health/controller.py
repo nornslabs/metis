@@ -44,4 +44,4 @@ async def health_check() -> HealthResponse | Response:
     return result
 
 
-__all__ = ["router", "health_check"]
+__all__ = ["health_check", "router"]

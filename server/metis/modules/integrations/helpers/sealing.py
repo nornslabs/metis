@@ -7,13 +7,15 @@ value cannot be opened in another workspace. Nothing here logs.
 from __future__ import annotations
 
 import json
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, SecretStr, ValidationError
 
 from metis.core import crypto
 from metis.core.errors import SecretDecryptError
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 _UNREADABLE = "A stored connection could not be read. Please reconnect."
 

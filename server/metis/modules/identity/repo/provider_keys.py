@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -13,6 +12,10 @@ from metis.core.crypto import SealedSecret, seal_to_json
 from metis.helpers.ids import uuid7
 from metis.modules.identity.dto import ProviderKind
 from metis.modules.identity.models import ProviderKeyRow
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 async def upsert(

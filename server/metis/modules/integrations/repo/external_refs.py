@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -11,6 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.integrations.models import ExternalRefRow
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
+    from uuid import UUID
 
 
 async def list_for(

@@ -10,8 +10,8 @@ including tool calls, becomes a safe ``UpstreamError``.
 from __future__ import annotations
 
 import re
-from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import httpx
 from mcp import ClientSession
@@ -19,6 +19,9 @@ from mcp.client.streamable_http import streamable_http_client
 
 from metis.core.errors import UpstreamError
 from metis.helpers.http import UNAUTHORIZED_STATUSES, FailureReason, provider_error
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Iterator
 
 
 @asynccontextmanager
@@ -35,7 +38,7 @@ async def open_mcp_session(
             yield session
     except UpstreamError:
         raise
-    except Exception as exc:  # noqa: BLE001 - every failure maps to a safe reason
+    except Exception as exc:
         # Chain nothing: transport errors can carry the request and its headers.
         raise provider_error(provider, _reason(exc)) from None
 

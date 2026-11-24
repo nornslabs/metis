@@ -3,8 +3,7 @@ a saved Exa key and readers of the stored scores."""
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -15,6 +14,9 @@ from metis.modules.identity import MemberRole, Membership, ProviderKind
 from metis.modules.identity.service.provider_keys import set_key
 from tests.agent.interview_helpers import Call, Reply, ScriptedLLM
 from tests.agent.run_job_helpers import QueuedRun, keyed_run, node_events
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 REPORT = "https://stats.example.com/freelancers"
 RIVAL = "https://acme.example.com/pricing"
@@ -53,7 +55,7 @@ def entry(param: str, raw: int, url: str | None = REPORT) -> dict[str, Any]:
 
 
 def submit(marks: dict[str, int] | None = None, url: str | None = REPORT) -> Reply:
-    chosen = marks or {name: 7 for name in WEIGHTED_55}
+    chosen = marks or dict.fromkeys(WEIGHTED_55, 7)
     params = [entry(name, raw, url) for name, raw in chosen.items()]
     return Reply(calls=(Call("submit_scores", {"params": params}),))
 

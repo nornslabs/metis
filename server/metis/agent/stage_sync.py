@@ -9,13 +9,15 @@ again after a crash finds the idea already at its stage and writes nothing.
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules import ideas
 from metis.modules.ideas import Stage
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 STAGE_KEY = "stage"
 

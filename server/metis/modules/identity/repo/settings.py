@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert
@@ -11,6 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.identity.dto import DEFAULT_MAX_STEPS, DEFAULT_RUN_BUDGET_USD
 from metis.modules.identity.models import WorkspaceSettingsRow
+
+if TYPE_CHECKING:
+    from decimal import Decimal
+    from uuid import UUID
 
 
 async def get(session: AsyncSession, workspace_id: UUID) -> WorkspaceSettingsRow | None:

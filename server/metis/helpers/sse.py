@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from metis.core.errors import InvalidInputError
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 RETRY_MS = 3000
 RETRY_FRAME = f"retry: {RETRY_MS}\n\n"

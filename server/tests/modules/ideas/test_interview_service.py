@@ -6,10 +6,9 @@ The Interviewer's tools call these; the full interview flow is covered through t
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import text
@@ -26,6 +25,10 @@ from metis.modules.ideas import (
     QuestionRefusal,
 )
 from tests.agent.llm_helpers import make_run, workspace_without_key
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from uuid import UUID
 
 Topic = InterviewTopic
 

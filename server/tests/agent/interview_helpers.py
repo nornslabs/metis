@@ -9,14 +9,16 @@ a test can check what the model was shown (an answer, recalled turns).
 from __future__ import annotations
 
 import json
-from collections.abc import Iterator
 from dataclasses import dataclass, field
 from itertools import count
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from metis.modules.research import EMBEDDING_DIMENSIONS
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 USAGE = {"prompt_tokens": 11, "completion_tokens": 7, "total_tokens": 18}
 

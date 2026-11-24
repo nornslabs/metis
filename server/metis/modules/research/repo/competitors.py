@@ -5,8 +5,7 @@ Every query filters by ``workspace_id`` as well as relying on RLS.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
@@ -14,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.research.models import CompetitorRow
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 _LIKE_ESCAPE = "\\"
 

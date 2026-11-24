@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool, StructuredTool
 from langgraph.types import interrupt
@@ -32,6 +32,9 @@ from metis.core.logging import get_logger
 from metis.modules import planning
 from metis.modules.ideas import PhaseReviewResume
 from metis.modules.planning import ESTIMATES, Plan
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 PROPOSE_PHASES = "propose_phases"
 SAVE_PLAN = "save_plan"

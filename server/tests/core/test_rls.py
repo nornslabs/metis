@@ -12,7 +12,7 @@ Tests skip only when Postgres is unreachable or the helper is missing.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
@@ -20,6 +20,9 @@ import pytest_asyncio
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/metis"
@@ -51,7 +54,7 @@ async def engine() -> AsyncIterator[AsyncEngine]:
             helper = await conn.scalar(
                 text("SELECT to_regprocedure('enable_tenant_rls(regclass)') IS NOT NULL")
             )
-    except Exception:  # noqa: BLE001
+    except Exception:
         await engine.dispose()
         pytest.skip("Postgres not reachable")
     if not helper:

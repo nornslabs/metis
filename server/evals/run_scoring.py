@@ -15,8 +15,8 @@ import asyncio
 import json
 import os
 import sys
-from collections.abc import Sequence
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from redis.asyncio import Redis
 from sqlalchemy.engine import make_url
@@ -38,6 +38,9 @@ from evals.seed import LlmConfig
 from metis.agent.checkpoint import setup_checkpointer
 from metis.agent.prompts import PROMPTS_DIR
 from metis.core.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 DEFAULT_REPEAT = 2
 DEFAULT_MIN_PASS_RATE = 0.8

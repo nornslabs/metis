@@ -71,7 +71,7 @@ async def test_the_scan_function_is_executable_by_the_app_role_only(engine: Asyn
         "SELECT has_function_privilege('public', 'ideas.list_running_runs()', 'EXECUTE')",
     )
 
-    assert (app_can, public_can) == (True, False)  # noqa: FBT003
+    assert (app_can, public_can) == (True, False)
 
 
 async def test_the_app_role_cannot_read_runs_without_a_workspace(

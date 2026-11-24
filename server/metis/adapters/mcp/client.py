@@ -5,13 +5,16 @@ The agent loads tools from it (SHIP-233). Tokens go in the ``Authorization`` hea
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import McpHttpClientFactory, StreamableHttpConnection
 
 from metis.helpers.http import PROVIDER_TIMEOUT_SECONDS
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 @dataclass(frozen=True)

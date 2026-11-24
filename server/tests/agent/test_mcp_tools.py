@@ -10,8 +10,7 @@ never internals.
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -44,6 +43,9 @@ from metis.core.events import RunEvent, RunEventType, read
 from tests.agent.linear_helpers import connect_workspace, connection_status, run_context
 from tests.agent.llm_helpers import workspace_without_key
 from tests.helpers.fake_linear import BIG_RESULT_CHARS, FakeLinear
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 ALL_TOOLS = (
     "list_teams",

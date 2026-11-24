@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BeforeValidator, Field
 
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip
 from metis.modules.identity.dto.members import MemberRole
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_WORKSPACE_NAME_LENGTH = 100
 

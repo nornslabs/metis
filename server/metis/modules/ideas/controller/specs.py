@@ -6,7 +6,7 @@ Any workspace member may use them. Confirming commits first and resumes the run 
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, status
 
@@ -25,6 +25,9 @@ from metis.modules.ideas.dto import (
     SpecVersionList,
 )
 from metis.modules.identity import CurrentWorkspaceDep
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 router = APIRouter(prefix="/ideas")
 

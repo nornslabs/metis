@@ -7,8 +7,7 @@ caller owns the transaction) and is scoped to the workspace id as well as RLS. O
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -43,6 +42,9 @@ from metis.modules.ideas.helpers.run_transitions import (
     check_run_transition,
 )
 from metis.modules.ideas.models import WorkflowRunRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 
@@ -203,7 +205,7 @@ async def cancel_run(session: AsyncSession, workspace_id: UUID, run_id: UUID) ->
     stays cancelled; any other terminal run is ``IllegalRunTransition``.
     """
     run = await get_run(session, workspace_id, run_id)
-    if run.status == RunStatus.CANCELLED or run.status == RunStatus.RUNNING:
+    if run.status in (RunStatus.CANCELLED, RunStatus.RUNNING):
         return run
     if run.status in TERMINAL_STATUSES:
         raise IllegalRunTransition(f"A run that is {run.status.value} cannot be cancelled")

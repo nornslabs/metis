@@ -7,8 +7,7 @@ RLS context. Every read and write is scoped to the workspace id as well.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -38,6 +37,10 @@ from metis.modules.ideas.helpers.cursor import decode_cursor, encode_cursor
 from metis.modules.ideas.helpers.transitions import check_transition
 from metis.modules.ideas.models import IdeaRow
 from metis.modules.identity import MemberRole, Membership
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 logger = get_logger(__name__)
 
@@ -86,7 +89,7 @@ async def list_ideas(
     cursor: str | None = None,
     limit: int = DEFAULT_PAGE_SIZE,
     q: str | None = None,
-    filter: IdeaFilter = IdeaFilter.ALL,  # noqa: A002 - the HTTP parameter name
+    filter: IdeaFilter = IdeaFilter.ALL,
 ) -> IdeaPage:
     """One page of the workspace's ideas, most recently active first, resuming after ``cursor``.
 

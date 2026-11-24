@@ -9,8 +9,7 @@ budget is spent.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import START, StateGraph
@@ -19,6 +18,9 @@ from langgraph.graph.state import CompiledStateGraph
 from metis.agent.specialists.stubs import SpecialistNode, stub_specialists
 from metis.agent.state import MetisState
 from metis.agent.supervisor import SUPERVISOR_NODE, Specialist, route, supervise
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 CompiledGraph = CompiledStateGraph[MetisState, None, MetisState, MetisState]
 

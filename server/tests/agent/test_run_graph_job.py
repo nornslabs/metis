@@ -149,9 +149,7 @@ async def test_a_refresh_run_stops_after_scoring_and_preserves_the_idea_stage(
 
     assert (await run_row(engine, run)).status == "succeeded"
     started_nodes = [
-        node
-        for event, node in node_events(await events_of(redis, run))
-        if event == "node_started"
+        node for event, node in node_events(await events_of(redis, run)) if event == "node_started"
     ]
     assert started_nodes == expected_nodes
     assert await idea_stage(engine, run) == Stage.EXPORTED.value

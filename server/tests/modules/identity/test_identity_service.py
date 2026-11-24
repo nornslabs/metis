@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncGenerator, AsyncIterator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -33,6 +33,9 @@ from metis.modules.auth import User
 from metis.modules.auth import service as auth_service
 from metis.modules.identity import MemberRole
 from tests.helpers.auth import TRUNCATE_USERS, google_profile
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, AsyncIterator
 
 DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/metis"
@@ -67,7 +70,7 @@ async def engine() -> AsyncIterator[AsyncEngine]:
     try:
         async with engine.connect() as conn:
             migrated = await conn.scalar(text(_MIGRATED))
-    except Exception:  # noqa: BLE001
+    except Exception:
         await engine.dispose()
         pytest.skip("Postgres not reachable")
     if not migrated:

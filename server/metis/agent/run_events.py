@@ -52,7 +52,7 @@ class RunEventPublisher:
         self._tokens: list[tuple[str, str]] = []
         self._lock = asyncio.Lock()
 
-    async def publish(self, type: RunEventType, data: Mapping[str, Any]) -> None:  # noqa: A002
+    async def publish(self, type: RunEventType, data: Mapping[str, Any]) -> None:
         """Publish an event after any buffered text, so order is kept."""
         async with self._lock:
             await self._flush_locked()

@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Header, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +15,10 @@ from metis.modules.ideas import RunStarted, RunStatus, WorkflowRun
 from metis.modules.identity import CurrentWorkspaceDep
 from metis.modules.research import service
 from metis.modules.research.dto import ResearchView
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable
+    from uuid import UUID
 
 router = APIRouter(prefix="/ideas")
 logger = get_logger(__name__)

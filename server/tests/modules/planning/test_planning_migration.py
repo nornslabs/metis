@@ -48,7 +48,7 @@ async def test_every_planning_table_has_row_level_security(engine: AsyncEngine) 
             )
         ).all()
 
-    assert {row[0]: (row[1], row[2]) for row in rows} == {t: (True, True) for t in TABLES}
+    assert {row[0]: (row[1], row[2]) for row in rows} == dict.fromkeys(TABLES, (True, True))
 
 
 @pytest.mark.parametrize("estimate", [0, 4, 13])
@@ -128,7 +128,7 @@ async def test_positions_are_unique_but_may_swap_inside_one_transaction(
 async def test_one_plan_per_idea_and_spec_version(
     client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
 ) -> None:
-    ada, _, _, plan = await planned(client, engine, app_sessions)
+    _ada, _, _, plan = await planned(client, engine, app_sessions)
 
     with pytest.raises(IntegrityError, match="uq_plans_idea_spec_version"):
         await _execute(

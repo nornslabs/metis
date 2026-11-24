@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.auth.dto import SessionRecord
 from metis.modules.auth.models import SessionRow
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 async def create(

@@ -11,13 +11,15 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from collections.abc import Mapping
 from itertools import count
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 RECORDED_PATH = Path(__file__).parent / "scoring" / "recorded.jsonl"
 SUBMIT_TOOL = "submit_scores"

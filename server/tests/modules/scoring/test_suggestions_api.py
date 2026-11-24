@@ -229,5 +229,5 @@ async def test_the_service_refuses_a_score_run_of_another_idea(
 def test_a_suggestion_needs_a_source_and_one_to_three_distinct_parameters(
     fields: dict[str, Any],
 ) -> None:
-    with pytest.raises(ValueError):  # noqa: PT011 - pydantic's ValidationError is a ValueError
+    with pytest.raises(ValueError):
         _new(**fields)

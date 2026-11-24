@@ -7,13 +7,16 @@ transaction, so a failed run keeps the usage it already recorded.
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.logging import get_logger
 from metis.modules.ideas import repo
 from metis.modules.ideas.dto import NewLlmUsage
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

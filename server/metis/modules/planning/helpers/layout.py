@@ -6,9 +6,8 @@ edits, and writes back the difference.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from metis.core.errors import PlanNotFoundError
 from metis.helpers.ids import uuid7
@@ -22,6 +21,10 @@ from metis.modules.planning.dto import (
     ReorderPhases,
 )
 from metis.modules.planning.helpers.validation import refuse
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from uuid import UUID
 
 
 @dataclass(frozen=True)

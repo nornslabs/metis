@@ -8,12 +8,14 @@ the checkpoint). Nothing here calls Linear.
 
 from __future__ import annotations
 
-from collections.abc import Collection
-from typing import Literal
-from uuid import UUID
+from typing import TYPE_CHECKING, Literal
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.planning import Plan, Task
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
+    from uuid import UUID
 
 Action = Literal["create", "update"]
 

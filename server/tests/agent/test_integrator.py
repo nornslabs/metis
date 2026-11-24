@@ -9,8 +9,7 @@ stored (export job, settings, plan) and what Linear saw (never a write).
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
@@ -46,6 +45,9 @@ from tests.agent.run_job_helpers import (
 )
 from tests.helpers.fake_linear import FakeLinear
 from tests.modules.scoring.scoring_helpers import in_workspace
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 @pytest_asyncio.fixture

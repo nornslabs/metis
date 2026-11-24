@@ -59,7 +59,7 @@ class OpenAICompatibleChat:
     ) -> AIMessage:
         try:
             reply = await self._model.ainvoke(list(messages), config)
-        except Exception as exc:  # noqa: BLE001 - mapped to one safe error, nothing chained
+        except Exception as exc:
             raise map_error(exc) from None
         if not isinstance(reply, AIMessage):
             raise provider_error(PROVIDER, FailureReason.BAD_RESPONSE)

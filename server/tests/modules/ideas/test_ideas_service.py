@@ -104,7 +104,7 @@ async def test_transition_does_not_clobber_a_concurrent_edit(
     created = await create(client, ada)
     idea_id = UUID(created["id"])
 
-    from metis.modules.ideas import repo  # noqa: PLC0415
+    from metis.modules.ideas import repo
 
     real = repo.ideas.update_at_version
 
@@ -141,7 +141,7 @@ def test_a_bad_cursor_is_invalid_input(cursor: str) -> None:
 async def _idea_at(
     client: httpx.AsyncClient, engine: AsyncEngine, caller: object, stage: Stage
 ) -> UUID:
-    from sqlalchemy import text  # noqa: PLC0415
+    from sqlalchemy import text
 
     created = await create(client, caller)  # type: ignore[arg-type]
     async with engine.begin() as conn:
@@ -153,7 +153,7 @@ async def _idea_at(
 
 
 async def _stage(engine: AsyncEngine, idea_id: UUID) -> Stage:
-    from sqlalchemy import text  # noqa: PLC0415
+    from sqlalchemy import text
 
     async with engine.connect() as conn:
         value = await conn.scalar(
@@ -163,7 +163,7 @@ async def _stage(engine: AsyncEngine, idea_id: UUID) -> Stage:
 
 
 async def _version(engine: AsyncEngine, idea_id: UUID) -> int:
-    from sqlalchemy import text  # noqa: PLC0415
+    from sqlalchemy import text
 
     async with engine.connect() as conn:
         value = await conn.scalar(

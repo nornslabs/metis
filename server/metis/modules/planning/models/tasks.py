@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, SmallInteger, Text
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from metis.core.models import Base
 from metis.helpers.ids import uuid7
 from metis.modules.planning.models._schema import SCHEMA, WORKSPACES_TABLE
+from uuid import UUID
 
 
 class TaskRow(Base):

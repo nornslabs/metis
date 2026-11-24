@@ -8,8 +8,7 @@ stored score run, ``ideas.current_score``, the ``score`` event, the stage path, 
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
@@ -53,6 +52,9 @@ from tests.agent.score_helpers import (
 )
 from tests.modules.identity.fake_exa_mcp import FakeExaMcp
 from tests.modules.scoring.scoring_helpers import outbox_events
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 @pytest.fixture
@@ -129,7 +131,7 @@ async def test_the_seed_shows_the_model_the_research_it_scores_from(
     [
         (WEIGHTED_54, ADVISED_PATH, 54, "advise"),
         (WEIGHTED_55, ADVISED_PATH, 55, "promising"),
-        ({name: 8 for name in WEIGHTED_55}, SPEC_PATH, 80, "build"),
+        (dict.fromkeys(WEIGHTED_55, 8), SPEC_PATH, 80, "build"),
     ],
 )
 async def test_a_score_below_75_goes_to_advising_and_75_goes_to_the_spec(
@@ -157,7 +159,7 @@ async def test_a_missing_parameter_is_refused_once_and_the_corrected_score_is_st
     engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
 ) -> None:
     run = await scoring_run(engine)
-    five = {name: 7 for name in list(WEIGHTED_55)[:5]}
+    five = dict.fromkeys(list(WEIGHTED_55)[:5], 7)
     llm.add(submit(five), submit())
 
     await run_job(ctx, run)

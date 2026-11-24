@@ -6,7 +6,7 @@ the workspace id as well as RLS. A suggestion's text never changes; only ``statu
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,9 @@ from metis.modules import ideas
 from metis.modules.scoring import repo
 from metis.modules.scoring.dto import NewSuggestion, Suggestion, SuggestionList, SuggestionStatus
 from metis.modules.scoring.models import SuggestionRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

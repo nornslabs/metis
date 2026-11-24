@@ -8,9 +8,7 @@ position. The stream closes after a terminal ``run_status``.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
-from typing import Annotated, Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Header, Query
 from fastapi.responses import StreamingResponse
@@ -25,6 +23,10 @@ from metis.helpers import sse
 from metis.modules.ideas import service
 from metis.modules.ideas.dto import RunView
 from metis.modules.identity import StreamWorkspaceDep
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from uuid import UUID
 
 router = APIRouter()
 logger = get_logger(__name__)

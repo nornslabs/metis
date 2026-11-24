@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column
@@ -12,6 +11,8 @@ from metis.core.models import Base
 from metis.helpers.ids import uuid7
 from metis.helpers.time import utcnow
 from metis.modules.integrations.models._schema import SCHEMA
+from datetime import datetime
+from uuid import UUID
 
 
 class ExternalRefRow(Base):

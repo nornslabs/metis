@@ -6,9 +6,7 @@ Every query filters by ``workspace_id`` as well as relying on RLS. The one excep
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
@@ -18,6 +16,10 @@ from sqlalchemy.sql.dml import ReturningInsert
 from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
 from metis.modules.ideas.models import WorkflowRunRow
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 async def create(

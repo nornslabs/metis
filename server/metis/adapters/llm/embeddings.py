@@ -8,7 +8,7 @@ can fall back to search without vectors.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import httpx
 import openai
@@ -16,6 +16,9 @@ import openai
 from metis.adapters.llm.chat import CALL_TIMEOUT_SECONDS, MAX_RETRIES, PROVIDER, map_error
 from metis.core.ports import EmbeddingBatch
 from metis.helpers.http import FailureReason, provider_error
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 MODEL_NOT_FOUND_CODE = "model_not_found"
 
@@ -42,7 +45,7 @@ class OpenAICompatibleEmbedder:
                 for item in sorted(response.data, key=lambda item: item.index)
             )
             input_tokens = response.usage.prompt_tokens if response.usage else 0
-        except Exception as exc:  # noqa: BLE001 - mapped to one safe error, nothing chained
+        except Exception as exc:
             raise _map_error(exc) from None
         if len(vectors) != len(texts):
             raise provider_error(PROVIDER, FailureReason.BAD_RESPONSE)

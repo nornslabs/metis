@@ -35,20 +35,15 @@ from metis.modules.scoring.dto.suggestions import (
 )
 
 __all__ = [
-    "MAX_TARGET_PARAMS",
-    "NewSuggestion",
-    "Suggestion",
-    "SuggestionKind",
-    "SuggestionList",
-    "SuggestionStatus",
-    "SuggestionStatusBody",
     "MAX_EVIDENCE_ITEMS",
+    "MAX_TARGET_PARAMS",
     "NO_EVIDENCE_MAX_CONFIDENCE",
     "EvidenceItem",
     "IdeaScoreSummary",
     "IdeaScoreSummaryList",
     "NewEvidence",
     "NewParamScore",
+    "NewSuggestion",
     "ParamDiff",
     "Rubric",
     "ScoreBand",
@@ -60,4 +55,9 @@ __all__ = [
     "ScoreRunSummary",
     "ScoreSubmission",
     "ScoreTrigger",
+    "Suggestion",
+    "SuggestionKind",
+    "SuggestionList",
+    "SuggestionStatus",
+    "SuggestionStatusBody",
 ]

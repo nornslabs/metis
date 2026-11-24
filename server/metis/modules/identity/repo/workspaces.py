@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, text
 from sqlalchemy.dialects.postgresql import insert
@@ -10,6 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.identity.models import WorkspaceRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def create(

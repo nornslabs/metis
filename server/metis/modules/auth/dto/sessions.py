@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.auth.dto.users import User
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 class SessionRecord(FrozenModel):

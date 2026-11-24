@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -15,6 +13,10 @@ from metis.core.db import set_workspace
 from metis.helpers.validation import validate_input
 from metis.modules.research import EMBEDDING_DIMENSIONS, NewCompetitor, NewResearchItem
 from tests.agent.llm_helpers import make_run, workspace_without_key
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from uuid import UUID
 
 
 @dataclass(frozen=True)

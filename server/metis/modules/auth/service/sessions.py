@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import ipaddress
 from datetime import datetime, timedelta
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,6 +33,9 @@ from metis.modules.auth.dto import (
     SessionUser,
 )
 from metis.modules.auth.service import users
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 SESSION_TOUCH_INTERVAL = timedelta(minutes=5)
 MAX_USER_AGENT_LENGTH = 512

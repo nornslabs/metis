@@ -11,7 +11,7 @@ SERVER_DIR = Path(__file__).resolve().parents[3]
 
 
 def test_auth_imports_in_a_fresh_process() -> None:
-    result = subprocess.run(  # noqa: S603 - fixed argv, no shell
+    result = subprocess.run(
         [sys.executable, "-c", "import metis.modules.auth"],
         cwd=SERVER_DIR,
         env=os.environ.copy(),

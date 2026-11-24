@@ -11,9 +11,8 @@ band are computed there, never stated by the model.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urldefrag
 
 from langchain_core.tools import BaseTool, StructuredTool
@@ -25,6 +24,9 @@ from metis.core.errors import MetisError
 from metis.core.logging import get_logger
 from metis.modules import scoring
 from metis.modules.scoring import NewParamScore, ScoreParam, ScoreRun, ScoreTrigger
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 GET_RUBRIC = "get_rubric"
 SUBMIT_SCORES = "submit_scores"

@@ -6,10 +6,7 @@ RLS context can never widen a read. Archived ideas are never returned.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
@@ -17,6 +14,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.ideas.models import IdeaRow
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
+    from uuid import UUID
 
 
 async def create(

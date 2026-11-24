@@ -9,7 +9,7 @@ tests skip only when Postgres is unreachable or not migrated.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
@@ -28,6 +28,9 @@ from metis.core.db import get_request_session, transaction
 from metis.core.redis import get_redis
 from metis.entrypoints.api import app
 from tests.helpers.auth import APP_ROLE, DATABASE_URL, TRUNCATE_USERS
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 
@@ -48,7 +51,7 @@ async def engine() -> AsyncIterator[AsyncEngine]:
                 ),
                 {"role": APP_ROLE},
             )
-    except Exception:  # noqa: BLE001
+    except Exception:
         await engine.dispose()
         pytest.skip("Postgres not reachable")
     if not ready:
@@ -82,7 +85,7 @@ async def redis() -> AsyncIterator[Redis]:
     client: Redis = Redis.from_url(REDIS_URL)
     try:
         await client.ping()
-    except Exception:  # noqa: BLE001
+    except Exception:
         await client.aclose()
         pytest.skip("Redis not reachable")
     await client.flushdb()

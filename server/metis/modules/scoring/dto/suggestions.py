@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import Field, StringConstraints, model_validator
 
@@ -12,6 +10,10 @@ from metis.helpers.dto import FrozenModel
 from metis.modules.scoring.dto._fields import Reason
 from metis.modules.scoring.dto.enums import ScoreParam, SuggestionKind, SuggestionStatus
 from metis.modules.scoring.dto.scores import MAX_EVIDENCE_ITEMS, EvidenceItem, NewEvidence
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_TARGET_PARAMS = 3
 MAX_SUGGESTION_TITLE = 200

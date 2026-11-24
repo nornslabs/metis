@@ -8,9 +8,8 @@ paused run resumes, and after a crash it can re-run even once the answer is save
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from enum import StrEnum
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +35,10 @@ from metis.modules.ideas.dto import (
     QuestionRefusal,
     TurnSource,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

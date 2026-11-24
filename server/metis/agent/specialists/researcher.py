@@ -19,8 +19,7 @@ open while the loop runs: the Exa key is read first in its own short one.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from langchain_core.messages import AnyMessage, HumanMessage
@@ -53,6 +52,9 @@ from metis.helpers.http import ClientFactory
 from metis.modules import ideas, research
 from metis.modules.ideas import RunKind, Stage
 from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROMPT = "researcher"
 PURPOSE = "research"

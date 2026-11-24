@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
@@ -34,6 +34,9 @@ from tests.agent.llm_helpers import (
     workspace_with_key,
     workspace_without_key,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 HELLO = [HumanMessage("hi")]
 

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
@@ -15,6 +14,9 @@ from metis.agent.graph import CompiledGraph
 from metis.agent.state import MetisState, initial_state
 from metis.modules.ideas import Stage
 from tests.helpers.auth import APP_ROLE, DATABASE_URL
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 MAX_STEPS = 50
 APP_DATABASE_URL = (

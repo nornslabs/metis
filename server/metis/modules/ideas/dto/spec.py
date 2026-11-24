@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
 from types import MappingProxyType
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import BeforeValidator, ConfigDict, Field
 
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_SPEC_LENGTH = 50_000
 NONE_TEXT = "None."

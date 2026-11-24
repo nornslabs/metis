@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
-from types import ModuleType
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from types import ModuleType
 
 VERSIONS = Path(__file__).resolve().parents[2] / "migrations" / "versions"
 

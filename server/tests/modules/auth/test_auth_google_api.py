@@ -12,8 +12,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
@@ -37,6 +36,9 @@ from metis.modules.auth.cache.oauth import STATE_TTL_SECONDS as OAUTH_STATE_TTL_
 from metis.modules.auth.providers import get_google_provider
 from metis.modules.auth.providers.google import GoogleProvider
 from tests.helpers.auth import assert_problem
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 SETTINGS = get_settings()
 WEB = SETTINGS.web_base_url.rstrip("/")

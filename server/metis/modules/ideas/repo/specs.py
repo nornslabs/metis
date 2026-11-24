@@ -6,8 +6,7 @@ idea; nothing here updates or deletes one.
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from metis.helpers.ids import uuid7
 from metis.modules.ideas.dto.spec import SpecSource
 from metis.modules.ideas.models import SpecVersionRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def lock_idea(session: AsyncSession, idea_id: UUID) -> None:

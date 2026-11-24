@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import Field
 
 from metis.adapters.mcp.linear import ToolInfo
 from metis.helpers.dto import FrozenModel
 from metis.modules.integrations.dto.providers import IntegrationProvider, IntegrationStatus
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_REDIRECT_TO_LENGTH = 2048
 

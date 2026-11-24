@@ -11,17 +11,19 @@ terminal ``run_status`` event.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 from redis.asyncio import Redis
 
 from metis.core.config import get_settings
 from metis.core.errors import MalformedEventError
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, AsyncIterator, Mapping
 
 STREAM_KEY_PREFIX = "run:"
 STREAM_MAXLEN = 5000
@@ -83,7 +85,7 @@ def _is_terminal(event_type: RunEventType, data: Mapping[str, Any]) -> bool:
 
 async def publish(
     run_id: str,
-    type: RunEventType,  # noqa: A002 - matches the event envelope field name
+    type: RunEventType,
     data: Mapping[str, Any],
     *,
     redis: Redis | None = None,

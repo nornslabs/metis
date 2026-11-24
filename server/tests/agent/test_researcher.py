@@ -9,10 +9,8 @@ the KB, questions asked, events, run status.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from decimal import Decimal
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
@@ -41,6 +39,10 @@ from tests.agent.run_job_helpers import (
     statuses,
 )
 from tests.modules.identity.fake_exa_mcp import FakeExaMcp
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+    from uuid import UUID
 
 ACME = {
     "name": "Acme CRM",

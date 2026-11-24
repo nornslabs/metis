@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Literal
 from uuid import UUID
 
 from pydantic import Field, model_validator

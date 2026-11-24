@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from enum import StrEnum
 from types import MappingProxyType
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from pydantic import Field
 
 from metis.helpers.dto import FrozenModel
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 MAX_INTERVIEW_QUESTIONS = 8
 SKIP_ANSWER = "skip"

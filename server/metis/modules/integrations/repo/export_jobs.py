@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -12,6 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.integrations.models import ExportJobRow
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 async def get_by_run(

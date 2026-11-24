@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import DateTime, ForeignKey, Text
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -18,6 +16,8 @@ from metis.modules.scoring.models._schema import (
     SCHEMA,
     WORKSPACES_TABLE,
 )
+from datetime import datetime
+from uuid import UUID
 
 
 class SuggestionRow(Base):

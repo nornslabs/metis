@@ -10,9 +10,8 @@ the interrupt, the score runs, the idea's text and stage, the run status.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import httpx
@@ -54,9 +53,12 @@ from tests.agent.score_helpers import (
 )
 from tests.modules.identity.fake_exa_mcp import FakeExaMcp
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
 # WEIGHTED_54 loses 100, 100, 75, 75, 50 and 60 points: the weakest are these three.
 WEAKEST_54 = ["problem_severity", "uniqueness", "market_demand"]
-OVERALL_70 = {name: 7 for name in WEIGHTED_55}
+OVERALL_70 = dict.fromkeys(WEIGHTED_55, 7)
 
 
 def suggest(
@@ -244,7 +246,7 @@ async def test_a_strong_idea_is_not_advised(
     engine: AsyncEngine, redis: Redis, ctx: dict[str, Any], llm: ScriptedLLM
 ) -> None:
     run = await scoring_run(engine)
-    llm.add(submit({name: 8 for name in WEIGHTED_55}))
+    llm.add(submit(dict.fromkeys(WEIGHTED_55, 8)))
 
     await run_job(ctx, run)
 

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,6 +15,8 @@ from metis.modules.planning.models._schema import (
     SPEC_VERSIONS_TABLE,
     WORKSPACES_TABLE,
 )
+from datetime import datetime
+from uuid import UUID
 
 
 class PlanRow(Base):

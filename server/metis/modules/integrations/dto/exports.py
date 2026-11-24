@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from pydantic import ConfigDict
 
 from metis.helpers.dto import FrozenModel
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 class ExportStatus(StrEnum):

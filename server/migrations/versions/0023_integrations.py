@@ -13,11 +13,14 @@ tables and revokes the grants; the empty schema stays, as ``0001_initial`` owns 
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 revision = "0023_integrations"
 down_revision = "0022_ideas_activity_index"

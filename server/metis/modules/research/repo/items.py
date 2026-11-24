@@ -6,9 +6,8 @@ their uuid7 ``id``.
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -16,6 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.research.models import ItemRow
+
+if TYPE_CHECKING:
+    from datetime import date
+    from uuid import UUID
 
 
 async def create(

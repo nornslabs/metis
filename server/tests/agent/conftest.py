@@ -5,7 +5,7 @@ Set ``TEST_DATABASE_URL`` to a database migrated with ``alembic upgrade head``.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -18,6 +18,9 @@ from metis.agent.checkpoint import open_checkpointer, setup_checkpointer
 from tests.agent.graph_helpers import APP_DATABASE_URL
 from tests.agent.llm_helpers import FakeLLMServer
 from tests.modules.conftest import app_sessions, engine, redis  # noqa: F401  (shared fixtures)
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 
 @pytest.fixture

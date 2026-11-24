@@ -7,7 +7,7 @@ owns the transaction. Each function sets the RLS context it needs (``app.user_id
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +26,9 @@ from metis.modules.identity.dto import (
 from metis.modules.identity.helpers.permissions import require_owner
 from metis.modules.identity.helpers.views import key_view
 from metis.modules.identity.models import WorkspaceSettingsRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def get_settings_overview(session: AsyncSession, workspace_id: UUID) -> SettingsResponse:

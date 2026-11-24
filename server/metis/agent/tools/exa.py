@@ -9,8 +9,7 @@ import re
 from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 from langchain_mcp_adapters.tools import load_mcp_tools
@@ -21,6 +20,9 @@ from metis.core.events import RunEventType, publish
 from metis.helpers.http import ClientFactory, FailureReason, provider_error
 from metis.helpers.mcp import failure_reason, open_mcp_session
 from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 PROVIDER = "exa"
 EXA_MCP_URL = "https://mcp.exa.ai/mcp"
@@ -161,7 +163,7 @@ def _wrap_tool(tool: BaseTool, name: str, run_id: str, redis: Redis) -> BaseTool
                     async with asyncio.timeout(TOOL_TIMEOUT_SECONDS):
                         result = await tool.ainvoke(args)
                     break
-                except Exception as exc:  # noqa: BLE001 - MCP errors are normalized below
+                except Exception as exc:
                     reason = failure_reason(exc)
                     retryable = {FailureReason.RATE_LIMITED, FailureReason.SERVER_ERROR}
                     if reason not in retryable or attempt == len(RETRY_DELAYS):

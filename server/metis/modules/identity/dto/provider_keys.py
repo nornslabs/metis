@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Self
+from typing import TYPE_CHECKING, Annotated, Self
 from urllib.parse import urlsplit
 
 from pydantic import BeforeValidator, Field, ValidationInfo, field_validator, model_validator
 
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip, strip_to_none
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 MAX_KEY_LENGTH = 512
 MAX_MODEL_LENGTH = 200

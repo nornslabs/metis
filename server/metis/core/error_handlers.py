@@ -7,8 +7,7 @@ All errors return a consistent `application/problem+json` response format.
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastapi import FastAPI
@@ -22,6 +21,9 @@ from metis.core.errors import (
     ErrorCode,
     MetisError,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 # HTTP status codes for error handlers
 _HTTP_NOT_FOUND = 404

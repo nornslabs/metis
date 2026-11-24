@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -10,6 +10,9 @@ from metis.core.errors import ResearchNotFoundError
 from metis.modules import ideas
 from metis.modules.ideas import RunKind, WorkflowRun
 from metis.modules.research.service import snapshots
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def start_rescore(

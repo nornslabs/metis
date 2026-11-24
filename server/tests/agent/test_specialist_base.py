@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
@@ -12,6 +12,9 @@ from langgraph.errors import GraphRecursionError
 
 from metis.agent.specialists.base import build_react_specialist
 from metis.core.ports import LLMProvider, ToolDefinition
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class FakeChat:

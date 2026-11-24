@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Self
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated, Self
 
 from pydantic import BeforeValidator, ConfigDict, Field, model_validator
 
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MIN_TITLE_LENGTH = 3
 MAX_TITLE_LENGTH = 120

@@ -9,9 +9,8 @@ hosted MCP server are an in-process fake (``fake_linear.py``) reached through th
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlsplit
 from uuid import UUID
 
@@ -28,6 +27,9 @@ from metis.modules import integrations
 from metis.modules.integrations.helpers import sealing
 from tests.helpers.auth import APP_ROLE, SESSION_COOKIE, assert_problem, auth, sign_in
 from tests.helpers.fake_linear import CLIENT_ID, CLIENT_SECRET, FakeLinear
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 WEB = "http://localhost:3000"
 CALLBACK = "/v1/integrations/linear/callback"
@@ -590,7 +592,7 @@ async def test_get_mcp_client_names_the_provider_that_is_not_usable(
                 UUID(workspace),
                 [integrations.IntegrationProvider.LINEAR],
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             assert getattr(exc, "code", None) is not None
             assert exc.meta == {"provider": "linear"}  # type: ignore[attr-defined]
             assert exc.code.value == "mcp.not_connected"  # type: ignore[attr-defined]
@@ -736,7 +738,7 @@ async def test_a_refresh_the_provider_rejects_expires_the_connection(
                 UUID(workspace),
                 integrations.IntegrationProvider.LINEAR,
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             assert exc.code.value == "mcp.expired"  # type: ignore[attr-defined]
         else:
             raise AssertionError("a rejected refresh must raise")

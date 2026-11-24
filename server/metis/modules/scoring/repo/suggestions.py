@@ -6,8 +6,7 @@ immutable (the app role may update ``status`` only); there is no delete.
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -15,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.scoring.models import SuggestionRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def create(

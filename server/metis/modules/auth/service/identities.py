@@ -8,7 +8,7 @@ identity creates it on the user's first workspace-scoped call. Takes the caller'
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,6 +20,9 @@ from metis.modules.auth import repo
 from metis.modules.auth.dto import SignedIn, SignInOutcome, User, UserClaims
 from metis.modules.auth.models import UserRow
 from metis.modules.auth.providers.base import OAuthFailure, OAuthStep, ProviderProfile, oauth_failed
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 # A concurrent first sign-in can win a unique constraint once; the retry finds its rows.
 MAX_SIGN_IN_ATTEMPTS = 2

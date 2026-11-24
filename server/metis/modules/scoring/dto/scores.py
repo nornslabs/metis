@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from pydantic import Field, model_validator
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.scoring.dto._fields import Fraction, Mark, Quote, Reason, Title, WebUrl
 from metis.modules.scoring.dto.enums import ScoreBand, ScoreParam, ScoreTrigger
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_EVIDENCE_ITEMS = 5
 # With no evidence a score is a guess, so its confidence is at most this.

@@ -26,8 +26,7 @@ from collections.abc import AsyncGenerator, Callable, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from functools import partial
-from typing import Any, Literal
-from uuid import UUID
+from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 from langchain_core.runnables import RunnableConfig
@@ -62,6 +61,9 @@ from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import ideas, identity
 from metis.modules.ideas import RunKind, RunStatus, Stage, WorkflowRun
 from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 # Each step's checkpoint is written before the next step starts, so a killed worker (or a
 # cancel) loses no completed step.
@@ -141,7 +143,7 @@ async def execute_run(
             # instead and leaves the run ``running``, for recovery to pick up.
             async with asyncio.timeout(settings.agent_job_timeout_seconds):
                 await _drive(deps, redis, publisher, lock, run, resume)
-        except Exception as exc:  # noqa: BLE001  (every failure is recorded on the run)
+        except Exception as exc:
             await _fail(deps, publisher, run, exc)
 
 
@@ -344,7 +346,7 @@ async def _fail(
     logger.exception("run.failed", code=code.value)
     try:
         await _record_failure(deps, publisher, run, _error(code.value))
-    except Exception:  # noqa: BLE001
+    except Exception:
         # Leave the run as it is; crash recovery or the user's next action takes it from here.
         logger.exception("run.failure_not_recorded")
 

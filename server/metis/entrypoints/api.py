@@ -11,8 +11,8 @@ Module routers are added per PRD as the modules land. See
 from __future__ import annotations
 
 import sys
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 import structlog
 from fastapi import FastAPI
@@ -32,6 +32,9 @@ from metis.modules.integrations import router as integrations_router
 from metis.modules.planning import router as planning_router
 from metis.modules.research import router as research_router
 from metis.modules.scoring import router as scoring_router
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_HEADERS = [

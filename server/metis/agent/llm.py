@@ -17,9 +17,7 @@ call whose reply the run already paid for. Budget enforcement is SHIP-237.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
@@ -38,6 +36,10 @@ from metis.helpers.pricing import ModelPrice, cost_usd
 from metis.modules.ideas import NewLlmUsage, record_llm_usage
 from metis.modules.identity import ProviderCredentials, ProviderKind, get_key_for_use
 from metis.modules.research import EMBEDDING_DIMENSIONS
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

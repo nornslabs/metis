@@ -7,7 +7,7 @@ template does not know is kept under a slug key, so parsing never drops what the
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from typing import TYPE_CHECKING
 
 from metis.modules.ideas.dto.spec import (
     NONE_TEXT,
@@ -16,6 +16,9 @@ from metis.modules.ideas.dto.spec import (
     SectionDiff,
     SpecSection,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _HEADING = re.compile(r"^##[ \t]+(.+?)[ \t]*#*[ \t]*$")
 _NON_SLUG = re.compile(r"[^a-z0-9]+")

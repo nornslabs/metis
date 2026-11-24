@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from pydantic import AfterValidator, BeforeValidator, Field
 
 from metis.helpers.dto import Email, FrozenModel
 from metis.helpers.text import strip_to_none
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_NAME_LENGTH = 200
 IMAGE_URL_SCHEMES = ("https://", "http://")

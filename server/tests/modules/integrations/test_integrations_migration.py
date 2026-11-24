@@ -53,7 +53,7 @@ async def test_every_integrations_table_has_row_level_security(engine: AsyncEngi
             )
         ).all()
 
-    assert {row[0]: (row[1], row[2]) for row in rows} == {t: (True, True) for t in TABLES}
+    assert {row[0]: (row[1], row[2]) for row in rows} == dict.fromkeys(TABLES, (True, True))
 
 
 async def test_a_workspace_has_one_connection_per_provider(

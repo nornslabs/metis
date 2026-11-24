@@ -6,9 +6,12 @@ the API to ask the worker to stop at the next step boundary.
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from redis.asyncio import Redis
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 LOCK_KEY_PREFIX = "lock:run:"
 CANCEL_KEY_PREFIX = "cancel:"

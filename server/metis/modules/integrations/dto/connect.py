@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.integrations.dto.providers import IntegrationProvider
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 class PendingConnect(FrozenModel):

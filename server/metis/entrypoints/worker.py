@@ -42,7 +42,7 @@ async def agent_on_startup(ctx: dict[str, Any]) -> None:
     await setup_checkpointer(get_settings().database_url)
     try:
         recovered = await recover_stuck_runs(ctx["redis"])
-    except Exception:  # noqa: BLE001  (a failed scan must not keep the worker from starting)
+    except Exception:
         logger.exception("run.recovery_failed")
     else:
         logger.info("run.recovery_done", recovered=recovered)

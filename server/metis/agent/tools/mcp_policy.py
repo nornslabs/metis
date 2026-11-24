@@ -7,11 +7,13 @@ runs only while the run's approval is recorded in an ``ApprovalLedger``.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from metis.agent.supervisor import Specialist
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 
 class McpWriteRefused(Exception):

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +13,9 @@ from metis.modules.planning.dto import Plan, TaskPatch
 from metis.modules.planning.helpers.layout import move_task
 from metis.modules.planning.helpers.validation import check_estimate
 from metis.modules.planning.service import layout, plans
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from decimal import ROUND_HALF_UP, Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +11,9 @@ from metis.core.errors import InvalidRubricError
 from metis.modules.scoring import repo
 from metis.modules.scoring.dto import Rubric, ScoreBand, ScoreParam
 from metis.modules.scoring.dto._fields import MAX_RAW
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 EXPECTED_WEIGHT_TOTAL = 100
 POINT_DECIMALS = Decimal("0.01")

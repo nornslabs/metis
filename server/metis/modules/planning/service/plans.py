@@ -8,8 +8,7 @@ Planner replaces and members edit, and fixed once ``ready`` (``PlanReady`` is wr
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +29,9 @@ from metis.modules.planning.events import PlanReadyPayload, plan_ready
 from metis.modules.planning.helpers.critical_path import critical_path
 from metis.modules.planning.helpers.validation import check_plan_input, check_stored_graph
 from metis.modules.planning.models import PhaseRow, PlanRow, TaskDepRow, TaskRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

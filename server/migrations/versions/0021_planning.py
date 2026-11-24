@@ -18,11 +18,14 @@ The downgrade drops the tables and revokes the grants; the empty schema stays, a
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 revision = "0021_planning"
 down_revision = "0020_spec_versions"

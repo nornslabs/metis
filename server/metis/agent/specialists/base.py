@@ -11,8 +11,7 @@ settles by raising ``GraphRecursionError``. It counts per invocation: a loop tha
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -22,6 +21,9 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.prebuilt.tool_node import ToolInvocationError
 
 from metis.core.ports import LLMProvider
+
+if TYPE_CHECKING:
+    from collections.abc import Collection, Sequence
 
 AGENT_NODE = "agent"
 TOOLS_NODE = "tools"

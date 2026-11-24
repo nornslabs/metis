@@ -5,7 +5,7 @@ Every query filters by ``workspace_id`` as well as relying on RLS.
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -14,6 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
 from metis.modules.research.models import SnapshotRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def create_open_or_none(

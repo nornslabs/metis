@@ -29,9 +29,7 @@ def queued_runs(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
     return calls
 
 
-async def _closed_research(
-    sessions: Sessions, caller: Caller, idea_id: str
-) -> None:
+async def _closed_research(sessions: Sessions, caller: Caller, idea_id: str) -> None:
     workspace_id, idea_uuid = UUID(caller.workspace_id), UUID(idea_id)
     async with sessions() as session:
         await set_workspace(session, workspace_id)

@@ -6,7 +6,7 @@ module's service.
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
@@ -14,6 +14,9 @@ from metis.core.db import SessionDep
 from metis.modules.identity import CurrentWorkspaceDep
 from metis.modules.planning import service
 from metis.modules.planning.dto import EditPhasesBody, EditTaskBody, Plan
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 idea_router = APIRouter(prefix="/ideas")
 router = APIRouter(prefix="/plans")

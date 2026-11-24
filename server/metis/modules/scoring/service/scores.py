@@ -6,9 +6,8 @@ the workspace id as well as RLS. Score runs are immutable: nothing here updates 
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +41,10 @@ from metis.modules.scoring.dto import (
 from metis.modules.scoring.models import ScoreParamRow, ScoreRunRow
 from metis.modules.scoring.service import rubric as rubric_service
 from metis.modules.scoring.service.rubric import band_for, total_from, weighted_points
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

@@ -8,7 +8,7 @@ sees: which cases fail and why, the rates, the variance flags, and that nothing 
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import pytest
 from redis.asyncio import Redis
@@ -23,6 +23,9 @@ from evals.run_scoring import PLACEHOLDER_LLM, _evaluate
 from metis.agent.checkpoint import setup_checkpointer
 from tests.agent.graph_helpers import APP_DATABASE_URL
 from tests.modules.conftest import app_sessions, engine, redis  # noqa: F401  (shared fixtures)
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 FAILING = {
     "habit-pets": "band build, expected promising",

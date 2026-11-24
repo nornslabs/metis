@@ -870,13 +870,13 @@ async def test_starting_a_run_moves_the_idea_to_the_top_of_the_list_without_a_ne
     ada, idea_id = await _ready(client, engine)
     other = await create(client, ada, title="Created after the first idea")
     before = (await client.get("/v1/ideas", headers=ada.headers)).json()["items"]
-    assert [i["id"] for i in before][0] == other["id"]
+    assert next(i["id"] for i in before) == other["id"]
     version = next(i["version"] for i in before if i["id"] == idea_id)
 
     assert (await _start(client, ada, idea_id)).status_code == 202
 
     after = (await client.get("/v1/ideas", headers=ada.headers)).json()["items"]
-    assert [i["id"] for i in after][0] == idea_id
+    assert next(i["id"] for i in after) == idea_id
     assert next(i["version"] for i in after if i["id"] == idea_id) == version
 
 

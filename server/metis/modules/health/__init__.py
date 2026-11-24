@@ -17,12 +17,12 @@ from metis.modules.health.service import (
 )
 
 __all__ = [
-    "router",
     "HealthResponse",
     "HealthStatus",
     "check_postgres_health",
     "check_redis_health",
     "get_version",
-    "run_health_checks",
     "health_check",
+    "router",
+    "run_health_checks",
 ]

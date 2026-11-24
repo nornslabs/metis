@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -10,6 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.identity.dto import MemberRole
 from metis.modules.identity.models import MemberRow, WorkspaceRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def get_role(session: AsyncSession, workspace_id: UUID, user_id: UUID) -> MemberRole | None:

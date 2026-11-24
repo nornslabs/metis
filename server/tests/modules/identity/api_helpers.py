@@ -6,14 +6,16 @@ Sign-in helpers live in ``tests/helpers/auth.py``; fixtures in
 
 from __future__ import annotations
 
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from tests.helpers.auth import auth
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def me(client: httpx.AsyncClient, token: str, workspace: str | UUID | None = None) -> Any:

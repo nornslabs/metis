@@ -10,9 +10,8 @@ go on; the second closes it, and the node then fails the run rather than leave t
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from langchain_core.tools import BaseTool, StructuredTool
 
@@ -28,6 +27,10 @@ from metis.modules.scoring import (
     ScoreRun,
     SuggestionKind,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 SAVE_SUGGESTION = "save_suggestion"
 FINISH_ADVICE = "finish_advice"

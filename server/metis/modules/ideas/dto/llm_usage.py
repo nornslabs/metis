@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from pydantic import Field
 
 from metis.helpers.dto import FrozenModel
+
+if TYPE_CHECKING:
+    from decimal import Decimal
+    from uuid import UUID
 
 
 class NewLlmUsage(FrozenModel):

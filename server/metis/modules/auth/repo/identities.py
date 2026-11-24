@@ -8,8 +8,7 @@ transaction stays usable and a concurrent first sign-in can be retried.
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -19,6 +18,10 @@ from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
 from metis.modules.auth.models import IdentityRow
 from metis.modules.auth.providers.base import AuthProviderName
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 
 async def get(

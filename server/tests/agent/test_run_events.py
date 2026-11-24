@@ -6,8 +6,7 @@ the run's Redis stream.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.callbacks import AsyncCallbackManagerForLLMRun
 from langchain_core.language_models.chat_models import BaseChatModel
@@ -23,6 +22,9 @@ from metis.agent.supervisor import Specialist
 from metis.core.events import RunEvent, RunEventType
 from metis.modules.ideas import Stage
 from tests.agent.run_job_helpers import events_of, job_ctx, queued_run, run_job, run_row
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 WORDS = [f"word{i}" for i in range(40)]
 

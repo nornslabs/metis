@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +10,10 @@ from metis.core.logging import get_logger
 from metis.modules.planning.dto import PhaseOp, Plan
 from metis.modules.planning.helpers.layout import apply_phase_ops
 from metis.modules.planning.service import layout, plans
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

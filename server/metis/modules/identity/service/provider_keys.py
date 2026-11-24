@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,9 @@ from metis.modules.identity.dto import (
 from metis.modules.identity.helpers.permissions import require_owner
 from metis.modules.identity.helpers.views import key_view
 from metis.modules.identity.models import ProviderKeyRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 @dataclass(frozen=True)

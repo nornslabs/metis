@@ -12,11 +12,14 @@ then). The downgrade drops the column and the table.
 
 from __future__ import annotations
 
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
+
+if TYPE_CHECKING:
+    from datetime import datetime
 
 revision = "0020_spec_versions"
 down_revision = "3aaa8e5afd8c"

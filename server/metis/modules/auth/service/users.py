@@ -6,13 +6,16 @@ Takes the caller's ``AsyncSession`` and never commits. Users are not tenant data
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.text import normalise_email
 from metis.modules.auth import repo
 from metis.modules.auth.dto import User
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def get_user(session: AsyncSession, user_id: UUID) -> User | None:

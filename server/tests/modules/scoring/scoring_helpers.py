@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator, Mapping
 from contextlib import asynccontextmanager
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
@@ -13,6 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 from metis.core.db import set_workspace
 from metis.helpers.validation import validate_input
 from metis.modules.scoring import NewParamScore, ScoreParam
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Mapping
+    from uuid import UUID
 
 Sessions = async_sessionmaker[AsyncSession]
 

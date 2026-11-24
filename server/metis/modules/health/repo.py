@@ -9,6 +9,7 @@ Repository pattern: Service → Repository → External systems (DB, Redis)
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 import asyncpg  # type: ignore[import-untyped]
 import redis.asyncio as redis
@@ -45,10 +46,8 @@ async def query_postgres(dsn: str, query: str, timeout_secs: float = 1.0) -> boo
         except Exception:
             return False
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 await conn.close()
-            except Exception:
-                pass
     except Exception:
         return False
 
@@ -70,10 +69,8 @@ async def ping_redis(url: str, timeout_secs: float = 1.0) -> bool:
             await client.close()
             return True
         except Exception:
-            try:
+            with contextlib.suppress(Exception):
                 await client.close()
-            except Exception:
-                pass
             return False
     except Exception:
         return False

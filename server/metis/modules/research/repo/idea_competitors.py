@@ -6,13 +6,16 @@ Every query filters by ``workspace_id`` as well as relying on RLS.
 from __future__ import annotations
 
 from decimal import Decimal
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.research.models import CompetitorRow, IdeaCompetitorRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def upsert(

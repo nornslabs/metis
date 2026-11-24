@@ -1,4 +1,5 @@
 """Exa agent tools exercise the hosted MCP protocol without network calls."""
+
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -73,6 +74,7 @@ async def test_loads_scoped_tools_normalizes_caps_caches_and_emits_events(
     redis: MemoryRedis, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     async with FakeExaMcp().running() as fake:
+
         async def get_key(*_args: object) -> SimpleNamespace:
             return SimpleNamespace(api_key="workspace-exa-key")
 
@@ -82,7 +84,11 @@ async def test_loads_scoped_tools_normalizes_caps_caches_and_emits_events(
         )
 
         async with exa_tools.load_exa_tools(
-            None, WORKSPACE_ID, RUN_ID, redis, factory  # type: ignore[arg-type]
+            None,
+            WORKSPACE_ID,
+            RUN_ID,
+            redis,
+            factory,  # type: ignore[arg-type]
         ) as tools:
             assert set(tools) == exa_tools.RESEARCHER_TOOLS
             researcher_tools = exa_tools.exa_tools_for("researcher", tools)
@@ -98,13 +104,15 @@ async def test_loads_scoped_tools_normalizes_caps_caches_and_emits_events(
             hits = await tools[exa_tools.SEARCH_TOOL].ainvoke(args)
             repeated = await tools[exa_tools.SEARCH_TOOL].ainvoke(args)
             assert hits == repeated
-            assert hits == [{
-                "url": "https://example.com",
-                "title": "Example",
-                "published_at": None,
-                "snippet": "",
-                "source": "exa",
-            }]
+            assert hits == [
+                {
+                    "url": "https://example.com",
+                    "title": "Example",
+                    "published_at": None,
+                    "snippet": "",
+                    "source": "exa",
+                }
+            ]
             assert fake.tool_calls[0]["numResults"] == 10
             assert len(fake.tool_calls) == 1
 
@@ -113,10 +121,7 @@ async def test_loads_scoped_tools_normalizes_caps_caches_and_emits_events(
 
     stream = await redis.xrange(f"run:{RUN_ID}")
     assert len(stream) == 3
-    assert all(
-        entry[b"type"].decode() == RunEventType.TOOL_CALL.value
-        for _, entry in stream
-    )
+    assert all(entry[b"type"].decode() == RunEventType.TOOL_CALL.value for _, entry in stream)
     assert set(fake.api_keys) == {"workspace-exa-key"}
 
 
@@ -135,7 +140,11 @@ async def test_mcp_tool_auth_error_maps_to_safe_provider_error(
             transport=fake.transport(), headers=dict(headers)
         )
         async with exa_tools.load_exa_tools(
-            None, WORKSPACE_ID, RUN_ID, redis, factory  # type: ignore[arg-type]
+            None,
+            WORKSPACE_ID,
+            RUN_ID,
+            redis,
+            factory,  # type: ignore[arg-type]
         ) as tools:
             with pytest.raises(UpstreamError) as exc_info:
                 await tools[exa_tools.SEARCH_TOOL].ainvoke(
@@ -159,7 +168,11 @@ async def test_mcp_server_error_retries_twice_and_maps_reason(
             transport=fake.transport(), headers=dict(headers)
         )
         async with exa_tools.load_exa_tools(
-            None, WORKSPACE_ID, RUN_ID, redis, factory  # type: ignore[arg-type]
+            None,
+            WORKSPACE_ID,
+            RUN_ID,
+            redis,
+            factory,  # type: ignore[arg-type]
         ) as tools:
             with pytest.raises(UpstreamError) as exc_info:
                 await tools[exa_tools.SEARCH_TOOL].ainvoke(

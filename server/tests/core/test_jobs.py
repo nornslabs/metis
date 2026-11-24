@@ -17,9 +17,8 @@ import subprocess
 import sys
 import time
 import uuid
-from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 import pytest_asyncio
@@ -35,6 +34,9 @@ from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, enqueue, logged_job
 from metis.core.outbox import RelayResult
 from metis.entrypoints import scheduler, worker
 from tests.core.slow_worker import derive_settings
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
 
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 SERVER_ROOT = Path(__file__).resolve().parents[2]
@@ -54,7 +56,7 @@ async def pool() -> AsyncIterator[ArqRedis]:
     redis = await create_pool(RedisSettings.from_dsn(REDIS_URL))
     try:
         await redis.ping()
-    except Exception:  # noqa: BLE001
+    except Exception:
         await redis.aclose()
         pytest.skip("Redis not reachable")
     await redis.flushdb()
@@ -216,7 +218,7 @@ async def test_worker_exits_cleanly_on_sigterm_and_requeues_in_flight_job(
 ) -> None:
     env = {**os.environ, "REDIS_URL": REDIS_URL, "PYTHONPATH": str(SERVER_ROOT)}
     cmd = [sys.executable, "-m", "arq", "tests.core.slow_worker.SlowWorkerSettings"]
-    proc = subprocess.Popen(cmd, cwd=SERVER_ROOT, env=env)  # noqa: S603, ASYNC220
+    proc = subprocess.Popen(cmd, cwd=SERVER_ROOT, env=env)  # noqa: ASYNC220
     job_id = f"slow-{uuid.uuid4().hex}"
     try:
         await asyncio.sleep(2)  # let the worker boot
@@ -225,7 +227,7 @@ async def test_worker_exits_cleanly_on_sigterm_and_requeues_in_flight_job(
         deadline = time.monotonic() + RESULT_TIMEOUT_SECONDS
         while await pool.get("slow-started") is None:
             assert time.monotonic() < deadline, "slow job never started"
-            await asyncio.sleep(0.1)  # noqa: ASYNC110
+            await asyncio.sleep(0.1)
         proc.send_signal(signal.SIGTERM)
         assert proc.wait(timeout=RESULT_TIMEOUT_SECONDS) == 0
     finally:

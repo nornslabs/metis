@@ -4,8 +4,7 @@ RLS, constraints, the merge of the two 0017 heads and the downgrade."""
 from __future__ import annotations
 
 import json
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from sqlalchemy import text
@@ -16,6 +15,9 @@ from metis.helpers.ids import uuid7
 from tests.helpers.auth import APP_ROLE
 from tests.helpers.migrations import load_migration
 from tests.modules.research.research_helpers import Run, new_run
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 MIGRATION = load_migration("0018_suggestions.py")
 EVIDENCE = json.dumps([{"url": "https://example.com", "title": "T", "quote": ""}])

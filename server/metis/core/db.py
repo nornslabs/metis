@@ -7,10 +7,8 @@ configured via DATABASE_URL.
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends
 from sqlalchemy import text
@@ -25,6 +23,10 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.sql.dml import ReturningInsert
 
 from metis.core.config import get_settings
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from uuid import UUID
 
 
 def get_engine() -> AsyncEngine:

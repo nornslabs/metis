@@ -6,8 +6,7 @@ uuid7 ``id``. There is no update or delete: score runs are immutable.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -15,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.helpers.ids import uuid7
 from metis.modules.scoring.models import ScoreRunRow
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 
 async def lock_idea(session: AsyncSession, idea_id: UUID) -> None:

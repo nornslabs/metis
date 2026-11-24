@@ -5,15 +5,17 @@ Rows are only ever inserted, together with their score run.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.scoring.models import ScoreParamRow
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 
 async def create_many(

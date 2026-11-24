@@ -15,8 +15,7 @@ model's ``finish_interview`` findings + coverage from the saved turns) and moves
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from langchain_core.messages import AnyMessage, HumanMessage, SystemMessage
@@ -43,6 +42,9 @@ from metis.core.events import RunEventType
 from metis.core.logging import get_logger
 from metis.modules import ideas
 from metis.modules.ideas import InterviewFindings, InterviewTopic, QuestionRefusal, Stage
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 PROMPT = "interviewer"
 PURPOSE = "interview"

@@ -6,9 +6,8 @@ are written through the ideas module's public functions, as the Interviewer's to
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
 
 import httpx
@@ -21,6 +20,9 @@ from metis.core.errors import ErrorCode
 from metis.modules import ideas
 from metis.modules.ideas import InterviewTopic
 from tests.helpers.auth import assert_problem
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 
 @asynccontextmanager

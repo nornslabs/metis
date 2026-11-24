@@ -18,9 +18,7 @@ KINDS = "'pipeline', 'rescore', 'market_recheck'"
 
 def upgrade() -> None:
     op.drop_constraint(CONSTRAINT, TABLE, schema=SCHEMA, type_="check")
-    op.create_check_constraint(
-        CONSTRAINT, TABLE, sa.text(f"kind IN ({KINDS})"), schema=SCHEMA
-    )
+    op.create_check_constraint(CONSTRAINT, TABLE, sa.text(f"kind IN ({KINDS})"), schema=SCHEMA)
 
 
 def downgrade() -> None:
@@ -31,6 +29,4 @@ def downgrade() -> None:
         )
     )
     op.drop_constraint(CONSTRAINT, TABLE, schema=SCHEMA, type_="check")
-    op.create_check_constraint(
-        CONSTRAINT, TABLE, sa.text("kind = 'pipeline'"), schema=SCHEMA
-    )
+    op.create_check_constraint(CONSTRAINT, TABLE, sa.text("kind = 'pipeline'"), schema=SCHEMA)

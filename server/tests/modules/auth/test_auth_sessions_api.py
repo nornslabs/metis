@@ -10,8 +10,7 @@ and expiry is driven by editing session rows, not by mocking the clock.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import httpx
 import pytest
@@ -31,6 +30,9 @@ from metis.modules.auth import service as auth_service
 from metis.modules.auth.dto import SessionRecord
 from tests.helpers.auth import assert_problem, create_user
 from tests.helpers.migrations import load_migration
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 WEB_ORIGIN = get_settings().get_cors_origins()[0]
 COOKIE = get_settings().session_cookie_name

@@ -19,7 +19,7 @@ async def _set(engine: AsyncEngine, idea_id: str, **columns: object) -> None:
     assignments = ", ".join(f"{name} = :{name}" for name in columns)
     async with engine.begin() as conn:
         await conn.execute(
-            text(f"UPDATE ideas.ideas SET {assignments} WHERE id = :id"),  # noqa: S608
+            text(f"UPDATE ideas.ideas SET {assignments} WHERE id = :id"),
             {"id": idea_id, **columns},
         )
 

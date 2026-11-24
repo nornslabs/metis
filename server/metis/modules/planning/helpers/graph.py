@@ -24,7 +24,7 @@ def nodes_on_cycles[K: Hashable](nodes: Iterable[K], edges: Iterable[tuple[K, K]
 
 def _trim[K: Hashable](nodes: set[K], pairs: list[tuple[K, K]], direction: int) -> set[K]:
     """Drop nodes with no incoming edges (direction 0) or no outgoing ones (direction 1)."""
-    waiting: dict[K, int] = {node: 0 for node in nodes}
+    waiting: dict[K, int] = dict.fromkeys(nodes, 0)
     next_nodes: dict[K, list[K]] = defaultdict(list)
     for pair in pairs:
         source, target = pair[direction], pair[1 - direction]

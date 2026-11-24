@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from base64 import urlsafe_b64encode
-from collections.abc import Iterator
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,6 +11,9 @@ import pytest
 from metis.core.config import get_settings
 from metis.core.crypto import SealedSecret, decrypt, encrypt, mask
 from metis.core.errors import ErrorCode, InvalidInputError, SecretDecryptError
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 WORKSPACE_ID = UUID("0192f1a0-0000-7000-8000-000000000001")
 OTHER_WORKSPACE_ID = UUID("0192f1a0-0000-7000-8000-000000000002")

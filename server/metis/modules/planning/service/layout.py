@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.planning import repo
 from metis.modules.planning.helpers.layout import Layout, PhaseDraft
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 async def load(session: AsyncSession, workspace_id: UUID, plan_id: UUID) -> Layout:

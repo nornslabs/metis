@@ -10,8 +10,7 @@ treated as a miss: auth falls back to Postgres.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 from pydantic import ValidationError
 from redis.asyncio import Redis
@@ -19,6 +18,10 @@ from redis.exceptions import RedisError
 
 from metis.core.logging import get_logger
 from metis.modules.auth.dto import CacheLookup, SessionRecord
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from datetime import datetime
 
 KEY_PREFIX = "auth:session:"
 TOMBSTONE_KEY_PREFIX = "auth:session:revoked:"

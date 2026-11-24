@@ -13,8 +13,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool
 
@@ -33,6 +32,9 @@ from metis.helpers.mcp import failure_reason
 from metis.modules import integrations
 from metis.modules.integrations import ExternalRef, IntegrationProvider, LocalKind
 from metis.modules.planning import Phase, Plan
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 SAVE_PROJECT = "save_project"
 SAVE_MILESTONE = "save_milestone"

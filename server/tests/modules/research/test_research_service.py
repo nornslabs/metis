@@ -6,7 +6,7 @@ Runs as ``metis_app`` (RLS on) against a migrated Postgres. The Researcher's too
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import text
@@ -35,6 +35,9 @@ from tests.modules.research.research_helpers import (
     new_run,
     vector,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 Sessions = async_sessionmaker[AsyncSession]
 

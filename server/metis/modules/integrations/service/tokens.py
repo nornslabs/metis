@@ -10,7 +10,7 @@ serialized by the row lock.
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +28,9 @@ from metis.modules.integrations.helpers import sealing, servers
 from metis.modules.integrations.helpers.labels import expired_error, provider_label
 from metis.modules.integrations.helpers.sealing import StoredTokens
 from metis.modules.integrations.models import McpConnectionRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 REFRESH_WINDOW = timedelta(seconds=60)
 # A refresh the provider answered with a refusal; anything else (timeout, outage) is transient.

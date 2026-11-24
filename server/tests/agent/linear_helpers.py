@@ -4,8 +4,7 @@ client factories that route the token refresh and the MCP sessions to ``FakeLine
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from pydantic import SecretStr
@@ -19,6 +18,9 @@ from metis.modules.integrations.helpers.sealing import StoredTokens, seal_tokens
 from metis.modules.integrations.repo import connections
 from tests.helpers.fake_linear import AUTH_ISSUER, CLIENT_ID, FakeLinear
 from tests.modules.scoring.scoring_helpers import in_workspace
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 def oauth_client(linear: FakeLinear) -> Any:

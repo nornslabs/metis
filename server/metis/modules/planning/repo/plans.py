@@ -5,13 +5,16 @@ Every query filters by ``workspace_id`` as well as relying on RLS.
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.modules.planning.dto import PlanStatus
 from metis.modules.planning.models import PlanRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 _LOCK_SALT = 2  # apart from the ideas module's advisory lock on the same idea id
 

@@ -6,7 +6,7 @@ their uuid7 ``id``.
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -16,6 +16,9 @@ from sqlalchemy.sql.dml import ReturningInsert
 from metis.core.db import insert_or_none
 from metis.helpers.ids import uuid7
 from metis.modules.ideas.models import InterviewTurnRow
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 ASKED = "asked"
 

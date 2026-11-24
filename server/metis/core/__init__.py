@@ -31,23 +31,23 @@ from metis.core.errors import (
 from metis.core.logging import bind_context, clear_context, configure_logging, get_logger
 
 __all__ = [
-    "Settings",
-    "get_settings",
+    "ERROR_CATALOG",
+    "AuthError",
+    "BudgetError",
+    "ConflictError",
     "ErrorCode",
     "ErrorSpec",
-    "ERROR_CATALOG",
+    "InvalidInputError",
     "MetisError",
     "NotFoundError",
-    "ConflictError",
-    "AuthError",
     "PermissionDeniedError",
-    "InvalidInputError",
-    "UpstreamError",
-    "BudgetError",
     "RateLimitError",
+    "Settings",
+    "UpstreamError",
+    "bind_context",
+    "clear_context",
     # Logging exports
     "configure_logging",
     "get_logger",
-    "bind_context",
-    "clear_context",
+    "get_settings",
 ]

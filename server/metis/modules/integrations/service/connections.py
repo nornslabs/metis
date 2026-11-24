@@ -5,9 +5,8 @@ Every function takes the caller's ``AsyncSession``, flushes but never commits.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import McpHttpClientFactory
@@ -39,6 +38,10 @@ from metis.modules.integrations.helpers.labels import expired_error, provider_la
 from metis.modules.integrations.helpers.sealing import StoredTokens
 from metis.modules.integrations.models import McpConnectionRow
 from metis.modules.integrations.service import tokens
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

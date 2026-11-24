@@ -19,11 +19,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.tools import BaseTool, StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -43,6 +41,10 @@ from metis.helpers.http import ClientFactory, FailureReason, provider_error
 from metis.helpers.mcp import failure_reason
 from metis.modules import integrations
 from metis.modules.integrations import IntegrationProvider
+
+if TYPE_CHECKING:
+    from collections.abc import Awaitable, Callable, Mapping
+    from uuid import UUID
 
 TOOL_TIMEOUT_SECONDS = 20
 MAX_RESULT_CHARS = 4_000
@@ -211,7 +213,7 @@ class _Connection:
             try:
                 async with asyncio.timeout(TOOL_TIMEOUT_SECONDS):
                     return await operation()
-            except Exception as exc:  # noqa: BLE001 - MCP errors are normalized below
+            except Exception as exc:
                 reason = failure_reason(exc)
                 if reason is FailureReason.UNAUTHORIZED:
                     if refreshed:
@@ -232,7 +234,7 @@ class _Connection:
             return
         try:
             listed = await self._list()
-        except Exception as exc:  # noqa: BLE001 - MCP errors are normalized below
+        except Exception as exc:
             reason = failure_reason(exc)
             if reason is FailureReason.UNAUTHORIZED:
                 raise await self._expire() from None
@@ -323,7 +325,7 @@ def _as_text(result: object) -> str:
         parts = [
             block if isinstance(block, str) else str(block.get("text", ""))
             for block in result
-            if isinstance(block, str) or isinstance(block, dict)
+            if isinstance(block, (str, dict))
         ]
         if parts:
             return "\n".join(part for part in parts if part)

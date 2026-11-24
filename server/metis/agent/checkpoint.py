@@ -9,14 +9,16 @@ Postgres through ``psycopg``, with its own small pool on the app's ``DATABASE_UR
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from sqlalchemy.engine import make_url
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 CHECKPOINT_SCHEMA = "agent"
 POOL_MIN_SIZE = 1

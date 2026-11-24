@@ -15,11 +15,11 @@ from metis.modules.auth.dto.sign_in import SignedIn, SignInOutcome
 from metis.modules.auth.dto.users import IMAGE_URL_SCHEMES, MAX_NAME_LENGTH, User, UserClaims
 
 __all__ = [
+    "IMAGE_URL_SCHEMES",
+    "MAX_NAME_LENGTH",
     "ActiveSession",
     "CacheLookup",
     "FinishedLogin",
-    "IMAGE_URL_SCHEMES",
-    "MAX_NAME_LENGTH",
     "NewSession",
     "PendingLogin",
     "SessionRecord",

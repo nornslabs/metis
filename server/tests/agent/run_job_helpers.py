@@ -4,8 +4,7 @@ and what an outside observer sees (the run row, the event stream, the checkpoint
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from redis.asyncio import Redis
 from sqlalchemy import text
@@ -22,6 +21,9 @@ from metis.jobs.run_graph import run_graph
 from tests.agent.graph_helpers import APP_DATABASE_URL
 from tests.agent.interview_helpers import ScriptedLLM
 from tests.agent.llm_helpers import make_run, workspace_with_key, workspace_without_key
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 @dataclass(frozen=True)

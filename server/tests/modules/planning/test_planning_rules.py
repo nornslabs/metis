@@ -221,7 +221,7 @@ def test_reorder_needs_every_phase_exactly_once() -> None:
 
 
 def test_add_puts_the_phase_at_the_position_or_last() -> None:
-    layout, phases, _ = _layout()
+    layout, _phases, _ = _layout()
 
     first = apply_phase_ops(
         layout, [AddPhase(op="add", name="N", goal="g", exit_criteria="e", position=0)]

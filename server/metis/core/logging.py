@@ -165,7 +165,7 @@ def get_logger(name: str) -> BoundLogger:
     """
     logger = structlog.get_logger(name)
     # Cast to BoundLogger for type checking (structlog returns a lazy proxy)
-    return cast(BoundLogger, logger)
+    return cast("BoundLogger", logger)
 
 
 def bind_context(**kwargs: Any) -> None:
@@ -195,8 +195,8 @@ def clear_context(*keys: str) -> None:
 
 
 __all__ = [
-    "configure_logging",
-    "get_logger",
     "bind_context",
     "clear_context",
+    "configure_logging",
+    "get_logger",
 ]

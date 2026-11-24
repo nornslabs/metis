@@ -6,10 +6,7 @@ but never commits.
 
 from __future__ import annotations
 
-from collections.abc import Collection
-from datetime import datetime
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,6 +21,11 @@ from metis.modules.integrations.dto import (
     IntegrationProvider,
     LocalKind,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
+    from datetime import datetime
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

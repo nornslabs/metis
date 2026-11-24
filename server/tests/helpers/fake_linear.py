@@ -13,10 +13,9 @@ import base64
 import hashlib
 import json
 import secrets
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -24,6 +23,9 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import Receive, Scope, Send
 
 from metis.adapters.mcp.linear import SERVER_URL
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 MCP_HOST = httpx.URL(SERVER_URL).host
 AUTH_ISSUER = "https://auth.linear.test"
@@ -162,8 +164,8 @@ class FakeLinear:
         async def save_project(
             name: str = "",
             description: str = "",
-            id: str = "",  # noqa: A002 - Linear's argument name
-            addTeams: list[str] | None = None,  # noqa: N803
+            id: str = "",
+            addTeams: list[str] | None = None,
         ) -> str:
             arguments = {"name": name, "description": description, "id": id, "teams": addTeams}
             self._check_save("save_project", arguments)
@@ -181,8 +183,8 @@ class FakeLinear:
             project: str = "",
             name: str = "",
             description: str = "",
-            sortOrder: int = 0,  # noqa: N803
-            id: str = "",  # noqa: A002 - Linear's argument name
+            sortOrder: int = 0,
+            id: str = "",
         ) -> str:
             arguments = {
                 "project": project,

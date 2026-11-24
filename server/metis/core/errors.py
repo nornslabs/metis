@@ -824,7 +824,7 @@ class RunNotFoundError(NotFoundError):
     code: ErrorCode = ErrorCode.RUN_NOT_FOUND
 
 
-class IllegalRunTransition(MetisError):  # noqa: N818  (named like ``IllegalTransition``)
+class IllegalRunTransition(MetisError):
     """409: the run cannot move from its status to the requested one."""
 
     code: ErrorCode = ErrorCode.RUN_INVALID_STATE
@@ -976,58 +976,58 @@ class InvalidRubricError(MetisError):
 
 
 __all__ = [
+    "ERROR_CATALOG",
+    "AlreadyMemberError",
+    "AuthError",
+    "BudgetError",
+    "CompetitorNotFoundError",
+    "ConflictError",
+    "CsrfError",
     "ErrorCode",
     "ErrorSpec",
-    "ERROR_CATALOG",
-    "MetisError",
-    "NotFoundError",
-    "ConflictError",
-    "AuthError",
-    "NotSignedInError",
-    "SessionExpiredError",
-    "CsrfError",
-    "PermissionDeniedError",
-    "InvalidInputError",
-    "UpstreamError",
-    "BudgetError",
-    "RateLimitError",
-    "MalformedEventError",
-    "SecretDecryptError",
-    "LlmNotReadyError",
-    "ProviderNotConfiguredError",
-    "provider_not_configured",
-    "ProviderKeyNotFoundError",
-    "MemberUserNotFoundError",
-    "AlreadyMemberError",
-    "WorkspaceNotFoundError",
-    "IntegrationNotConnectedError",
+    "ExportPlanChangedError",
+    "IdempotencyMismatchError",
+    "IllegalRunTransition",
     "IntegrationExpiredError",
+    "IntegrationNotConnectedError",
     "IntegrationNotFoundError",
+    "IntegrationOAuthFailedError",
+    "IntegrationOAuthStateInvalidError",
+    "IntegrationProviderUnsupportedError",
+    "InterviewTurnNotFoundError",
+    "InvalidInputError",
+    "InvalidRubricError",
+    "LlmNotReadyError",
+    "MalformedEventError",
+    "MemberUserNotFoundError",
+    "MetisError",
     "NoLinearTeamError",
     "NoPlanToExportError",
-    "ExportPlanChangedError",
-    "IntegrationProviderUnsupportedError",
-    "IntegrationOAuthStateInvalidError",
-    "IntegrationOAuthFailedError",
-    "RunNotFoundError",
-    "IllegalRunTransition",
-    "RunAlreadyRunningError",
-    "IdempotencyMismatchError",
-    "InterviewTurnNotFoundError",
+    "NotFoundError",
+    "NotSignedInError",
+    "PermissionDeniedError",
+    "ProviderKeyNotFoundError",
+    "ProviderNotConfiguredError",
     "QuestionAlreadyOpenError",
-    "RunEnqueueError",
+    "RateLimitError",
     "ResearchNotFoundError",
-    "SnapshotNotFoundError",
-    "SnapshotClosedError",
     "ResearchSourceMissingError",
-    "CompetitorNotFoundError",
+    "RunAlreadyRunningError",
+    "RunEnqueueError",
+    "RunNotFoundError",
     "ScoreNotFoundError",
-    "InvalidRubricError",
     "ScoreRunNotFoundError",
-    "SuggestionNotFoundError",
-    "SpecNotFoundError",
+    "SecretDecryptError",
+    "SessionExpiredError",
+    "SnapshotClosedError",
+    "SnapshotNotFoundError",
     "SpecConflictError",
     "SpecNotEditableError",
+    "SpecNotFoundError",
+    "SuggestionNotFoundError",
+    "UpstreamError",
+    "WorkspaceNotFoundError",
+    "provider_not_configured",
 ]
 
 
@@ -1043,7 +1043,7 @@ class IdeaNotOwnerError(PermissionDeniedError):
     code: ErrorCode = ErrorCode.IDEA_NOT_OWNER
 
 
-class IllegalTransition(MetisError):  # noqa: N818  (the catalog and issue call it this)
+class IllegalTransition(MetisError):
     """409: the idea cannot move from its stage to the requested one."""
 
     code: ErrorCode = ErrorCode.IDEA_INVALID_TRANSITION

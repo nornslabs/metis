@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import os
 from collections import Counter
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
@@ -33,6 +33,9 @@ from metis.core.outbox import (
     relay_once,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
 DATABASE_URL = os.environ.get(
     "TEST_DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/metis"
 )
@@ -49,7 +52,7 @@ async def sessionmaker() -> AsyncIterator[Sessionmaker]:
     try:
         async with engine.connect() as conn:
             exists = await conn.scalar(text("SELECT to_regclass('core.outbox') IS NOT NULL"))
-    except Exception:  # noqa: BLE001
+    except Exception:
         await engine.dispose()
         pytest.skip("Postgres not reachable")
     if not exists:

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from decimal import Decimal
-from typing import Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, Text
 from sqlalchemy.dialects.postgresql import JSONB
@@ -20,6 +17,9 @@ from metis.modules.scoring.models._schema import (
     SCHEMA,
     WORKSPACES_TABLE,
 )
+from datetime import datetime
+from decimal import Decimal
+from uuid import UUID
 
 
 class ScoreRunRow(Base):

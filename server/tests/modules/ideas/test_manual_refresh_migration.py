@@ -13,9 +13,7 @@ from tests.agent.llm_helpers import make_run, workspace_without_key
 
 
 @pytest.mark.parametrize("kind", ["rescore", "market_recheck"])
-async def test_manual_refresh_kinds_are_allowed(
-    engine: AsyncEngine, kind: str
-) -> None:
+async def test_manual_refresh_kinds_are_allowed(engine: AsyncEngine, kind: str) -> None:
     workspace_id = await workspace_without_key(engine)
     run_id = await make_run(engine, workspace_id)
     async with engine.connect() as conn:

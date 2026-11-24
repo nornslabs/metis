@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated, Any
 
 from pydantic import (
     BaseModel,
@@ -20,6 +18,10 @@ from pydantic import (
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip
 from metis.modules.ideas.dto.ideas import MAX_RAW_TEXT_LENGTH, MIN_RAW_TEXT_LENGTH, Stage
+
+if TYPE_CHECKING:
+    from datetime import datetime
+    from uuid import UUID
 
 MAX_CONTINUATION_PROMPT_LENGTH = 10_000
 MAX_ACCEPTED = 5

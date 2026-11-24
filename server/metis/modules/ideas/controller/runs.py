@@ -7,8 +7,7 @@ never commit, so the commit is here).
 
 from __future__ import annotations
 
-from typing import Annotated, Any
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated, Any
 
 from fastapi import APIRouter, Header, Query, status
 
@@ -31,6 +30,9 @@ from metis.modules.ideas.dto import (
     StartRunBody,
 )
 from metis.modules.identity import CurrentWorkspaceDep
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 router = APIRouter()
 logger = get_logger(__name__)

@@ -55,7 +55,7 @@ class _KilledOnce:
 
 
 @pytest.fixture
-async def arq_pool(redis: Redis) -> ArqRedis:  # noqa: ARG001  (redis flushes the test database)
+async def arq_pool(redis: Redis) -> ArqRedis:
     pool = await create_pool(RedisSettings.from_dsn(REDIS_URL))
     yield pool
     await pool.aclose()

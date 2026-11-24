@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.db import set_setting
 from metis.core.errors import MetisError
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
+    from uuid import UUID
 
 
 @asynccontextmanager

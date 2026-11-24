@@ -7,8 +7,7 @@ through the LLM gateway); this module never calls a model.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +22,10 @@ from metis.modules.research.dto import (
     NewCompetitor,
 )
 from metis.modules.research.helpers.domain import normalize_domain
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from uuid import UUID
 
 
 async def upsert_competitor(

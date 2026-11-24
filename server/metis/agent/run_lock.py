@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 from redis.asyncio import Redis
@@ -20,6 +20,9 @@ from redis.exceptions import RedisError
 
 from metis.core.logging import get_logger
 from metis.core.run_control import lock_key
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 logger = get_logger(__name__)
 

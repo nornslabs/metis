@@ -8,7 +8,7 @@ version it was made from (``base_number``) and a stale one is ``SpecConflictErro
 
 from __future__ import annotations
 
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,9 @@ from metis.modules.ideas.dto.ideas import IdeaKind
 from metis.modules.ideas.helpers.spec_markdown import diff_sections, parse_sections
 from metis.modules.ideas.models import IdeaRow, SpecVersionRow
 from metis.modules.ideas.service import ideas as ideas_service
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 logger = get_logger(__name__)
 

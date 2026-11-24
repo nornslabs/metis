@@ -6,13 +6,15 @@ search results and scores live in their module's tables and are read through ser
 
 from __future__ import annotations
 
-from typing import Annotated, Any, TypedDict
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated, Any, TypedDict
 
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
 from metis.modules.ideas import RunKind, Stage
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 
 class Budget(TypedDict):

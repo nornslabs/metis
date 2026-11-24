@@ -9,10 +9,9 @@ A real MCP server (``FastMCP`` from the ``mcp`` SDK) with one
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -20,6 +19,9 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.types import Receive, Scope, Send
 
 from metis.adapters.mcp.exa import API_KEY_HEADER, FETCH_TOOL, SEARCH_TOOL
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator
 
 SLOW_TOOL_SECONDS = 1.0
 
@@ -48,7 +50,7 @@ class FakeExaMcp:
         self._server.add_tool(self._web_fetch, name=FETCH_TOOL)
         self._app = self._server.streamable_http_app()
 
-    async def _web_search(self, query: str, objective: str, numResults: int = 10) -> str:  # noqa: N803 - Exa's field name
+    async def _web_search(self, query: str, objective: str, numResults: int = 10) -> str:
         self.tool_calls.append({"query": query, "objective": objective, "numResults": numResults})
         if self.mode is ExaMode.BAD_KEY:
             raise ValueError(f"{SEARCH_TOOL} error (401): Invalid API key.")

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Text
@@ -14,6 +13,8 @@ from metis.helpers.ids import uuid7
 from metis.helpers.time import utcnow
 from metis.modules.research.dto.competitors import EMBEDDING_DIMENSIONS
 from metis.modules.research.models._schema import SCHEMA, WORKSPACES_TABLE
+from datetime import datetime
+from uuid import UUID
 
 
 class CompetitorRow(Base):

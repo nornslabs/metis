@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
-from uuid import UUID
+from typing import TYPE_CHECKING
 
 import httpx
 import pytest
@@ -29,6 +29,9 @@ from tests.agent.llm_helpers import (
     workspace_with_key,
     workspace_without_key,
 )
+
+if TYPE_CHECKING:
+    from uuid import UUID
 
 Sessions = async_sessionmaker[AsyncSession]
 

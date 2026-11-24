@@ -5,11 +5,14 @@ A check fails a run; a variance flag only reports. Nothing here touches a databa
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from evals.cases import Case
 from metis.agent.tools.scoring import normalize_url
 from metis.modules.scoring import NO_EVIDENCE_MAX_CONFIDENCE, ScoreParam, ScoreParamResult, ScoreRun
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 MAX_MARK_SPREAD = 1
 

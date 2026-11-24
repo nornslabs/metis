@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
-from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING
 
 import pytest
 import pytest_asyncio
@@ -31,6 +31,9 @@ from metis.core.events import (
     read,
 )
 
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator
+
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 RUN_ID = "run-1"
 STREAM_KEY = f"run:{RUN_ID}"
@@ -45,7 +48,7 @@ async def redis() -> AsyncIterator[Redis]:
     client: Redis = Redis.from_url(REDIS_URL)
     try:
         await client.ping()
-    except Exception:  # noqa: BLE001
+    except Exception:
         await client.aclose()
         pytest.skip("Redis not reachable")
     await client.flushdb()

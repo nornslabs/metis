@@ -6,8 +6,7 @@ Thin controllers: auth and workspace scope come from the dependencies, work from
 
 from __future__ import annotations
 
-from typing import Annotated
-from uuid import UUID
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Query, Response, status
 
@@ -28,6 +27,9 @@ from metis.modules.ideas.dto import (
 )
 from metis.modules.identity import CurrentWorkspaceDep
 
+if TYPE_CHECKING:
+    from uuid import UUID
+
 router = APIRouter(prefix="/ideas")
 
 
@@ -46,7 +48,7 @@ async def list_ideas(
     cursor: str | None = None,
     limit: Annotated[int, Query(ge=1, le=MAX_PAGE_SIZE)] = DEFAULT_PAGE_SIZE,
     q: str | None = None,
-    filter: IdeaFilter = IdeaFilter.ALL,  # noqa: A002 - the query parameter name
+    filter: IdeaFilter = IdeaFilter.ALL,
 ) -> IdeaPage:
     """The workspace's ideas, most recently active first (``updated_at``).
 
