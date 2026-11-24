@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, Request, UploadFile, status
+from typing import Annotated
+
+from fastapi import APIRouter, File, Request, UploadFile, status
 from fastapi.responses import JSONResponse
 
 from metis.core.db import SessionDep
@@ -10,7 +12,7 @@ from metis.core.error_handlers import metis_error_response
 from metis.core.errors import UpstreamError
 from metis.modules.identity.deps import CurrentWorkspaceDep
 from metis.modules.stt import service
-from metis.modules.stt.dto import TranscribeResponse, STTErrorResponse
+from metis.modules.stt.dto import STTErrorResponse, TranscribeResponse
 
 router = APIRouter(prefix="/v1/stt", tags=["stt"])
 
@@ -19,16 +21,22 @@ router = APIRouter(prefix="/v1/stt", tags=["stt"])
     "/transcribe",
     response_model=TranscribeResponse,
     responses={
-        status.HTTP_400_BAD_REQUEST: {"model": STTErrorResponse, "description": "Client-side provider or missing key"},
+        status.HTTP_400_BAD_REQUEST: {
+            "model": STTErrorResponse,
+            "description": "Client-side provider or missing key",
+        },
         status.HTTP_401_UNAUTHORIZED: {"description": "Not authenticated"},
-        status.HTTP_500_INTERNAL_SERVER_ERROR: {"model": STTErrorResponse, "description": "Transcription failed"},
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": STTErrorResponse,
+            "description": "Transcription failed",
+        },
     },
 )
 async def transcribe(
     request: Request,
     session: SessionDep,
     workspace: CurrentWorkspaceDep,
-    file: UploadFile = File(..., description="Audio file (WebM/Opus)"),
+    file: Annotated[UploadFile, File(description="Audio file (WebM/Opus)")],
 ) -> TranscribeResponse | JSONResponse:
     """Transcribe audio using the workspace's configured STT provider.
 
