@@ -1,0 +1,57 @@
+# {{ title }}
+
+Stage: {{ stage }} · Plan: {{ plan_status }}, version {{ plan_version }}
+
+## Score
+
+{% if score %}
+**Total: {{ score.total }} / {{ score.max_total }}** — {{ score.band }}
+
+| Parameter | Weight | Score | Confidence |
+| --- | ---: | ---: | ---: |
+{% for row in score.rows %}
+| {{ row.label }} | {{ row.weight }} | {{ row.raw }} / {{ score.max_raw }} | {{ row.confidence }} |
+{% endfor %}
+{% else %}
+Not scored.
+{% endif %}
+
+## Spec
+
+{{ spec }}
+
+## Plan
+{% if graph %}
+
+```mermaid
+{{ graph }}
+```
+{% endif %}
+{% for phase in phases %}
+
+### Phase {{ phase.number }} — {{ phase.name }}
+
+**Goal:** {{ phase.goal }}
+
+**Exit criteria:** {{ phase.exit_criteria }}
+{% if not phase.tasks %}
+
+No tasks in this phase.
+{% endif %}
+{% for task in phase.tasks %}
+
+#### {{ task.ref }} — {{ task.title }}
+
+- Estimate: {{ task.estimate }} {{ "point" if task.estimate == 1 else "points" }}
+{% if task.labels %}
+- Labels: {{ task.labels }}
+{% endif %}
+{% if task.blocked_by %}
+- Blocked by: {{ task.blocked_by }}
+{% endif %}
+{% if task.description %}
+
+{{ task.description }}
+{% endif %}
+{% endfor %}
+{% endfor %}

@@ -2,6 +2,6 @@
 
 from __future__ import annotations
 
-from metis.modules.integrations.service import connections, exports, oauth, tokens
+from metis.modules.integrations.service import connections, exports, markdown_export, oauth, tokens
 
-__all__ = ["connections", "exports", "oauth", "tokens"]
+__all__ = ["connections", "exports", "markdown_export", "oauth", "tokens"]
