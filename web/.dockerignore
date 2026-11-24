@@ -1,3 +1,6 @@
-.next/
-node_modules/
-out/
+node_modules
+.next
+.git
+.env*
+*.log
+coverage
