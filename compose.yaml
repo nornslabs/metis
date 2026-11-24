@@ -1,22 +1,37 @@
 name: metis
 
-# Settings every Python service needs. Required secrets fail `docker compose up`
-# before any container starts, with a message naming the missing variable.
-# The app connects as the non-superuser `metis_app` role (RLS applies); only
-# `migrate` uses the owner role. Migration 0004 gives `metis_app` its password.
 x-app-settings: &app-settings
-  DATABASE_URL: postgresql+asyncpg://metis_app:${APP_DB_PASSWORD:-metis_app}@postgres:5432/${POSTGRES_DB:-metis}
+  DATABASE_URL: postgresql+asyncpg://metis_app:${APP_DB_PASSWORD:?is not set}@postgres:5432/${POSTGRES_DB:-metis}
   REDIS_URL: redis://redis:6379/0
   ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:?is not set. Run `cp .env.example .env` and fill in ENCRYPTION_MASTER_KEY}
-  # true: stub specialists, no LLM calls. Set it when running the web e2e tests.
   AGENT_STUB_SPECIALISTS: ${AGENT_STUB_SPECIALISTS:-false}
+
+x-server-base: &server-base
+  build:
+    context: server
+    dockerfile: Dockerfile
+  env_file:
+    - path: .env
+      required: false
+  networks:
+    - metis-network
+  environment:
+    <<: *app-settings
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+
 services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: metis-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?is not set}
       POSTGRES_DB: ${POSTGRES_DB:-metis}
     networks:
       - metis-network
@@ -30,7 +45,7 @@ services:
       retries: 5
 
   redis:
-    image: redis:7
+    image: redis:7.4
     container_name: metis-redis
     networks:
       - metis-network
@@ -49,97 +64,35 @@ services:
     networks:
       - metis-network
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-metis}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-metis_app}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?is not set}@postgres:5432/${POSTGRES_DB:-metis}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?is not set}
     depends_on:
       postgres:
         condition: service_healthy
 
   api:
-    build:
-      context: server
-      dockerfile: Dockerfile
+    <<: *server-base
     container_name: metis-api
     command: ["uvicorn", "metis.entrypoints.api:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:
       - "8000:8000"
-    env_file:
-      - path: .env
-        required: false
-    networks:
-      - metis-network
-    environment:
-      <<: *app-settings
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   worker:
-    build:
-      context: server
-      dockerfile: Dockerfile
-    container_name: metis-worker
+    <<: *server-base
     command: ["arq", "metis.entrypoints.worker.AgentWorkerSettings"]
-    env_file:
-      - path: .env
-        required: false
-    networks:
-      - metis-network
-    environment:
-      <<: *app-settings
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   worker-maintenance:
-    build:
-      context: server
-      dockerfile: Dockerfile
-    container_name: metis-worker-maintenance
+    <<: *server-base
     command: ["arq", "metis.entrypoints.worker.MaintenanceWorkerSettings"]
-    env_file:
-      - path: .env
-        required: false
-    networks:
-      - metis-network
-    environment:
-      <<: *app-settings
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   scheduler:
-    build:
-      context: server
-      dockerfile: Dockerfile
-    container_name: metis-scheduler
+    <<: *server-base
     command: ["python", "-m", "metis.entrypoints.scheduler"]
-    env_file:
-      - path: .env
-        required: false
-    networks:
-      - metis-network
-    environment:
-      <<: *app-settings
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
 
   web:
     build:
@@ -150,16 +103,13 @@ services:
     container_name: metis-web
     ports:
       - "3000:3000"
-    env_file:
-      - path: .env
-        required: false
     networks:
       - metis-network
     environment:
       API_ORIGIN: http://api:8000
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
 
 volumes:
   metis-pgdata:
