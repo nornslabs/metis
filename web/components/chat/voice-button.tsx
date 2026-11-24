@@ -73,24 +73,24 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
   // Show button with tooltip when Web Speech API not supported
   if (!webSpeechSupported || disabled) {
     return (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-xs"
-              disabled
-              aria-label={VOICE_STRINGS.notSupported}
-              className="size-6.5 opacity-50 size-touch"
-            />
-          }
-        >
-          <MicOff size={14} strokeWidth={2} />
-        </TooltipTrigger>
-        <TooltipContent>{VOICE_STRINGS.notSupported}</TooltipContent>
-      </Tooltip>
-    );
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                disabled
+                aria-label={VOICE_STRINGS.notSupported}
+                className="size-6.5 opacity-50"
+              />
+            }
+          >
+            <MicOff size={14} strokeWidth={2} />
+          </TooltipTrigger>
+          <TooltipContent>{VOICE_STRINGS.notSupported}</TooltipContent>
+        </Tooltip>
+      );
   }
 
   return (
@@ -99,12 +99,12 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
         <TooltipTrigger render={
           <Button
             type="button"
-            variant={recording ? "destructive" : "ghost"}
+            variant={recording ? "destructive" : "default"}
             size="icon-xs"
             onClick={recording ? handleStop : handleStart}
             disabled={!recording && error !== null}
             aria-label={recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}
-            className="size-touch"
+            className="size-6.5"
           >
             {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
           </Button>

@@ -29,7 +29,7 @@ const BUDGET_DECIMALS = 2;
 
 function formValuesOf(settings: SettingsResponse): KeysFormValues {
   const s = settings.settings as SettingsResponse["settings"] & { stt_provider: string };
-  const k = settings.keys as SettingsResponse["keys"] & { sarvam: components["schemas"]["ProviderKeyView"] | null | undefined };
+  const _k = settings.keys as SettingsResponse["keys"] & { sarvam: components["schemas"]["ProviderKeyView"] | null | undefined };
   return {
     llm: { base_url: "", model: "", value: "" },
     exa: { value: "" },
@@ -108,7 +108,7 @@ function KeysForm({ settings, canWrite, notice, onNotice, onClose }: KeysFormPro
         toast.error("Failed to save STT provider");
       });
     }
-  }, [sttProviderValue, initialSttProvider, canWrite, settings.settings.version, updateSettings]);
+  }, [sttProviderValue, initialSttProvider, canWrite, settings.settings.version, settings.settings.run_budget_usd, settings.settings.max_steps, updateSettings]);
 
   const submit = handleSubmit(async (values) => {
     setFormError(null);

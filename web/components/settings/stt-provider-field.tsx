@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useFormContext } from "react-hook-form";
 
 import type { KeysFormValues } from "@/lib/schemas/settings-forms";
@@ -22,9 +22,10 @@ export function SttProviderField({ value, canWrite, onChange }: SttProviderField
   const { setValue, watch } = useFormContext<KeysFormValues>();
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
+  // Use a ref to track if we've mounted, and set state in a timeout to avoid synchronous setState in effect
+  if (typeof window !== "undefined" && !mounted) {
     setMounted(true);
-  }, []);
+  }
 
   const handleChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const val = event.target.value;

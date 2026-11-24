@@ -16,7 +16,6 @@ import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
 import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
-import { getSTTClientProvider } from "@/lib/stt/config";
 import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { llmNotReadyMessage } from "@/lib/keys/readiness";
 import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
