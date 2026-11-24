@@ -54,3 +54,11 @@ def test_the_interviewer_prompt_offers_options_and_the_older_version_is_kept() -
     assert "`options`" in latest
     assert latest == load_prompt("interviewer", 3)
     assert "`options`" not in load_prompt("interviewer", 2)
+
+
+def test_the_planner_prompt_offers_linear_reads_and_the_older_version_is_kept() -> None:
+    latest = load_prompt("planner")
+
+    assert all(tool in latest for tool in ("list_teams", "list_projects", "list_issues"))
+    assert latest == load_prompt("planner", 3)
+    assert "list_teams" not in load_prompt("planner", 2)

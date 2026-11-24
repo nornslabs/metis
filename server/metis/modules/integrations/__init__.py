@@ -7,12 +7,18 @@ when used. Agent code gets tools only through ``get_mcp_client``. Notion is not 
 
 from metis.modules.integrations.controller import router
 from metis.modules.integrations.dto import IntegrationProvider, IntegrationStatus, IntegrationView
-from metis.modules.integrations.service.connections import get_mcp_client
+from metis.modules.integrations.service.connections import (
+    expire_connection,
+    get_mcp_client,
+    refresh_connection,
+)
 
 __all__ = [
     "IntegrationProvider",
     "IntegrationStatus",
     "IntegrationView",
+    "expire_connection",
     "get_mcp_client",
+    "refresh_connection",
     "router",
 ]
