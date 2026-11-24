@@ -23,6 +23,7 @@ import { useRunPrompts } from "@/components/chat/use-run-prompts";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
 import { queryKeys } from "@/lib/api/queries/keys";
 import { getSTTClientProvider } from "@/lib/stt/config";
+import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useInterview } from "@/lib/api/queries/use-interview";
 import { useResearch } from "@/lib/api/queries/use-research";
@@ -164,20 +165,13 @@ export function RunConversation({ idea, run }: { idea: Idea; run: RunView }) {
   const formError = form.formState.errors.text?.message ?? answers.error ?? stopError ?? startError;
 
   /** Voice input: transcribe the recorded blob and populate the text field. */
+  const { transcribe } = useSTTTranscription();
   const voice = (
     <VoiceButton
       onBlob={async (blob) => {
-        try {
-          const provider = getSTTClientProvider();
-          const transcript = await provider.transcribe(blob);
-          if (transcript.trim()) {
-            form.setValue("text", transcript);
-          } else {
-            toast.error("Nothing heard. Try again.");
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Transcription failed";
-          toast.error(message + ". You can still type.");
+        const transcript = await transcribe(blob);
+        if (transcript) {
+          form.setValue("text", transcript);
         }
       }}
       options={{ silenceTimeoutMs: 2000 }} // auto-stop after ~2s of silence

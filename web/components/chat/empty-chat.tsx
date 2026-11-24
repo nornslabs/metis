@@ -16,6 +16,7 @@ import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { getSTTClientProvider } from "@/lib/stt/config";
+import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { llmNotReadyMessage } from "@/lib/keys/readiness";
 import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
 
@@ -76,20 +77,13 @@ export function EmptyChat() {
   const composerError = fieldError ?? serverFieldError?.error.message ?? (error ? describeError(error) : null);
 
   /** Voice input: transcribe the recorded blob and populate the text field. */
+  const { transcribe } = useSTTTranscription();
   const voice = (
     <VoiceButton
       onBlob={async (blob) => {
-        try {
-          const provider = getSTTClientProvider();
-          const transcript = await provider.transcribe(blob);
-          if (transcript.trim()) {
-            form.setValue("text", transcript);
-          } else {
-            toast.error("Nothing heard. Try again.");
-          }
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Transcription failed";
-          toast.error(message + ". You can still type.");
+        const transcript = await transcribe(blob);
+        if (transcript) {
+          form.setValue("text", transcript);
         }
       }}
     />
