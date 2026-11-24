@@ -84,6 +84,7 @@ def job_ctx(
             kept[Specialist.ARCHITECT] = stubs[Specialist.ARCHITECT]
         if not planner:
             kept[Specialist.PLANNER] = stubs[Specialist.PLANNER]
+        kept[Specialist.INTEGRATOR] = stubs[Specialist.INTEGRATOR]  # tests of it pass their own
         if exa is None:
             kept[Specialist.RESEARCHER] = stubs[Specialist.RESEARCHER]
         specialists = {**kept, **(specialists or {})}
