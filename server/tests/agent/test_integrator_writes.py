@@ -249,7 +249,8 @@ async def test_an_export_that_stopped_midway_creates_only_the_missing_milestones
     assert [m["name"] for m in linear.milestones.values()] == PHASES
     assert len(linear.projects) == 1
     assert _creates(linear, "save_project") == 1
-    assert _creates(linear, "save_milestone") == 3
+    # 3 phases plus the one attempt that failed: the retry did not re-create the saved milestone.
+    assert _creates(linear, "save_milestone") == len(PHASES) + 1
     assert len(await external_refs(engine, run)) == 4
 
 
