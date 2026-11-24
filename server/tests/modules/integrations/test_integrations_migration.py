@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from metis.helpers.ids import uuid7
 from tests.helpers.auth import SESSION_COOKIE, sign_in
 
-TABLES = ("mcp_connections", "external_refs")
+TABLES = ("mcp_connections", "external_refs", "export_jobs")
 INSERT_CONNECTION = (
     "INSERT INTO integrations.mcp_connections "
     "(id, workspace_id, provider, server_url, status, sealed_tokens, created_by) "

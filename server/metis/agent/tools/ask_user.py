@@ -16,6 +16,8 @@ APPROVAL = "approval"
 ADVICE_DECISION = "advice_decision"
 SPEC_REVIEW = "spec_review"
 PHASE_REVIEW = "phase_review"
+CHOOSE_TEAM = "choose_team"
+EXPORT_APPROVAL = "export_approval"
 
 
 @tool

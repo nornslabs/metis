@@ -48,6 +48,7 @@ class WorkspaceSettingsView(FrozenModel):
     max_steps: int
     stt_provider: str
     version: int
+    linear_team_id: str | None = None
 
 
 class SettingsResponse(FrozenModel):

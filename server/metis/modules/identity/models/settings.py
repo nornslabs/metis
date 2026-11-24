@@ -31,5 +31,6 @@ class WorkspaceSettingsRow(Base):
     sarvam_api_key: Mapped[str | None] = mapped_column(
         String(512), nullable=True
     )
+    linear_team_id: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

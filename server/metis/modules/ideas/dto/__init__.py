@@ -57,6 +57,7 @@ from metis.modules.ideas.dto.spec import (
 from metis.modules.ideas.dto.workflow_runs import (
     AdviceDecision,
     AdviceResume,
+    ExportApprovalResume,
     PhaseReviewResume,
     ResumeBody,
     ResumeValue,
@@ -68,6 +69,7 @@ from metis.modules.ideas.dto.workflow_runs import (
     RunStatus,
     RunView,
     StartRunBody,
+    TeamChoice,
     WorkflowRun,
 )
 
@@ -119,6 +121,7 @@ __all__ = [
     "IdeaPatch",
     "NewIdea",
     "NewLlmUsage",
+    "ExportApprovalResume",
     "PhaseReviewResume",
     "ResumeBody",
     "ResumeValue",
@@ -131,5 +134,6 @@ __all__ = [
     "RunView",
     "StartRunBody",
     "Stage",
+    "TeamChoice",
     "WorkflowRun",
 ]

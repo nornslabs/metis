@@ -173,6 +173,8 @@ def test_the_revision_follows_the_merge_of_the_manual_refresh_heads() -> None:
 async def test_the_downgrade_drops_the_column_and_the_table(engine: AsyncEngine) -> None:
     async with engine.connect() as conn:
         # 0021's plans reference spec versions; downgrade them first.
+        # 0024's export jobs reference plans, ideas and runs.
+        await conn.execute(text("DROP TABLE integrations.export_jobs"))
         for table in ("task_deps", "tasks", "phases", "plans"):
             await conn.execute(text(f"DROP TABLE planning.{table}"))
         await conn.execute(text("ALTER TABLE ideas.ideas DROP COLUMN confirmed_spec_version_id"))

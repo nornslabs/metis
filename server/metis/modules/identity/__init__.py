@@ -20,7 +20,7 @@ from metis.modules.identity.dto import (
 )
 from metis.modules.identity.service.members import add_member
 from metis.modules.identity.service.provider_keys import get_key_for_use, key_readiness
-from metis.modules.identity.service.settings import get_settings_overview
+from metis.modules.identity.service.settings import get_settings_overview, set_linear_team
 from metis.modules.identity.service.workspaces import (
     create_workspace,
     ensure_personal_workspace,
@@ -45,4 +45,5 @@ __all__ = [
     "get_settings_overview",
     "key_readiness",
     "list_workspaces",
+    "set_linear_team",
 ]

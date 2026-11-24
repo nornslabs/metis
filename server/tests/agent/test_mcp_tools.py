@@ -49,6 +49,7 @@ ALL_TOOLS = (
     "list_teams",
     "list_projects",
     "list_issues",
+    "list_issue_labels",
     "save_project",
     "save_milestone",
     "save_issue",
@@ -113,14 +114,20 @@ async def test_the_planner_sees_only_its_three_read_tools(
     assert _names(tools) == {"list_teams", "list_projects", "list_issues"}
 
 
-async def test_the_integrator_sees_only_its_three_write_tools(
+async def test_the_integrator_sees_its_two_read_tools_and_three_write_tools(
     engine: AsyncEngine, app_sessions: Any, redis: Redis, linear: FakeLinear
 ) -> None:
     setup = await _setup(engine, app_sessions, redis, linear)
 
     tools = await load_mcp_tools(setup.context, INTEGRATOR_POLICY)
 
-    assert _names(tools) == {"save_project", "save_milestone", "save_issue"}
+    assert _names(tools) == {
+        "list_teams",
+        "list_issue_labels",
+        "save_project",
+        "save_milestone",
+        "save_issue",
+    }
 
 
 async def test_a_policy_with_no_tools_loads_nothing_and_never_calls_linear(
@@ -254,7 +261,7 @@ async def test_a_short_result_is_untouched(
     setup = await _setup(engine, app_sessions, redis, linear)
     tools = await load_mcp_tools(setup.context, PLANNER_POLICY)
 
-    assert await _tool(tools, "list_teams").ainvoke({}) == "list_teams"
+    assert await _tool(tools, "list_projects").ainvoke({}) == "list_projects"
 
 
 # ---------------------------------------------------------------- failures

@@ -17,6 +17,7 @@ from metis.core.db import SessionDep
 from metis.core.errors import RunEnqueueError
 from metis.core.logging import get_logger
 from metis.core.redis import RedisDep
+from metis.modules.auth import CurrentUserDep
 from metis.modules.ideas import service
 from metis.modules.ideas.dto import (
     DEFAULT_PAGE_SIZE,
@@ -76,12 +77,16 @@ async def start_run(
     "/runs/{run_id}/resume", response_model=RunStarted, status_code=status.HTTP_202_ACCEPTED
 )
 async def resume_run(
-    session: SessionDep, workspace: CurrentWorkspaceDep, run_id: UUID, body: ResumeBody
+    session: SessionDep,
+    workspace: CurrentWorkspaceDep,
+    user: CurrentUserDep,
+    run_id: UUID,
+    body: ResumeBody,
 ) -> RunStarted:
     """Answer the question or approval the run waits on."""
     workspace_id = workspace.workspace.id
     run, value = await service.workflow_runs.prepare_resume(
-        session, workspace_id, run_id, body.value
+        session, workspace_id, run_id, body.value, user.user.id
     )
     # One job id per pause (the version moves on every status change): a double submit queues once.
     await enqueue_run(run.id, workspace_id, job_id=f"{run.id}:resume:{run.version}", resume=value)

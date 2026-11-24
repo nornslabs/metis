@@ -1067,6 +1067,15 @@ export interface components {
             /** Url */
             url: string;
         };
+        /**
+         * ExportApprovalResume
+         * @description The answer to an ``export_approval`` interrupt. A bare true/false is not accepted: the
+         *     export must be approved or declined by name.
+         */
+        ExportApprovalResume: {
+            /** Approved */
+            approved: boolean;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1569,7 +1578,7 @@ export interface components {
          */
         ResumeBody: {
             /** Value */
-            value: string | boolean | components["schemas"]["AdviceResume"] | components["schemas"]["PhaseReviewResume"] | components["schemas"]["QuestionAnswer"];
+            value: string | boolean | components["schemas"]["AdviceResume"] | components["schemas"]["PhaseReviewResume"] | components["schemas"]["TeamChoice"] | components["schemas"]["ExportApprovalResume"] | components["schemas"]["QuestionAnswer"];
         };
         /**
          * ReviewedPhase
@@ -1989,6 +1998,14 @@ export interface components {
             title: string;
         };
         /**
+         * TeamChoice
+         * @description The answer to a ``choose_team`` interrupt: the id of one of the teams it offered.
+         */
+        TeamChoice: {
+            /** Team Id */
+            team_id: string;
+        };
+        /**
          * ToolInfo
          * @description One tool a server offers.
          */
@@ -2068,6 +2085,8 @@ export interface components {
          * @description Run limits and STT settings; ``version`` 0 means defaults that were never saved.
          */
         WorkspaceSettingsView: {
+            /** Linear Team Id */
+            linear_team_id?: string | null;
             /** Max Steps */
             max_steps: number;
             /** Run Budget Usd */
