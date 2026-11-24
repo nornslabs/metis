@@ -16,14 +16,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from metis.core.db import set_workspace
 from metis.core.errors import ConflictError
 from metis.core.logging import get_logger
+from metis.core.outbox import add_event
+from metis.helpers.time import utcnow
 from metis.modules.integrations import repo
 from metis.modules.integrations.dto import (
+    FINISHED_STATUSES,
+    RESULT_KEY,
     ExportJob,
     ExportStatus,
     ExternalRef,
     IntegrationProvider,
     LocalKind,
 )
+from metis.modules.integrations.events import ExportFinishedPayload, export_finished
 
 logger = get_logger(__name__)
 
@@ -119,4 +124,52 @@ async def mark_export_running(session: AsyncSession, workspace_id: UUID, run_id:
     )
     if row is None:
         raise ConflictError("The run has no approved export to start")
+    return ExportJob.model_validate(row)
+
+
+async def finish_export(
+    session: AsyncSession,
+    workspace_id: UUID,
+    run_id: UUID,
+    status: ExportStatus,
+    result: dict[str, Any],
+) -> ExportJob:
+    """End the run's ``running`` export as ``succeeded``, ``partial`` or ``failed``, keeping the
+    preview in ``summary`` and adding ``result`` (counts, failed items, the project URL).
+
+    Idempotent: a job that is not ``running`` is returned as it is and nothing is written, so a
+    re-run never writes ``ExportFinished`` twice. The event is written, in the same transaction,
+    only by the call that moves the job to ``succeeded``.
+    """
+    if status not in FINISHED_STATUSES:
+        raise ValueError(f"An export cannot be finished as {status.value}")
+    await set_workspace(session, workspace_id)
+    current = await repo.export_jobs.get_by_run(session, workspace_id, run_id)
+    if current is None:
+        raise ConflictError("The run has no export to finish")
+    row = await repo.export_jobs.mark_finished(
+        session,
+        workspace_id,
+        run_id,
+        status=status.value,
+        summary={**current.summary, RESULT_KEY: result},
+        finished_at=utcnow(),
+    )
+    if row is None:
+        return ExportJob.model_validate(current)
+    if status is ExportStatus.SUCCEEDED:
+        add_event(
+            session,
+            export_finished(
+                workspace_id,
+                ExportFinishedPayload(
+                    idea_id=row.idea_id,
+                    plan_id=row.plan_id,
+                    project_url=result.get("project_url"),
+                    created=int(result.get("created", 0)),
+                    updated=int(result.get("updated", 0)),
+                ),
+            ),
+        )
+    logger.info("export.finished", workspace_id=str(workspace_id), status=status.value)
     return ExportJob.model_validate(row)

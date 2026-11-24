@@ -224,19 +224,19 @@ async def test_approving_records_who_and_when_writes_the_project_and_ends_the_ru
     await run_job(ctx, run, resume=await approval(engine, run, approved=True))
 
     assert (await run_row(engine, run)).status == "succeeded"
-    assert await idea_stage(engine, run) == "planning"
+    assert await idea_stage(engine, run) == "exported"
     jobs = await export_jobs(engine, run)
-    assert [j["status"] for j in jobs] == ["running"]
+    assert [j["status"] for j in jobs] == ["succeeded"]
     assert jobs[0]["summary"]["plan_version"] == 1
     assert jobs[0]["summary"]["issues"]["total"] == 3
     assert await saved_team(engine, run) == "team-2"
     values = await checkpoint_values(run)
-    assert values["pending_approval"]["approved"] is True
+    assert values["pending_approval"] is None
     assert values["export_state"] == "approved"
     assert await plan_status(engine, run) == "draft"
-    notices = [e for e in await events_of(redis, run) if e.type is RunEventType.NOTICE]
-    assert [n.data["code"] for n in notices] == ["export.issues_pending"]
-    assert linear.write_calls == [
+    finished = [e for e in await events_of(redis, run) if e.type is RunEventType.EXPORT_FINISHED]
+    assert [e.data["created"] for e in finished] == [7]
+    assert linear.write_calls[:4] == [
         "save_project",
         "save_milestone",
         "save_milestone",

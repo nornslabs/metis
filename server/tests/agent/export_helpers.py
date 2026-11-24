@@ -5,21 +5,31 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
+import pytest
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from metis.agent.specialists.integrator import build_integrator
+from metis.agent.state import initial_state
 from metis.agent.supervisor import Specialist
+from metis.helpers.ids import uuid7
 from metis.modules import ideas, planning
-from metis.modules.ideas import NewSpecVersion, SpecSource
+from metis.modules.ideas import NewSpecVersion, SpecSource, Stage
 from tests.agent.linear_helpers import mcp_client, oauth_client
 from tests.agent.planner_helpers import idea_of
 from tests.agent.run_job_helpers import QueuedRun, job_ctx, queued_run
 from tests.helpers.fake_linear import FakeLinear
 from tests.modules.scoring.scoring_helpers import in_workspace
 
-TOOLS = ("list_teams", "list_issue_labels", "save_project", "save_milestone", "save_issue")
+TOOLS = (
+    "list_teams",
+    "list_issue_labels",
+    "create_issue_label",
+    "save_project",
+    "save_milestone",
+    "save_issue",
+)
 PHASE_NAMES = ["Foundations", "Core", "Launch"]
 
 
@@ -49,6 +59,7 @@ async def export_run(
     plan: bool = True,
     confirm: bool = True,
     sub: str = "ada",
+    plan_input: planning.PlanInput | None = None,
 ) -> QueuedRun:
     """A queued run on an idea at ``planning`` with a confirmed spec and (by default) a saved
     draft plan of three phases, three tasks and two blocked-by links."""
@@ -67,7 +78,7 @@ async def export_run(
             if plan:
                 assert overview.confirmed is not None
                 await planning.save_plan(
-                    session, run.workspace_id, idea_id, overview.confirmed.id, _plan()
+                    session, run.workspace_id, idea_id, overview.confirmed.id, plan_input or _plan()
                 )
     async with engine.begin() as conn:
         await conn.execute(
@@ -203,3 +214,75 @@ async def local_ids(engine: AsyncEngine, run: QueuedRun, table: str) -> list[UUI
             {"run": run.run_id},
         )
         return [row[0] for row in result.all()]
+
+
+async def reopen_job(engine: AsyncEngine, run: QueuedRun) -> None:
+    """Put the run's export job back to ``running``, as it is after a crash before it was ended
+    (the node run again on the same run then carries on with the writes)."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "UPDATE integrations.export_jobs SET status = 'running', finished_at = NULL "
+                "WHERE run_id = :run"
+            ),
+            {"run": run.run_id},
+        )
+
+
+async def next_run(engine: AsyncEngine, run: QueuedRun) -> QueuedRun:
+    """A new queued run on the same idea (what "export again" starts once the first has ended)."""
+    run_id = uuid7()
+    async with engine.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO ideas.workflow_runs (id, workspace_id, idea_id) "
+                "VALUES (:id, :ws, :idea)"
+            ),
+            {"id": run_id, "ws": run.workspace_id, "idea": await idea_of(engine, run)},
+        )
+    return QueuedRun(run_id, run.workspace_id)
+
+
+async def rerun_node(
+    engine: AsyncEngine,
+    sessions: async_sessionmaker[AsyncSession],
+    redis: Redis,
+    linear: FakeLinear,
+    run: QueuedRun,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    reopen: bool = True,
+) -> dict[str, Any]:
+    """Run the node again on the same run: the recorded decision is found, nothing is asked, the
+    writes carry on (what the job does after a crash). ``reopen`` first puts a finished job back
+    to ``running``, as a crash before it was ended would have left it."""
+    if reopen:
+        await reopen_job(engine, run)
+    node = build_integrator(
+        lambda ws: in_workspace(sessions, ws), redis, oauth_client(linear), mcp_client(linear)
+    )
+
+    def refuse_to_ask(*_: Any, **__: Any) -> Any:
+        raise AssertionError("a re-run must not interrupt")
+
+    monkeypatch.setattr("metis.agent.specialists.integrator.interrupt", refuse_to_ask)
+    monkeypatch.setattr(
+        "metis.agent.specialists.integrator.get_stream_writer", lambda: lambda _event: None
+    )
+    state = initial_state(
+        run_id=run.run_id,
+        workspace_id=run.workspace_id,
+        idea_id=await idea_of(engine, run),
+        stage=Stage.PLANNING,
+        max_steps=50,
+    )
+    return await node(state)
+
+
+async def outbox_count(engine: AsyncEngine, run: QueuedRun, event_type: str) -> int:
+    async with engine.connect() as conn:
+        value = await conn.scalar(
+            text("SELECT count(*) FROM core.outbox WHERE workspace_id = :ws AND type = :type"),
+            {"ws": run.workspace_id, "type": event_type},
+        )
+    return int(value or 0)

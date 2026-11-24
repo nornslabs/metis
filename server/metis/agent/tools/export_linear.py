@@ -15,6 +15,7 @@ from metis.modules.integrations import IntegrationProvider
 
 LIST_TEAMS = "list_teams"
 LIST_LABELS = "list_issue_labels"
+CREATE_LABEL = "create_issue_label"
 _LIST_KEYS = ("teams", "labels", "nodes", "items", "results")
 
 logger = get_logger(__name__)
@@ -61,6 +62,11 @@ async def read_label_names(tool: BaseTool | None) -> list[str] | None:
     except UpstreamError:
         logger.warning("export.labels_unreadable")
         return None
+
+
+def label_args(name: str, team_id: str) -> dict[str, str]:
+    """The arguments of Linear's label create tool (assumed shape, kept in one place)."""
+    return {"name": name, "team": team_id}
 
 
 def _entries(text: str) -> list[dict[str, Any]]:
