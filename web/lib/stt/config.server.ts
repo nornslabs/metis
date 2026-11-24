@@ -4,7 +4,7 @@ import type { STTProviderName } from "./types";
 
 const sttServerConfigSchema = z
   .object({
-    provider: z.enum(["sarvam", "web-speech", "mock"] as const).default("web-speech"),
+    provider: z.enum(["sarvam", "web-speech"] as const).default("web-speech"),
     sarvamApiKey: z.string().min(1).optional(),
   })
   .refine(

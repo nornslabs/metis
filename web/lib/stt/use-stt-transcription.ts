@@ -47,7 +47,7 @@ export function useSTTTranscription() {
         }
       }
 
-      // Use client-side provider for web-speech and mock
+      // Use client-side provider for web-speech
       try {
         const clientProvider: STTProvider = getSTTClientProvider(provider);
         const transcript = await clientProvider.transcribe(blob);

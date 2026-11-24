@@ -1,5 +1,5 @@
 import type { STTProviderName } from "./types";
-import { WebSpeechSTTProvider, MockSTTProvider } from "./providers";
+import { WebSpeechSTTProvider } from "./providers";
 import type { STTProvider } from "./types";
 
 /** Client-safe STT config: provider name only, no secrets. Safe to import from client components. */
@@ -15,7 +15,6 @@ export function getSTTClientConfig(): { provider: STTProviderName } {
  * Provider selection:
  * - `web-speech` -> WebSpeechSTTProvider (free, browser built-in, no key)
  * - `sarvam` -> throws (Sarvam API key is server-only; use the server STT endpoint)
- * - `mock` -> MockSTTProvider (tests only)
  *
  * Throws a clear error if the selected provider cannot be used client-side.
  */
@@ -28,10 +27,6 @@ export function getSTTClientProvider(providerName: STTProviderName = "web-speech
     throw new Error(
       "Sarvam STT requires server-side configuration. Set STT_PROVIDER=web-speech or configure Sarvam in Settings.",
     );
-  }
-
-  if (providerName === "mock") {
-    return new MockSTTProvider();
   }
 
   if (!("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {

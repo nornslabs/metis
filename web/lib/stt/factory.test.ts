@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
 import { getSTTProvider, type STTProvider } from "./factory";
 import { getSTTServerConfig } from "./config.server";
-import { MockSTTProvider } from "./providers";
 import { SarvamSTTProvider } from "./providers";
 import { WebSpeechSTTProvider } from "./providers";
 
@@ -35,12 +34,6 @@ describe("getSTTServerConfig", () => {
     expect(config.sarvamApiKey).toBe("sk-test-key");
   });
 
-  it("returns mock when STT_PROVIDER=mock", () => {
-    process.env.STT_PROVIDER = "mock";
-    const config = getSTTServerConfig();
-    expect(config.provider).toBe("mock");
-  });
-
   it("throws for unknown provider", () => {
     process.env.STT_PROVIDER = "bogus";
     expect(() => getSTTServerConfig()).toThrow();
@@ -54,12 +47,6 @@ describe("getSTTServerConfig", () => {
 });
 
 describe("getSTTProvider", () => {
-  it("returns a MockSTTProvider instance when provider is mock", () => {
-    process.env.STT_PROVIDER = "mock";
-    const provider = getSTTProvider();
-    expect(provider).toBeInstanceOf(MockSTTProvider);
-  });
-
   it("returns a SarvamSTTProvider instance when provider is sarvam with key", () => {
     process.env.STT_PROVIDER = "sarvam";
     process.env.SARVAM_API_KEY = "sk-test-key";
@@ -83,26 +70,6 @@ describe("getSTTProvider", () => {
   it("throws a clear error for unknown provider (via config validation)", () => {
     process.env.STT_PROVIDER = "bogus";
     expect(() => getSTTProvider()).toThrow();
-  });
-
-  it("MockSTTProvider returns a configurable transcript", async () => {
-    process.env.STT_PROVIDER = "mock";
-    const provider = getSTTProvider() as MockSTTProvider;
-    const blob = new Blob(["fake-audio"], { type: "audio/webm" });
-
-    // Default transcript
-    const defaultResult = await provider.transcribe(blob);
-    expect(defaultResult).toBe("This is a mock transcription.");
-
-    // Custom transcript
-    const customProvider = new MockSTTProvider("custom transcript");
-    const customResult = await customProvider.transcribe(blob);
-    expect(customResult).toBe("custom transcript");
-
-    // Deterministic: same input returns same output
-    const result1 = await provider.transcribe(blob);
-    const result2 = await provider.transcribe(blob);
-    expect(result1).toBe(result2);
   });
 
   it("SarvamSTTProvider throws when no API key configured", () => {

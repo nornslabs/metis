@@ -14,7 +14,6 @@ type SttProviderFieldProps = {
 const STT_PROVIDERS = [
   { value: "web-speech", label: "Web Speech API (free)" },
   { value: "sarvam", label: "Sarvam (requires API key)" },
-  { value: "mock", label: "Mock (tests only)" },
 ] as const;
 
 /** Dropdown to select the speech-to-text provider. */

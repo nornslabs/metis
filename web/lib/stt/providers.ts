@@ -16,15 +16,6 @@ interface SpeechRecognition {
   start(): void;
 }
 
-/** Deterministic mock provider for tests. Returns a fixed transcript. */
-export class MockSTTProvider implements STTProvider {
-  constructor(private transcript: string = "This is a mock transcription.") {}
-
-  async transcribe(_audioBlob: Blob): Promise<string> {
-    return this.transcript;
-  }
-}
-
 /** Sarvam STT provider. POSTs audio to Sarvam's speech-to-text API. */
 export class SarvamSTTProvider implements STTProvider {
   constructor(private apiKey: string) {}
