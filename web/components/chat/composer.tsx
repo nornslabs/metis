@@ -21,6 +21,8 @@ export interface ComposerProps {
   error?: string | null;
   /** A row above the textarea inside the band, e.g. quick replies. */
   above?: ReactNode;
+  /** Voice button rendered in the action bar (e.g. VoiceButton from @/components/chat/voice-button). */
+  voice?: ReactNode;
   /** Back to the answer options (after "Something else"); the button shows only when given. */
   onBack?: () => void;
   /** False inside a `Dock`, which carries the input band line itself. */
@@ -68,7 +70,7 @@ function ActionButton({ action, canSend, onStop }: Pick<ComposerProps, "action" 
  * The prompt input in the band at the bottom of the chat column: auto-growing textarea, hint and
  * a send button that becomes Stop while a run is active (ui-context.md, Composer).
  */
-export function Composer({ textarea, label, action, canSend, onSubmit, onStop, error, above, onBack, frameBand = true }: ComposerProps) {
+export function Composer({ textarea, label, action, canSend, onSubmit, onStop, error, above, voice, onBack, frameBand = true }: ComposerProps) {
   const inputId = useId();
   const errorId = `${inputId}-error`;
   const hint = action === "stopping" ? "Stopping…" : "Enter to send";
@@ -114,6 +116,7 @@ export function Composer({ textarea, label, action, canSend, onSubmit, onStop, e
           <kbd aria-live="polite" className="font-mono text-eyebrow text-muted-foreground max-compact:hidden">
             {hint}
           </kbd>
+          {voice}
           <ActionButton action={action} canSend={canSend} onStop={onStop} />
         </div>
       </form>

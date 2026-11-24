@@ -36,7 +36,10 @@ async def get_settings_overview(session: AsyncSession, workspace_id: UUID) -> Se
             for row in await repo.provider_keys.list_for_workspace(session, workspace_id)
         }
         settings = await repo.settings.get(session, workspace_id)
-    return SettingsResponse(keys=ProviderKeys(**keys), settings=_settings_view(settings))
+    return SettingsResponse(
+        keys=ProviderKeys(**keys),
+        settings=_settings_view(settings),
+    )
 
 
 async def update_settings(
@@ -75,7 +78,9 @@ async def set_linear_team(session: AsyncSession, workspace_id: UUID, team_id: st
 def _settings_view(row: WorkspaceSettingsRow | None) -> WorkspaceSettingsView:
     if row is None:
         return WorkspaceSettingsView(
-            run_budget_usd=DEFAULT_RUN_BUDGET_USD, max_steps=DEFAULT_MAX_STEPS, version=0
+            run_budget_usd=DEFAULT_RUN_BUDGET_USD,
+            max_steps=DEFAULT_MAX_STEPS,
+            version=0,
         )
     return WorkspaceSettingsView.model_validate(row)
 

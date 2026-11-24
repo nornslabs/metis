@@ -23,6 +23,7 @@ ALLOW_LOCAL_HTTP = "allow_local_http"
 class ProviderKind(StrEnum):
     LLM = "llm"
     EXA = "exa"
+    SARVAM = "sarvam"
 
 
 class KeyReadiness(StrEnum):
@@ -73,12 +74,15 @@ class NewProviderKey(FrozenModel):
 
     @model_validator(mode="after")
     def _fields_match_kind(self) -> Self:
-        needs_endpoint = self.kind is ProviderKind.LLM
+        if self.kind is ProviderKind.LLM:
+            needs_endpoint = True
+        else:
+            needs_endpoint = False
         has = (self.base_url is not None, self.model is not None)
         if needs_endpoint and not all(has):
             raise ValueError("an llm key needs base_url and model")
         if not needs_endpoint and any(has):
-            raise ValueError("an exa key takes no base_url or model")
+            raise ValueError(f"a {self.kind.value} key takes no base_url or model")
         return self
 
 
@@ -106,6 +110,7 @@ class ProviderKeyView(FrozenModel):
 class ProviderKeys(FrozenModel):
     llm: ProviderKeyView | None = None
     exa: ProviderKeyView | None = None
+    sarvam: ProviderKeyView | None = None
 
 
 class ProviderCredentials(FrozenModel):

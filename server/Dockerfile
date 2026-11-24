@@ -1,11 +1,6 @@
-# syntax=docker/dockerfile:1
-
-# ============================================
-# Stage 1: build the production virtualenv
-# ============================================
 FROM python:3.12-slim AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.7.12 /uv /bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -17,15 +12,10 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project
 
-# ============================================
-# Stage 2: minimal runtime image
-# ============================================
 FROM python:3.12-slim AS runner
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libpq5 \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd --create-home --shell /bin/bash metis
+# No libpq5 needed; psycopg[binary] bundles it
+RUN useradd --create-home --shell /bin/bash metis
 
 WORKDIR /app
 
@@ -42,3 +32,6 @@ ENV PATH="/app/.venv/bin:$PATH" \
 USER metis
 
 EXPOSE 8000
+
+# Default process: API server (compose.yaml overrides for worker/scheduler/migrate)
+CMD ["uvicorn", "metis.entrypoints.api:app", "--host", "0.0.0.0", "--port", "8000"]

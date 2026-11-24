@@ -8,6 +8,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
 
 import { Composer } from "@/components/chat/composer";
+import { VoiceButton } from "@/components/chat/voice-button";
 import { EmptyState } from "@/components/chat/empty-state";
 import { KEY_GATE_NOTICE_ID, KeyGateNotice } from "@/components/chat/key-gate-notice";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,7 @@ import { ApiError, describeError, fieldErrors } from "@/lib/api/errors";
 import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
+import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { llmNotReadyMessage } from "@/lib/keys/readiness";
 import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
 
@@ -74,6 +76,20 @@ export function EmptyChat() {
     error instanceof ApiError ? fieldErrors(error).find(({ name }) => name === "raw_text" || name === "title") : undefined;
   const composerError = fieldError ?? serverFieldError?.error.message ?? (error ? describeError(error) : null);
 
+  /** Voice input: transcribe the recorded blob and populate the text field. */
+  const { transcribe } = useSTTTranscription();
+  const voice = (
+    <VoiceButton
+      showAudioLevel
+      onBlob={async (blob) => {
+        const transcript = await transcribe(blob);
+        if (transcript) {
+          form.setValue("text", transcript);
+        }
+      }}
+    />
+  );
+
   return (
     <>
       <EmptyState />
@@ -101,6 +117,7 @@ export function EmptyChat() {
         action="send"
         canSend={!pending && !blocked && text.trim() !== ""}
         above={<KeyGateNotice gate={gate} includeExa />}
+        voice={voice}
         onSubmit={form.handleSubmit(submit)}
         error={composerError}
       />

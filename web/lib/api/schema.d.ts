@@ -859,6 +859,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stt/transcribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transcribe
+         * @description Transcribe audio using the workspace's configured STT provider.
+         *
+         *     - If provider is 'sarvam': uses workspace's Sarvam API key
+         *     - If provider is 'web-speech': returns 400 (use client-side)
+         *     - If provider is 'mock': returns mock transcript
+         */
+        post: operations["transcribe_v1_stt_transcribe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/suggestions/{suggestion_id}": {
         parameters: {
             query?: never;
@@ -976,6 +1000,14 @@ export interface components {
          * @enum {string}
          */
         AuthProviderName: "google" | "email";
+        /** Body_transcribe_v1_stt_transcribe_post */
+        Body_transcribe_v1_stt_transcribe_post: {
+            /**
+             * File
+             * @description Audio file (WebM/Opus)
+             */
+            file: string;
+        };
         /**
          * ConfirmSpecBody
          * @description Body of ``POST /v1/ideas/{id}/spec/confirm``.
@@ -1420,12 +1452,13 @@ export interface components {
         ProviderKeys: {
             exa?: components["schemas"]["ProviderKeyView"] | null;
             llm?: components["schemas"]["ProviderKeyView"] | null;
+            sarvam?: components["schemas"]["ProviderKeyView"] | null;
         };
         /**
          * ProviderKind
          * @enum {string}
          */
-        ProviderKind: "llm" | "exa";
+        ProviderKind: "llm" | "exa" | "sarvam";
         /**
          * PutProviderKeyRequest
          * @description Body of ``PUT /v1/settings/keys/{kind}``; the service validates it.
@@ -1672,6 +1705,16 @@ export interface components {
             user_prompt?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * STTErrorResponse
+         * @description Error response from STT endpoint.
+         */
+        STTErrorResponse: {
+            /** Detail */
+            detail?: string | null;
+            /** Error */
+            error: string;
         };
         /**
          * ScoreBand
@@ -2016,6 +2059,14 @@ export interface components {
         ToolList: {
             /** Items */
             items: components["schemas"]["ToolInfo"][];
+        };
+        /**
+         * TranscribeResponse
+         * @description Response from transcription.
+         */
+        TranscribeResponse: {
+            /** Transcript */
+            transcript: string;
         };
         /**
          * TurnSource
@@ -3663,6 +3714,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    transcribe_v1_stt_transcribe_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_transcribe_v1_stt_transcribe_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscribeResponse"];
+                };
+            };
+            /** @description Client-side provider or missing key */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["STTErrorResponse"];
+                };
+            };
+            /** @description Not authenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Transcription failed */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["STTErrorResponse"];
+                };
             };
         };
     };

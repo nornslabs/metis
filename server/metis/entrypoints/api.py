@@ -32,6 +32,7 @@ from metis.modules.integrations import router as integrations_router
 from metis.modules.planning import router as planning_router
 from metis.modules.research import router as research_router
 from metis.modules.scoring import router as scoring_router
+from metis.modules.stt import router as stt_router
 
 CORS_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
 CORS_HEADERS = [
@@ -58,6 +59,7 @@ OPENAPI_TAGS = [
     {"name": "ideas", "description": "Ideas and their workflow runs."},
     {"name": "research", "description": "Research snapshots and findings."},
     {"name": "planning", "description": "Plans: phases, tasks and dependencies."},
+    {"name": "stt", "description": "Speech-to-text transcription."},
     {"name": "integrations", "description": "MCP connections (Linear): OAuth and tools."},
 ]
 
@@ -108,6 +110,7 @@ def _include_routers(app: FastAPI) -> None:
     app.include_router(research_router)
     app.include_router(scoring_router)
     app.include_router(planning_router)
+    app.include_router(stt_router)
     app.include_router(integrations_router)
 
 

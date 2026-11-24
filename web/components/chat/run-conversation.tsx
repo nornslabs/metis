@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { Composer } from "@/components/chat/composer";
+import { VoiceButton } from "@/components/chat/voice-button";
 import { ConversationLayout } from "@/components/chat/conversation-layout";
 import { Dock } from "@/components/chat/dock";
 import { OutputCards } from "@/components/chat/output-cards";
@@ -22,6 +23,7 @@ import { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { useRunPrompts } from "@/components/chat/use-run-prompts";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
 import { queryKeys } from "@/lib/api/queries/keys";
+import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useInterview } from "@/lib/api/queries/use-interview";
 import { useResearch } from "@/lib/api/queries/use-research";
@@ -121,23 +123,6 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
   const turns = useInterview(idea.id);
   const gate = useKeyGate();
 
-  if (process.env.NODE_ENV === "development" && run.idea_id !== idea.id) {
-    console.warn(
-      `RunConversation: run.idea_id (${run.idea_id}) !== idea.id (${idea.id}) — possible cross-contamination`,
-    );
-  }
-
-  useEffect(() => {
-    if (process.env.NODE_ENV === "development") {
-      console.log(`RunConversation mounted: run=${run.id} idea=${idea.id}`);
-    }
-    return () => {
-      if (process.env.NODE_ENV === "development") {
-        console.log(`RunConversation unmounted: run=${run.id} idea=${idea.id}`);
-      }
-    };
-  }, [run.id, idea.id]);
-
   // The stream is primary; this poll only catches a pause or finish it did not deliver.
   useRunSync(run.id, state.status === "queued" || state.status === "running", sync);
 
@@ -216,6 +201,22 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
   });
 
   const formError = form.formState.errors.text?.message ?? answers.error ?? stopError ?? startError;
+
+  /** Voice input: transcribe the recorded blob and populate the text field. */
+  const { transcribe } = useSTTTranscription();
+  const voice = (
+    <VoiceButton
+      onBlob={async (blob) => {
+        const transcript = await transcribe(blob);
+        if (transcript) {
+          form.setValue("text", transcript);
+        }
+      }}
+      options={{ silenceTimeoutMs: 2000 }} // auto-stop after ~2s of silence
+      showAudioLevel
+    />
+  );
+
   const composer = (
     <Composer
       frameBand={false}
@@ -231,6 +232,7 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
       onStop={stop}
       onBack={offered !== null ? () => setOtherSeq(null) : undefined}
       error={formError}
+      voice={voice}
       above={
         question !== null && offered === null ? (
           <QuickReplies

@@ -170,6 +170,10 @@ async def _check_provider(make_client: ClientFactory, creds: ProviderCredentials
     if creds.kind is ProviderKind.EXA:
         await ExaMcpClient(make_client, creds.api_key).check()
         return
+    if creds.kind is ProviderKind.SARVAM:
+        # Sarvam STT requires audio input; skip test call for now
+        # A real test would need an audio file, which we don't have here
+        return
     if creds.base_url is None:  # unreachable: llm keys are saved with a base_url
         raise ProviderNotConfiguredError(
             "The llm key has no base_url; save it again", meta={"provider": ProviderKind.LLM.value}
