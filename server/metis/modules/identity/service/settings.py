@@ -65,6 +65,13 @@ async def update_settings(
     return _settings_view(row)
 
 
+async def set_linear_team(session: AsyncSession, workspace_id: UUID, team_id: str) -> None:
+    """Save the Linear team exports go to. Any member's run may call this (the member who
+    answered the team question); it is not the owner-only settings patch."""
+    async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
+        await repo.settings.set_linear_team(session, workspace_id, team_id)
+
+
 def _settings_view(row: WorkspaceSettingsRow | None) -> WorkspaceSettingsView:
     if row is None:
         return WorkspaceSettingsView(

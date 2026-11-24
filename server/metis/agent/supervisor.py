@@ -62,7 +62,9 @@ def route(state: MetisState) -> str:
 
     A run whose Researcher skipped research (``research_skipped``) ends here too, with the
     stage left at ``researching`` so a later run picks the research up; so does a run the user
-    stopped at the Advisor's decision (``advice_stopped``), with the stage left at ``advising``.
+    stopped at the Advisor's decision (``advice_stopped``), with the stage left at ``advising``;
+    and so does a run whose export preview the user answered (``export_state``), with the stage
+    left at ``planning``.
 
     Pending ``clarification`` questions (from the Researcher) go to the Interviewer whatever
     the stage; once it has asked them the stage routes back to the Researcher.
@@ -70,6 +72,8 @@ def route(state: MetisState) -> str:
     if state.get("continuation_prompt") and not state.get("continuation_done"):
         return Specialist.INTERVIEWER.value
     if state.get("refresh_complete"):
+        return END
+    if state.get("export_state"):
         return END
     if state.get("research_skipped"):
         if state.get("run_kind") == RunKind.MARKET_RECHECK:

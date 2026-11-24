@@ -185,7 +185,32 @@ class QuestionAnswer(FrozenModel):
     text: StrictStr | None = None
 
 
-ResumeValue = StrictStr | StrictBool | AdviceResume | PhaseReviewResume | QuestionAnswer
+class TeamChoice(FrozenModel):
+    """The answer to a ``choose_team`` interrupt: the id of one of the teams it offered."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    team_id: StrictStr = Field(min_length=1, max_length=200)
+
+
+class ExportApprovalResume(FrozenModel):
+    """The answer to an ``export_approval`` interrupt. A bare true/false is not accepted: the
+    export must be approved or declined by name."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    approved: StrictBool
+
+
+ResumeValue = (
+    StrictStr
+    | StrictBool
+    | AdviceResume
+    | PhaseReviewResume
+    | TeamChoice
+    | ExportApprovalResume
+    | QuestionAnswer
+)
 
 
 class ResumeBody(BaseModel):

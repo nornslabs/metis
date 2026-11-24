@@ -43,6 +43,7 @@ from metis.agent.run_events import RunEventPublisher
 from metis.agent.run_lock import RunLock, hold_run_lock
 from metis.agent.specialists.advisor import build_advisor
 from metis.agent.specialists.architect import build_architect
+from metis.agent.specialists.integrator import build_integrator
 from metis.agent.specialists.interviewer import build_interviewer
 from metis.agent.specialists.planner import build_planner
 from metis.agent.specialists.researcher import build_researcher
@@ -268,6 +269,12 @@ def _specialists(
         real[Specialist.ARCHITECT] = build_architect(gateway, partial(_scoped, deps))
         real[Specialist.PLANNER] = build_planner(
             gateway,
+            partial(_scoped, deps),
+            redis,
+            deps.oauth_http_client or provider_http_factory(),
+            deps.mcp_http_client,
+        )
+        real[Specialist.INTEGRATOR] = build_integrator(
             partial(_scoped, deps),
             redis,
             deps.oauth_http_client or provider_http_factory(),

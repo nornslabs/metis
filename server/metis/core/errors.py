@@ -139,6 +139,8 @@ class ErrorCode(StrEnum):
     EXPORT_CONFLICT = "export.conflict"
     EXPORT_UPSTREAM_ERROR = "export.upstream_error"
     EXPORT_CANCELLED = "export.cancelled"
+    EXPORT_NO_LINEAR_TEAM = "export.no_linear_team"
+    EXPORT_NO_PLAN = "export.no_plan"
 
 
 @dataclass(frozen=True)
@@ -578,6 +580,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Export Cancelled",
         retryable=False,
     ),
+    ErrorCode.EXPORT_NO_LINEAR_TEAM: ErrorSpec(
+        status=409,
+        title="No Linear Team To Export To",
+        retryable=False,
+    ),
+    ErrorCode.EXPORT_NO_PLAN: ErrorSpec(
+        status=409,
+        title="No Plan To Export",
+        retryable=False,
+    ),
 }
 
 
@@ -908,6 +920,18 @@ class SpecNotEditableError(ConflictError):
     code: ErrorCode = ErrorCode.SPEC_INVALID_TRANSITION
 
 
+class NoLinearTeamError(ConflictError):
+    """409: the Linear workspace has no team to export to; create one in Linear first."""
+
+    code: ErrorCode = ErrorCode.EXPORT_NO_LINEAR_TEAM
+
+
+class NoPlanToExportError(ConflictError):
+    """409: the idea has no saved plan with tasks, so there is nothing to export."""
+
+    code: ErrorCode = ErrorCode.EXPORT_NO_PLAN
+
+
 class PlanNotFoundError(NotFoundError):
     """404: no such plan, phase or task in the caller's workspace (or its idea is archived)."""
 
@@ -966,6 +990,8 @@ __all__ = [
     "IntegrationNotConnectedError",
     "IntegrationExpiredError",
     "IntegrationNotFoundError",
+    "NoLinearTeamError",
+    "NoPlanToExportError",
     "IntegrationProviderUnsupportedError",
     "IntegrationOAuthStateInvalidError",
     "IntegrationOAuthFailedError",

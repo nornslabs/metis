@@ -15,6 +15,7 @@ from metis.modules.ideas.dto import (
     TOPIC_MEANING,
     AdviceDecision,
     AdviceResume,
+    ExportApprovalResume,
     Idea,
     IdeaKind,
     InterviewBrief,
@@ -39,6 +40,7 @@ from metis.modules.ideas.dto import (
     SpecVersionList,
     SpecVersionSummary,
     Stage,
+    TeamChoice,
     WorkflowRun,
 )
 from metis.modules.ideas.helpers.spec_markdown import render_markdown as render_spec_markdown
@@ -102,6 +104,8 @@ __all__ = [
     "InterviewTurn",
     "NewLlmUsage",
     "NewSpecVersion",
+    "ExportApprovalResume",
+    "TeamChoice",
     "PhaseReviewResume",
     "QuestionRefusal",
     "RunKind",

@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.agent.tools.ask_user import EXPORT_APPROVAL
 from metis.core.errors import (
     IdeaNotFoundError,
     IdempotencyMismatchError,
@@ -166,12 +167,20 @@ async def prepare_resume(
     workspace_id: UUID,
     run_id: UUID,
     value: ResumeValue,
+    acting_user_id: UUID,
 ) -> tuple[WorkflowRun, str | bool | dict[str, Any]]:
-    """The run and the checked value to resume it with; only an ``awaiting_user`` run resumes."""
+    """The run and the checked value to resume it with; only an ``awaiting_user`` run resumes.
+
+    An export approval carries the id of the user who answered (``decided_by``, set here from the
+    session, never from the request body), so the export record names who approved.
+    """
     run = await get_run(session, workspace_id, run_id)
     if run.status != RunStatus.AWAITING_USER:
         raise IllegalRunTransition(f"A run that is {run.status.value} cannot be resumed")
-    return run, check_resume_value(run.pending_interrupt, value)
+    checked = check_resume_value(run.pending_interrupt, value)
+    if (run.pending_interrupt or {}).get("type") == EXPORT_APPROVAL and isinstance(checked, dict):
+        checked = {**checked, "decided_by": str(acting_user_id)}
+    return run, checked
 
 
 async def cancel_run(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> WorkflowRun:

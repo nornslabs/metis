@@ -46,6 +46,7 @@ class WorkspaceSettingsView(FrozenModel):
     run_budget_usd: UsdAmount
     max_steps: int
     version: int
+    linear_team_id: str | None = None
 
 
 class SettingsResponse(FrozenModel):

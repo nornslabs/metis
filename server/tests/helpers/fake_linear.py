@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import json
 import secrets
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -48,6 +49,14 @@ class FakeLinear:
     # Answer the next N ``tools/call`` requests with a 500 (a transient provider failure).
     transient_failures: int = 0
     tool_calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
+    # What ``list_teams`` and ``list_issue_labels`` answer (JSON text, as Linear's tools do).
+    teams: list[dict[str, str]] = field(
+        default_factory=lambda: [
+            {"id": "team-1", "name": "Product", "key": "PRD"},
+            {"id": "team-2", "name": "Platform", "key": "PLT"},
+        ]
+    )
+    label_names: list[str] = field(default_factory=lambda: ["backend", "bug"])
     revocation_status: int = 200
     registrations: list[dict[str, Any]] = field(default_factory=list)
     token_requests: list[dict[str, str]] = field(default_factory=list)
@@ -85,6 +94,11 @@ class FakeLinear:
         self._valid_access.clear()
 
     @property
+    def write_calls(self) -> list[str]:
+        """Names of the write tools (``save_*``, ``delete_*``) Linear was asked to run."""
+        return [name for name, _ in self.tool_calls if name.startswith(("save_", "delete_"))]
+
+    @property
     def refresh_count(self) -> int:
         return sum(1 for r in self.token_requests if r["grant_type"] == "refresh_token")
 
@@ -120,6 +134,12 @@ class FakeLinear:
     def _tool(self, name: str) -> Any:
         async def tool(query: str = "", title: str = "") -> str:
             self.tool_calls.append((name, {"query": query, "title": title}))
+            if name == "list_teams":
+                return json.dumps(self.teams)
+            if name == "list_issue_labels":
+                return json.dumps(
+                    [{"id": f"l{i}", "name": n} for i, n in enumerate(self.label_names)]
+                )
             return "x" * BIG_RESULT_CHARS if name == "big_result" else name
 
         tool.__name__ = name
