@@ -25,6 +25,7 @@ dependencies = [
   "langfuse>=5.2.0",
   "psycopg[binary,pool]>=3.3.8",
   "pgvector>=0.5.1",
+  "jinja2>=3.1.6",
 ]
 
 [dependency-groups]
@@ -97,10 +98,11 @@ forbidden_modules = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "research, scoring, planning and integrations sit above ideas, ideas above identity, identity above auth"
+name = "integrations sits above research, scoring and planning, which sit above ideas, ideas above identity, identity above auth"
 type = "layers"
 layers = [
-  "metis.modules.research | metis.modules.scoring | metis.modules.planning | metis.modules.integrations",
+  "metis.modules.integrations",
+  "metis.modules.research | metis.modules.scoring | metis.modules.planning",
   "metis.modules.ideas",
   "metis.modules.identity",
   "metis.modules.auth",
@@ -221,7 +223,7 @@ forbidden_modules = [
 allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
-name = "integrations uses only the public surface of identity and auth"
+name = "integrations uses only the public surface of ideas, planning, scoring, identity and auth"
 type = "forbidden"
 source_modules = ["metis.modules.integrations"]
 forbidden_modules = [
@@ -237,7 +239,23 @@ forbidden_modules = [
   "metis.modules.auth.models",
   "metis.modules.auth.repo",
   "metis.modules.auth.service",
-  "metis.modules.ideas",
+  "metis.modules.ideas.controller",
+  "metis.modules.ideas.dto",
+  "metis.modules.ideas.helpers",
+  "metis.modules.ideas.models",
+  "metis.modules.ideas.repo",
+  "metis.modules.ideas.service",
+  "metis.modules.planning.controller",
+  "metis.modules.planning.dto",
+  "metis.modules.planning.helpers",
+  "metis.modules.planning.models",
+  "metis.modules.planning.repo",
+  "metis.modules.planning.service",
+  "metis.modules.scoring.controller",
+  "metis.modules.scoring.dto",
+  "metis.modules.scoring.models",
+  "metis.modules.scoring.repo",
+  "metis.modules.scoring.service",
 ]
 allow_indirect_imports = true
 

@@ -222,6 +222,26 @@ export interface paths {
         patch: operations["update_idea_v1_ideas__idea_id__patch"];
         trace?: never;
     };
+    "/v1/ideas/{idea_id}/export.md": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Markdown
+         * @description The confirmed spec, latest score and plan as one Markdown file to save.
+         */
+        get: operations["export_markdown_v1_ideas__idea_id__export_md_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/ideas/{idea_id}/interview": {
         parameters: {
             query?: never;
@@ -2488,6 +2508,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Idea"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_markdown_v1_ideas__idea_id__export_md_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path: {
+                idea_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/markdown": unknown;
                 };
             };
             /** @description Validation Error */
