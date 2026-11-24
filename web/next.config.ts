@@ -8,8 +8,9 @@ const nextConfig: NextConfig = {
   // Off: gzip buffers the proxied `/v1/runs/{id}/events` stream, so no event reaches the page
   // until the run ends. The API and any front proxy handle compression for the rest.
   compress: false,
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Off: conflicts with dynamic routes using cookies()/headers() during build-time prerendering
+  cacheComponents: false,
+  partialPrefetching: false,
   turbopack: {
     // The generated components/ui files import `cn` straight from the package; point them at the
     // merger that knows our custom lengths (lib/cn.ts).
