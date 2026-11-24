@@ -80,6 +80,7 @@ export function EmptyChat() {
   const { transcribe } = useSTTTranscription();
   const voice = (
     <VoiceButton
+      showAudioLevel
       onBlob={async (blob) => {
         const transcript = await transcribe(blob);
         if (transcript) {

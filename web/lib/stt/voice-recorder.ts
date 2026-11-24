@@ -103,7 +103,7 @@ export class VoiceRecorder {
       this._finalizeRecording();
     };
 
-    this.mediaRecorder.onerror = () => {
+    this.mediaRecorder.onerror = (_event) => {
       this._error = new Error("MediaRecorder error");
       this._recording = false;
       this._cleanup();

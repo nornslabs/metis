@@ -33,7 +33,7 @@ interface VoiceButtonProps {
 export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel = false }: VoiceButtonProps) {
   const { recording, error, audioLevel, start, stop } = useVoiceRecorder(options);
 
-  // Initialize with correct value (not in useEffect)
+  // Check Web Speech API support on client only (avoids hydration mismatch)
   const [webSpeechSupported] = useState(() => {
     if (typeof window === "undefined") return false;
     return "SpeechRecognition" in window || "webkitSpeechRecognition" in window;
@@ -44,8 +44,8 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
   const handleStart = useCallback(async () => {
     try {
       await start();
-    } catch {
-      // start() sets error internally; handled by the error toast effect
+    } catch (err) {
+      console.error("[VoiceButton] Start error:", err);
     }
   }, [start]);
 
