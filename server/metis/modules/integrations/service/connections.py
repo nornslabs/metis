@@ -143,6 +143,34 @@ async def get_mcp_client(
     return build_mcp_client(connections, httpx_client_factory)
 
 
+async def refresh_connection(
+    session: AsyncSession,
+    make_client: ClientFactory,
+    workspace_id: UUID,
+    provider: IntegrationProvider,
+) -> None:
+    """Refresh the connection's token now, even if it is not near expiry.
+
+    A refresh the provider rejects marks the row ``expired`` and raises
+    ``IntegrationExpiredError``; a transient failure raises ``UpstreamError`` and changes
+    nothing. The caller commits right after (the refresh token is single use), also when it
+    raises ``IntegrationExpiredError``.
+    """
+    await tokens.get_fresh_token(session, make_client, workspace_id, provider, force=True)
+
+
+async def expire_connection(
+    session: AsyncSession, workspace_id: UUID, provider: IntegrationProvider
+) -> IntegrationExpiredError:
+    """Mark a live connection ``expired`` (the provider keeps rejecting its token) and return
+    the error to raise. Returned, not raised, so the caller can commit the change first; a row
+    already ``expired`` or ``revoked`` is left alone.
+    """
+    await set_workspace(session, workspace_id)
+    await tokens.mark_expired(session, workspace_id, provider)
+    return expired_error(provider)
+
+
 async def _retry_after_refresh(
     session: AsyncSession,
     make_client: ClientFactory,

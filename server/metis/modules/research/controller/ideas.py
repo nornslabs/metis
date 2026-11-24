@@ -43,9 +43,7 @@ async def get_latest_research(
     return view
 
 
-@router.post(
-    "/{idea_id}/rescore", response_model=RunStarted, status_code=status.HTTP_202_ACCEPTED
-)
+@router.post("/{idea_id}/rescore", response_model=RunStarted, status_code=status.HTTP_202_ACCEPTED)
 async def rescore_latest_research(
     session: SessionDep,
     workspace: CurrentWorkspaceDep,

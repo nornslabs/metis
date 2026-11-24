@@ -31,6 +31,7 @@ from uuid import UUID
 
 import httpx
 from langchain_core.runnables import RunnableConfig
+from langchain_mcp_adapters.sessions import McpHttpClientFactory
 from langgraph.types import Command, StreamMode
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -76,7 +77,9 @@ class RunnerDeps:
 
     ``specialists`` replaces nodes by specialist (over the real ones and the stubs);
     ``llm_http_client`` makes the HTTP client each run's chat models use; ``exa_http_client`` makes
-    the one the Researcher's Exa session uses (default: the shared provider client).
+    the one the Researcher's Exa session uses and ``oauth_http_client`` the one a Linear token
+    refresh uses (default for both: the shared provider client); ``mcp_http_client`` builds the
+    HTTP client under Linear's MCP sessions (default: the library's).
     """
 
     sessions: async_sessionmaker[AsyncSession]
@@ -84,6 +87,8 @@ class RunnerDeps:
     specialists: Mapping[Specialist, SpecialistNode] | None = None
     llm_http_client: Callable[[], httpx.AsyncClient] | None = None
     exa_http_client: ClientFactory | None = None
+    oauth_http_client: ClientFactory | None = None
+    mcp_http_client: McpHttpClientFactory | None = None
 
 
 def default_deps() -> RunnerDeps:
@@ -261,7 +266,13 @@ def _specialists(
             deps.exa_http_client or provider_http_factory(),
         )
         real[Specialist.ARCHITECT] = build_architect(gateway, partial(_scoped, deps))
-        real[Specialist.PLANNER] = build_planner(gateway, partial(_scoped, deps))
+        real[Specialist.PLANNER] = build_planner(
+            gateway,
+            partial(_scoped, deps),
+            redis,
+            deps.oauth_http_client or provider_http_factory(),
+            deps.mcp_http_client,
+        )
     return {**real, **(deps.specialists or {})}
 
 

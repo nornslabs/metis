@@ -17,7 +17,6 @@ from uuid import UUID
 
 import httpx
 import pytest_asyncio
-from fake_linear import CLIENT_ID, CLIENT_SECRET, FakeLinear
 from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -28,6 +27,7 @@ from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import integrations
 from metis.modules.integrations.helpers import sealing
 from tests.helpers.auth import APP_ROLE, SESSION_COOKIE, assert_problem, auth, sign_in
+from tests.helpers.fake_linear import CLIENT_ID, CLIENT_SECRET, FakeLinear
 
 WEB = "http://localhost:3000"
 CALLBACK = "/v1/integrations/linear/callback"
@@ -652,3 +652,94 @@ async def test_a_connection_with_unreadable_tokens_can_still_be_disconnected(
     assert deleted.status_code == 204, deleted.text
     assert linear.revocations == []
     assert (await status_of(client, token))["status"] == "not_connected"
+
+
+# ------------------------------------------------- refresh and expire (agent tools)
+async def _in_app_session(engine: AsyncEngine) -> AsyncSession:
+    session = AsyncSession(engine, expire_on_commit=False)
+    await session.execute(text(f"SET LOCAL ROLE {APP_ROLE}"))
+    return session
+
+
+def _make_client(linear: FakeLinear) -> ClientFactory:
+    transport = linear.transport()
+    return lambda headers: httpx.AsyncClient(transport=transport, headers=dict(headers))
+
+
+async def test_expire_connection_marks_a_live_connection_expired_once(
+    client: httpx.AsyncClient, engine: AsyncEngine, linear: FakeLinear
+) -> None:
+    token = await sign_in(engine)
+    workspace = await workspace_id_of(client, token)
+    await connect(client, linear, token)
+    provider = integrations.IntegrationProvider.LINEAR
+
+    for _ in range(2):  # the second call changes nothing
+        async with await _in_app_session(engine) as session:
+            error = await integrations.expire_connection(session, UUID(workspace), provider)
+            await session.commit()
+
+    assert error.meta == {"provider": "linear"}
+    row = await stored_row(engine, workspace)
+    assert (row["status"], row["version"]) == ("expired", 2)
+    assert (await status_of(client, token))["status"] == "expired"
+
+
+async def test_expire_connection_leaves_a_disconnected_connection_alone(
+    client: httpx.AsyncClient, engine: AsyncEngine, linear: FakeLinear
+) -> None:
+    token = await sign_in(engine)
+    workspace = await workspace_id_of(client, token)
+    await connect(client, linear, token)
+    await client.delete("/v1/integrations/linear", headers=auth(token))
+
+    async with await _in_app_session(engine) as session:
+        await integrations.expire_connection(
+            session, UUID(workspace), integrations.IntegrationProvider.LINEAR
+        )
+        await session.commit()
+
+    assert (await stored_row(engine, workspace))["status"] == "revoked"
+
+
+async def test_refresh_connection_replaces_the_tokens_even_when_they_are_fresh(
+    client: httpx.AsyncClient, engine: AsyncEngine, linear: FakeLinear
+) -> None:
+    token = await sign_in(engine)
+    workspace = await workspace_id_of(client, token)
+    await connect(client, linear, token)
+
+    async with await _in_app_session(engine) as session:
+        await integrations.refresh_connection(
+            session, _make_client(linear), UUID(workspace), integrations.IntegrationProvider.LINEAR
+        )
+        await session.commit()
+
+    assert linear.refresh_count == 1
+    assert (await stored_row(engine, workspace))["version"] == 2
+    assert (await status_of(client, token))["status"] == "connected"
+
+
+async def test_a_refresh_the_provider_rejects_expires_the_connection(
+    client: httpx.AsyncClient, engine: AsyncEngine, linear: FakeLinear
+) -> None:
+    token = await sign_in(engine)
+    workspace = await workspace_id_of(client, token)
+    await connect(client, linear, token)
+    linear.refresh_status = 400
+
+    async with await _in_app_session(engine) as session:
+        try:
+            await integrations.refresh_connection(
+                session,
+                _make_client(linear),
+                UUID(workspace),
+                integrations.IntegrationProvider.LINEAR,
+            )
+        except Exception as exc:  # noqa: BLE001
+            assert exc.code.value == "mcp.expired"  # type: ignore[attr-defined]
+        else:
+            raise AssertionError("a rejected refresh must raise")
+        await session.commit()
+
+    assert (await status_of(client, token))["status"] == "expired"

@@ -97,8 +97,8 @@ class EventRegistry:
     """Maps each event type to its handlers, in registration order."""
 
     def __init__(self) -> None:
-        self._handlers: MappingProxyType[DomainEventType, tuple[Handler, ...]] = (
-            MappingProxyType({})
+        self._handlers: MappingProxyType[DomainEventType, tuple[Handler, ...]] = MappingProxyType(
+            {}
         )
 
     def on(self, event_type: DomainEventType) -> Callable[[Handler], Handler]:
@@ -106,9 +106,7 @@ class EventRegistry:
 
         def register(handler: Handler) -> Handler:
             current = self._handlers.get(event_type, ())
-            self._handlers = MappingProxyType(
-                {**self._handlers, event_type: (*current, handler)}
-            )
+            self._handlers = MappingProxyType({**self._handlers, event_type: (*current, handler)})
             return handler
 
         return register

@@ -30,6 +30,7 @@ AUTH_HOST = httpx.URL(AUTH_ISSUER).host
 CLIENT_ID = "metis-client-1"
 CLIENT_SECRET = "fake-client-secret-0123456789"
 TOOL_NAMES = ("list_issues", "create_issue")
+BIG_RESULT_CHARS = 10_000
 
 
 @dataclass
@@ -43,6 +44,10 @@ class FakeLinear:
     refresh_status: int = 200
     mcp_unauthorized: bool = False
     mcp_error_status: int | None = None
+    tools: tuple[str, ...] = TOOL_NAMES
+    # Answer the next N ``tools/call`` requests with a 500 (a transient provider failure).
+    transient_failures: int = 0
+    tool_calls: list[tuple[str, dict[str, Any]]] = field(default_factory=list)
     revocation_status: int = 200
     registrations: list[dict[str, Any]] = field(default_factory=list)
     token_requests: list[dict[str, str]] = field(default_factory=list)
@@ -59,7 +64,7 @@ class FakeLinear:
             json_response=True,
             transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
         )
-        for name in TOOL_NAMES:
+        for name in self.tools:
             self._server.add_tool(self._tool(name), name=name, description=f"Linear {name}")
         self._mcp_app = self._server.streamable_http_app()
 
@@ -105,10 +110,17 @@ class FakeLinear:
             await task
 
     # ---------------------------------------------------------------- internals
-    @staticmethod
-    def _tool(name: str) -> Any:
-        async def tool() -> str:
-            return name
+    def issue_tokens(self) -> tuple[str, str]:
+        """A valid access and refresh token, as a finished sign-in would have stored."""
+        access, refresh = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+        self._valid_access.add(access)
+        self._valid_refresh.add(refresh)
+        return access, refresh
+
+    def _tool(self, name: str) -> Any:
+        async def tool(query: str = "", title: str = "") -> str:
+            self.tool_calls.append((name, {"query": query, "title": title}))
+            return "x" * BIG_RESULT_CHARS if name == "big_result" else name
 
         tool.__name__ = name
         return tool
@@ -202,6 +214,9 @@ class _Transport(httpx.AsyncBaseTransport):
         if request.url.host == MCP_HOST and request.url.path == httpx.URL(SERVER_URL).path:
             if not self._fake._bearer_ok(request):
                 return httpx.Response(401)
+            if self._fake.transient_failures and b"tools/call" in request.content:
+                self._fake.transient_failures -= 1
+                return httpx.Response(500)
             if self._fake.mcp_error_status is not None:
                 return httpx.Response(self._fake.mcp_error_status)
             return await self._mcp.handle_async_request(request)
