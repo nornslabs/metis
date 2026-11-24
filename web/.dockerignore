@@ -1,6 +1,24 @@
+# Dependencies & build output
 node_modules
 .next
+*.tsbuildinfo
+
+# Version control
 .git
+
+# Environment
 .env*
 *.log
+
+# Tests
 coverage
+*.test.ts
+*.spec.ts
+
+# IDE
+.vscode
+.idea
+*.swp
+
+# OS
+.DS_Store
