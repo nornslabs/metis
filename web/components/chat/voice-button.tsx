@@ -99,7 +99,7 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
         <TooltipTrigger render={
           <Button
             type="button"
-            variant={recording ? "destructive" : "default"}
+            variant={recording ? "destructive" : "ghost"}
             size="icon-xs"
             onClick={recording ? handleStop : handleStart}
             disabled={!recording && error !== null}
