@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from metis.core.models import Base
@@ -25,5 +25,6 @@ class WorkspaceSettingsRow(Base):
     )
     run_budget_usd: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     max_steps: Mapped[int] = mapped_column(Integer)
+    linear_team_id: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, default=1)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

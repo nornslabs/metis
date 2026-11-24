@@ -30,6 +30,15 @@ TERMINAL = ["succeeded", "failed", "cancelled"]
 QUESTION = {"type": "question", "question": "Who is it for?"}
 APPROVAL = {"type": "approval", "action": "create_issue", "details": "Create SHIP-1"}
 PHASE_REVIEW = {"type": "phase_review", "phases": []}
+CHOOSE_TEAM = {
+    "type": "choose_team",
+    "teams": [
+        {"id": "team-1", "name": "Product", "key": "PRD"},
+        {"id": "team-2", "name": "Platform", "key": "PLT"},
+    ],
+    "saved_team_id": None,
+}
+EXPORT_APPROVAL = {"type": "export_approval", "preview": {}}
 PHASES = [
     {"name": "Foundations", "goal": "Set up.", "exit_criteria": "Base runs."},
     {"name": "Launch", "goal": "Ship.", "exit_criteria": "Live."},
@@ -869,3 +878,94 @@ async def test_starting_a_run_moves_the_idea_to_the_top_of_the_list_without_a_ne
     after = (await client.get("/v1/ideas", headers=ada.headers)).json()["items"]
     assert [i["id"] for i in after][0] == idea_id
     assert next(i["version"] for i in after if i["id"] == idea_id) == version
+
+
+async def test_resume_carries_the_chosen_team(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, CHOOSE_TEAM)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"team_id": "team-2"})
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"] == {"team_id": "team-2"}
+
+
+@pytest.mark.parametrize(
+    "value",
+    [{"team_id": "team-9"}, {"team_id": ""}, {"team_id": 2}, {"team_id": "team-1", "x": 1}, True],
+)
+async def test_a_team_choice_that_was_not_offered_or_does_not_fit_is_422(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    value: Any,
+) -> None:
+    ada, run_id = await _waiting(client, engine, CHOOSE_TEAM)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
+
+
+@pytest.mark.parametrize("approved", [True, False])
+async def test_an_export_approval_is_stamped_with_the_user_who_answered(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    approved: bool,
+) -> None:
+    ada, run_id = await _waiting(client, engine, EXPORT_APPROVAL)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"approved": approved})
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"] == {"approved": approved, "decided_by": ada.user_id}
+
+
+async def test_the_approver_cannot_be_named_in_the_request(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, EXPORT_APPROVAL)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"approved": True, "decided_by": str(uuid4())})
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
+
+
+@pytest.mark.parametrize("value", [True, "yes", {"approved": "yes"}, {}, {"team_id": "team-1"}])
+async def test_an_export_approval_needs_approved_true_or_false_by_name(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    value: Any,
+) -> None:
+    ada, run_id = await _waiting(client, engine, EXPORT_APPROVAL)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, value)
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []
+
+
+@pytest.mark.parametrize("interrupt", [QUESTION, APPROVAL, ADVICE, PHASE_REVIEW])
+async def test_an_export_answer_does_not_answer_another_kind_of_interrupt(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    interrupt: dict[str, Any],
+) -> None:
+    ada, run_id = await _waiting(client, engine, interrupt)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"approved": True})
+
+    assert_problem(response, 422, ErrorCode.VALIDATION_FAILED)
+    assert queue == []

@@ -9,6 +9,7 @@ from sqlalchemy import func, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.modules.identity.dto import DEFAULT_MAX_STEPS, DEFAULT_RUN_BUDGET_USD
 from metis.modules.identity.models import WorkspaceSettingsRow
 
 
@@ -44,3 +45,22 @@ async def update_at_version(
         .execution_options(populate_existing=True)
     )
     return (await session.scalars(stmt)).one_or_none()
+
+
+async def set_linear_team(session: AsyncSession, workspace_id: UUID, team_id: str) -> None:
+    """Save the Linear team; creates the row from the defaults when none exists. The version
+    is not bumped: a team picked by a run must not make an owner's open settings form stale."""
+    stmt = (
+        insert(WorkspaceSettingsRow)
+        .values(
+            workspace_id=workspace_id,
+            run_budget_usd=DEFAULT_RUN_BUDGET_USD,
+            max_steps=DEFAULT_MAX_STEPS,
+            linear_team_id=team_id,
+        )
+        .on_conflict_do_update(
+            index_elements=[WorkspaceSettingsRow.workspace_id],
+            set_={"linear_team_id": team_id, "updated_at": func.now()},
+        )
+    )
+    await session.execute(stmt)

@@ -93,6 +93,8 @@ async def test_the_downgrade_drops_the_function_the_key_and_the_table(engine: As
     async with engine.connect() as conn:
         # 0021's plans reference 0020's spec versions, which reference runs; 0017's score
         # tables, 0016's research tables and 0015's interview turns reference runs too.
+        # 0024's export jobs reference plans, ideas and runs.
+        await conn.execute(text("DROP TABLE integrations.export_jobs"))
         for table in ("task_deps", "tasks", "phases", "plans"):
             await conn.execute(text(f"DROP TABLE planning.{table}"))
         await conn.execute(text("ALTER TABLE ideas.ideas DROP COLUMN confirmed_spec_version_id"))

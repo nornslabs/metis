@@ -39,7 +39,8 @@ class MetisState(TypedDict):
     step_count: int
     budget: Budget
     # ``{action, details, approved: True}`` once the user approved an export's external writes
-    # (read by ``agent/tools/mcp_policy.ApprovalLedger``); ``None`` otherwise.
+    # (read by ``agent/tools/mcp_policy.ApprovalLedger``, written by the Integrator when the
+    # user approves the export preview); ``None`` otherwise.
     pending_approval: dict[str, Any] | None
     last_error: str | None
     # Researcher → Interviewer round trip (SHIP-238). Read with ``.get``: checkpoints written
@@ -57,6 +58,9 @@ class MetisState(TypedDict):
     advice_stopped: bool
     # Manual rescore (SHIP-242). True after the Scorer finishes a refresh run.
     refresh_complete: bool
+    # Integrator (SHIP-252): ``approved`` or ``declined`` once the user answered the export
+    # approval; the run ends there (the writes follow in a later step). Read with ``.get``.
+    export_state: str | None
 
 
 def initial_state(
@@ -88,6 +92,7 @@ def initial_state(
         rescore_after=None,
         advice_stopped=False,
         refresh_complete=False,
+        export_state=None,
         continuation_prompt=continuation_prompt,
         continuation_done=False,
     )

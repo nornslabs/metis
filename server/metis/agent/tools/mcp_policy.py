@@ -45,7 +45,9 @@ class McpToolPolicy:
 
 PLANNER_POLICY = McpToolPolicy(read=frozenset({"list_teams", "list_projects", "list_issues"}))
 INTEGRATOR_POLICY = McpToolPolicy(
-    write=frozenset({"save_project", "save_milestone", "save_issue"}), required=True
+    read=frozenset({"list_teams", "list_issue_labels"}),
+    write=frozenset({"save_project", "save_milestone", "save_issue"}),
+    required=True,
 )
 
 _POLICIES: Mapping[Specialist, McpToolPolicy] = {

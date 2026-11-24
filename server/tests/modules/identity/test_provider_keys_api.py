@@ -169,7 +169,12 @@ async def test_new_workspace_has_no_keys_and_default_settings(
     body = await get_settings_body(client, await sign_in(engine))
 
     assert body["keys"] == {"llm": None, "exa": None}
-    assert body["settings"] == {"run_budget_usd": 2.0, "max_steps": 50, "version": 0}
+    assert body["settings"] == {
+        "run_budget_usd": 2.0,
+        "max_steps": 50,
+        "version": 0,
+        "linear_team_id": None,
+    }
 
 
 async def test_settings_need_a_session(client: httpx.AsyncClient) -> None:
@@ -483,7 +488,12 @@ async def test_first_patch_creates_settings_from_version_zero(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"run_budget_usd": 2.0, "max_steps": 80, "version": 1}
+    assert response.json() == {
+        "run_budget_usd": 2.0,
+        "max_steps": 80,
+        "version": 1,
+        "linear_team_id": None,
+    }
     assert (await get_settings_body(client, token))["settings"] == response.json()
 
 
@@ -498,7 +508,12 @@ async def test_patch_with_current_version_updates_and_bumps_version(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"run_budget_usd": 7.5, "max_steps": 80, "version": 2}
+    assert response.json() == {
+        "run_budget_usd": 7.5,
+        "max_steps": 80,
+        "version": 2,
+        "linear_team_id": None,
+    }
 
 
 @pytest.mark.parametrize("stale", [0, 1, 5])
@@ -549,7 +564,12 @@ async def test_settings_bounds_are_inclusive(
     )
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"run_budget_usd": 100.0, "max_steps": 200, "version": 1}
+    assert response.json() == {
+        "run_budget_usd": 100.0,
+        "max_steps": 200,
+        "version": 1,
+        "linear_team_id": None,
+    }
 
 
 # ----------------------------------------------------------------- owners only
