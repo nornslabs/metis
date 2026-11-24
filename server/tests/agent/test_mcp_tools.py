@@ -9,6 +9,7 @@ never internals.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -185,8 +186,10 @@ async def test_an_approved_write_reaches_linear_and_shows_as_a_write_event(
 
     result = await _tool(tools, "save_issue").ainvoke({"title": "Ship it"})
 
-    assert result == "save_issue"
-    assert linear.tool_calls == [("save_issue", {"query": "", "title": "Ship it"})]
+    assert json.loads(result)["title"] == "Ship it"
+    assert [(name, args["title"]) for name, args in linear.tool_calls] == [
+        ("save_issue", "Ship it")
+    ]
     (event,) = [e for e in await setup.events(redis) if e.type is RunEventType.TOOL_CALL]
     assert event.data == {
         "provider": "linear",
@@ -342,9 +345,11 @@ async def test_a_rejected_token_is_refreshed_once_and_the_call_goes_through(
 
     result = await _tool(tools, "save_issue").ainvoke({"title": "Ship it"})
 
-    assert result == "save_issue"
+    assert json.loads(result)["title"] == "Ship it"
     assert linear.refresh_count == 1
-    assert linear.tool_calls == [("save_issue", {"query": "", "title": "Ship it"})]
+    assert [(name, args["title"]) for name, args in linear.tool_calls] == [
+        ("save_issue", "Ship it")
+    ]
     assert await connection_status(engine, setup.workspace_id) == "connected"
 
 

@@ -9,6 +9,7 @@ connectable yet.
 
 from metis.modules.integrations.controller import router
 from metis.modules.integrations.dto import (
+    FINISHED_STATUSES,
     ExportJob,
     ExportStatus,
     ExternalRef,
@@ -23,6 +24,7 @@ from metis.modules.integrations.service.connections import (
     refresh_connection,
 )
 from metis.modules.integrations.service.exports import (
+    finish_export,
     get_export_decision,
     list_external_refs,
     mark_export_running,
@@ -31,6 +33,7 @@ from metis.modules.integrations.service.exports import (
 )
 
 __all__ = [
+    "FINISHED_STATUSES",
     "ExportJob",
     "ExportStatus",
     "ExternalRef",
@@ -39,6 +42,7 @@ __all__ = [
     "IntegrationView",
     "LocalKind",
     "expire_connection",
+    "finish_export",
     "get_export_decision",
     "get_mcp_client",
     "list_external_refs",

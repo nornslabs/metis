@@ -78,3 +78,27 @@ async def mark_running(
         return row
     current = await get_by_run(session, workspace_id, run_id)
     return current if current is not None and current.status == to_status else None
+
+
+async def mark_finished(
+    session: AsyncSession,
+    workspace_id: UUID,
+    run_id: UUID,
+    *,
+    status: str,
+    summary: dict[str, Any],
+    finished_at: datetime,
+) -> ExportJobRow | None:
+    """End the run's ``running`` job with ``status`` and ``summary``. ``None`` when the job is not
+    ``running`` (already ended, or never started) and nothing changes."""
+    result = await session.scalars(
+        update(ExportJobRow)
+        .where(
+            ExportJobRow.workspace_id == workspace_id,
+            ExportJobRow.run_id == run_id,
+            ExportJobRow.status == "running",
+        )
+        .values(status=status, summary=summary, finished_at=finished_at)
+        .returning(ExportJobRow)
+    )
+    return result.one_or_none()

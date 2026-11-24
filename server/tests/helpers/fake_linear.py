@@ -60,6 +60,17 @@ class FakeLinear:
     # What ``save_project`` and ``save_milestone`` created, by Linear id, in creation order.
     projects: dict[str, dict[str, Any]] = field(default_factory=dict)
     milestones: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # What ``save_issue`` created, by Linear id (``blocked_by`` only ever grows, as Linear's does),
+    # and the labels ``create_issue_label`` made.
+    issues: dict[str, dict[str, Any]] = field(default_factory=dict)
+    labels_created: list[str] = field(default_factory=list)
+    # ``save_issue`` fails (every time) for an issue with one of these titles.
+    fail_issue_titles: set[str] = field(default_factory=set)
+    # ``create_issue_label`` fails (every time) when set.
+    fail_label_create: bool = False
+    # After this many write calls the token stops working and cannot be refreshed, so the next
+    # call finds the connection expired.
+    expire_after_writes: int | None = None
     # Fail the Nth ``save_*`` call (1-based, counted over the fake's life) once, as a provider
     # error, before it changes anything; ``None`` never fails.
     fail_save_at: int | None = None
@@ -104,7 +115,11 @@ class FakeLinear:
     @property
     def write_calls(self) -> list[str]:
         """Names of the write tools (``save_*``, ``delete_*``) Linear was asked to run."""
-        return [name for name, _ in self.tool_calls if name.startswith(("save_", "delete_"))]
+        return [
+            name
+            for name, _ in self.tool_calls
+            if name.startswith(("save_", "delete_")) or name == "create_issue_label"
+        ]
 
     @property
     def refresh_count(self) -> int:
@@ -144,6 +159,10 @@ class FakeLinear:
             return self._save_project_tool()
         if name == "save_milestone":
             return self._save_milestone_tool()
+        if name == "save_issue":
+            return self._save_issue_tool()
+        if name == "create_issue_label":
+            return self._create_label_tool()
         return self._tool(name)
 
     def _check_save(self, name: str, arguments: dict[str, Any]) -> None:
@@ -204,6 +223,69 @@ class FakeLinear:
             return self._answer("milestone", self.milestones, key)
 
         return save_milestone
+
+    def _save_issue_tool(self) -> Any:
+        async def save_issue(
+            title: str = "",
+            description: str = "",
+            team: str = "",
+            project: str = "",
+            projectMilestone: str = "",  # noqa: N803 - Linear's argument name
+            estimate: int = 0,
+            labels: list[str] | None = None,
+            parentId: str = "",  # noqa: N803
+            id: str = "",  # noqa: A002
+            blockedBy: list[str] | None = None,  # noqa: N803
+        ) -> str:
+            arguments = {
+                "title": title,
+                "description": description,
+                "team": team,
+                "project": project,
+                "milestone": projectMilestone,
+                "estimate": estimate,
+                "labels": labels,
+                "parent": parentId,
+                "id": id,
+                "blocked_by": blockedBy,
+            }
+            self._check_save("save_issue", arguments)
+            if title in self.fail_issue_titles:
+                raise RuntimeError("Linear could not save the issue")
+            if id and id not in self.issues:
+                raise RuntimeError("Issue not found")
+            key = id or f"issue-{len(self.issues) + 1}"
+            current = self.issues.get(key, {})
+            blocked = sorted(set(current.get("blocked_by", [])) | set(blockedBy or []))
+            fields = (
+                {
+                    "title": title,
+                    "description": description,
+                    "team": team,
+                    "project": project,
+                    "milestone": projectMilestone,
+                    "estimate": estimate,
+                    "labels": labels or [],
+                    "parent": parentId,
+                }
+                if title
+                else {}
+            )
+            self.issues[key] = {**current, **fields, "blocked_by": blocked}
+            return self._answer("issue", self.issues, key)
+
+        return save_issue
+
+    def _create_label_tool(self) -> Any:
+        async def create_issue_label(name: str = "", team: str = "") -> str:
+            self.tool_calls.append(("create_issue_label", {"name": name, "team": team}))
+            if self.fail_label_create:
+                raise RuntimeError("Linear could not create the label")
+            self.labels_created.append(name)
+            self.label_names.append(name)
+            return json.dumps({"id": f"label-{len(self.label_names)}", "name": name})
+
+        return create_issue_label
 
     def _tool(self, name: str) -> Any:
         async def tool(query: str = "", title: str = "") -> str:
@@ -306,6 +388,17 @@ class _Transport(httpx.AsyncBaseTransport):
 
     async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
         if request.url.host == MCP_HOST and request.url.path == httpx.URL(SERVER_URL).path:
+            limit = self._fake.expire_after_writes
+            # The lapse is seen at the start of a call (``initialize``), never between the steps
+            # of one call, so a write that Linear has made is also answered.
+            if (
+                limit is not None
+                and _is_initialize(request)
+                and len(self._fake.write_calls) >= limit
+            ):
+                self._fake.expire_after_writes = None
+                self._fake.revoke_access_tokens()
+                self._fake.refresh_status = 400
             if not self._fake._bearer_ok(request):
                 return httpx.Response(401)
             if self._fake.transient_failures and b"tools/call" in request.content:
@@ -315,3 +408,11 @@ class _Transport(httpx.AsyncBaseTransport):
                 return httpx.Response(self._fake.mcp_error_status)
             return await self._mcp.handle_async_request(request)
         return self._fake._oauth(request)
+
+
+def _is_initialize(request: httpx.Request) -> bool:
+    try:
+        body = json.loads(request.content)
+    except ValueError:
+        return False
+    return isinstance(body, dict) and body.get("method") == "initialize"

@@ -13,13 +13,21 @@ from metis.helpers.dto import FrozenModel
 
 
 class ExportStatus(StrEnum):
-    """Matches the ``export_jobs.status`` CHECK. The approval step writes the first two."""
+    """Matches the ``export_jobs.status`` CHECK. The approval step writes the first two, the
+    writes move ``running`` to one of the last three (``partial``: some Linear items were saved
+    and some failed)."""
 
     APPROVED = "approved"
     DECLINED = "declined"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
+    PARTIAL = "partial"
     FAILED = "failed"
+
+
+# A job in one of these statuses has ended; ``summary[RESULT_KEY]`` then holds its result.
+FINISHED_STATUSES = frozenset({ExportStatus.SUCCEEDED, ExportStatus.PARTIAL, ExportStatus.FAILED})
+RESULT_KEY = "result"
 
 
 class LocalKind(StrEnum):
@@ -54,3 +62,10 @@ class ExportJob(FrozenModel):
     summary: dict[str, Any]
     decided_by: UUID
     decided_at: datetime
+    finished_at: datetime | None = None
+
+    @property
+    def result(self) -> dict[str, Any]:
+        """What the finished export saved (counts, failed items, project URL); empty before."""
+        stored = self.summary.get(RESULT_KEY)
+        return stored if isinstance(stored, dict) else {}

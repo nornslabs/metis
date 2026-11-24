@@ -142,6 +142,7 @@ class ErrorCode(StrEnum):
     EXPORT_NO_LINEAR_TEAM = "export.no_linear_team"
     EXPORT_NO_PLAN = "export.no_plan"
     EXPORT_PLAN_CHANGED = "export.plan_changed"
+    EXPORT_PARTIAL = "export.partial"
 
 
 @dataclass(frozen=True)
@@ -596,6 +597,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Plan Changed Since Approval",
         retryable=False,
     ),
+    ErrorCode.EXPORT_PARTIAL: ErrorSpec(
+        status=502,
+        title="Export Only Partly Done",
+        retryable=True,
+    ),
 }
 
 
@@ -945,6 +951,13 @@ class ExportPlanChangedError(ConflictError):
     code: ErrorCode = ErrorCode.EXPORT_PLAN_CHANGED
 
 
+class ExportPartialError(UpstreamError):
+    """502: some Linear items were not saved. What was saved stays; a new export carries on.
+    ``meta`` holds ``created``, ``updated``, ``links`` and ``failed`` (counts)."""
+
+    code: ErrorCode = ErrorCode.EXPORT_PARTIAL
+
+
 class PlanNotFoundError(NotFoundError):
     """404: no such plan, phase or task in the caller's workspace (or its idea is archived)."""
 
@@ -1006,6 +1019,7 @@ __all__ = [
     "NoLinearTeamError",
     "NoPlanToExportError",
     "ExportPlanChangedError",
+    "ExportPartialError",
     "IntegrationProviderUnsupportedError",
     "IntegrationOAuthStateInvalidError",
     "IntegrationOAuthFailedError",
