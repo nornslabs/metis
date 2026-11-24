@@ -32,6 +32,7 @@ from metis.agent.tools.export_writes import (
     ExportTally,
     action_of,
     call_tool,
+    parse_saved_item,
     publish_progress,
     save_item,
 )
@@ -216,7 +217,11 @@ async def _ensure_labels(
     skipped = False
     for name in labels_to_create(used, existing):
         try:
-            await call_tool(tools, CREATE_LABEL, label_args(name, team_id), "label")
+            # The MCP adapter hands a tool's error back as text, so an answer without an id
+            # (what a created label always carries) means the label was not made.
+            parse_saved_item(
+                await call_tool(tools, CREATE_LABEL, label_args(name, team_id), "label")
+            )
         except UpstreamError as exc:
             if _stops(exc):
                 raise

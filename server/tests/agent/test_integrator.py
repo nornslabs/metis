@@ -334,6 +334,6 @@ async def test_a_re_run_after_the_decision_was_recorded_asks_nothing_and_finishe
     update = await node(state)
 
     assert update["export_state"] == "approved"
-    assert update["pending_approval"]["approved"] is True
+    assert update["pending_approval"] is None  # the finished export clears the approval
     assert len(await export_jobs(engine, run)) == 1
     assert await saved_team(engine, run) == "team-2"

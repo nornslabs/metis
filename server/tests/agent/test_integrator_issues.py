@@ -32,6 +32,7 @@ from tests.agent.export_helpers import (
     local_ids,
     next_run,
     outbox_count,
+    reopen_idea,
     rerun_node,
 )
 from tests.agent.linear_helpers import connect_workspace
@@ -116,6 +117,7 @@ async def _export(
 
 async def _export_again(engine: AsyncEngine, ctx: dict[str, Any], run: QueuedRun) -> QueuedRun:
     """Export the same idea again: a new run, a new preview, a new approval."""
+    await reopen_idea(engine, run)
     again = await next_run(engine, run)
     await run_job(ctx, again)
     await run_job(ctx, again, resume=await approval(engine, again, approved=True))

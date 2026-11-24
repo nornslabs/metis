@@ -203,17 +203,31 @@ async def add_refs(engine: AsyncEngine, run: QueuedRun, kind: str, local_ids: li
 
 
 async def local_ids(engine: AsyncEngine, run: QueuedRun, table: str) -> list[UUID]:
-    """Ids of the plan's ``phases`` or ``tasks`` in plan order."""
+    """Ids of the plan's ``phases`` or ``tasks`` in plan order (tasks: phase, then position)."""
+    order = (
+        "(SELECT ph.position FROM planning.phases ph WHERE ph.id = t.phase_id), t.position"
+        if table == "tasks"
+        else "t.position"
+    )
     async with engine.connect() as conn:
         result = await conn.execute(
             text(
                 f"SELECT t.id FROM planning.{table} t JOIN planning.plans p ON p.id = t.plan_id "
                 "JOIN ideas.workflow_runs r ON r.idea_id = p.idea_id WHERE r.id = :run "
-                "ORDER BY t.position"
+                f"ORDER BY {order}"
             ),
             {"run": run.run_id},
         )
         return [row[0] for row in result.all()]
+
+
+async def reopen_idea(engine: AsyncEngine, run: QueuedRun) -> None:
+    """Put an exported idea back to ``planning``, which is where "export again" starts from."""
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE ideas.ideas SET stage = 'planning' WHERE id = :id AND stage = 'exported'"),
+            {"id": await idea_of(engine, run)},
+        )
 
 
 async def reopen_job(engine: AsyncEngine, run: QueuedRun) -> None:

@@ -289,7 +289,7 @@ async def test_finishing_a_running_export_stores_the_result_and_writes_one_event
     [job] = await export_jobs(engine, run)
     assert job["status"] == "succeeded"
     assert job["summary"]["result"] == result
-    assert "project" in job["summary"]  # the preview the user saw is kept
+    assert "issues" in job["summary"]  # the preview the user saw is kept
     assert await outbox_count(engine, run, "ExportFinished") == 1
 
 
