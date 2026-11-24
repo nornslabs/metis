@@ -27,7 +27,7 @@ const CONFLICT_NOTICE = "Settings changed elsewhere; reloaded.";
 const BUDGET_DECIMALS = 2;
 
 function formValuesOf(settings: SettingsResponse): KeysFormValues {
-  const s = settings.settings as SettingsResponse["settings"] & { stt_provider: string };
+  const s = settings.settings as SettingsResponse["settings"];
   const _k = settings.keys as SettingsResponse["keys"] & { sarvam: components["schemas"]["ProviderKeyView"] | null | undefined };
   return {
     llm: { base_url: "", model: "", value: "" },
