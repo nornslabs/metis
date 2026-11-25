@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -102,3 +103,26 @@ async def mark_finished(
         .returning(ExportJobRow)
     )
     return result.one_or_none()
+
+
+async def list_latest_finished(
+    session: AsyncSession,
+    workspace_id: UUID,
+    provider: str,
+    idea_ids: Collection[UUID],
+    statuses: Collection[str],
+) -> list[ExportJobRow]:
+    """The newest finished job of each idea in ``idea_ids``, one row per idea."""
+    result = await session.scalars(
+        select(ExportJobRow)
+        .where(
+            ExportJobRow.workspace_id == workspace_id,
+            ExportJobRow.provider == provider,
+            ExportJobRow.idea_id.in_(idea_ids),
+            ExportJobRow.status.in_(statuses),
+            ExportJobRow.finished_at.is_not(None),
+        )
+        .distinct(ExportJobRow.idea_id)
+        .order_by(ExportJobRow.idea_id, ExportJobRow.finished_at.desc(), ExportJobRow.id.desc())
+    )
+    return list(result)

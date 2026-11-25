@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreHorizontal, Trash2 } from "lucide-react";
+import { ExternalLink, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 
 import { BAND_SQUARE } from "@/components/history/band-square";
@@ -47,12 +47,28 @@ export function IdeaRow({ row, open, onOpen, onDelete }: IdeaRowProps) {
             {row.score ?? "–"}
           </span>
         </span>
-        <span className="col-span-full flex gap-1.5 text-meta text-muted-foreground">
-          <span>{stageLabel(row.stage)}</span>
-          <span aria-hidden="true">·</span>
+        <span className={cn("col-span-full flex gap-1.5 text-meta text-muted-foreground", row.exportUrl !== null && "pl-17")}>
+          {row.exportUrl === null ? (
+            <>
+              <span>{stageLabel(row.stage)}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          ) : null}
           <span>{relativeTime(row.activeAt)}</span>
         </span>
       </Link>
+      {row.exportUrl !== null ? (
+        <a
+          href={row.exportUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={`${row.title} is exported. Open the Linear project`}
+          className="absolute bottom-1 left-3 inline-flex h-4 items-center gap-0.5 border px-1 text-meta text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:bg-accent focus-visible:outline-none"
+        >
+          Exported
+          <ExternalLink size={9} aria-hidden="true" />
+        </a>
+      ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label={`Actions for ${row.title}`}

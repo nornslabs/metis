@@ -22,8 +22,11 @@ from metis.modules.integrations import repo
 from metis.modules.integrations.dto import (
     FINISHED_STATUSES,
     RESULT_KEY,
+    ExportFailedItem,
     ExportJob,
     ExportStatus,
+    ExportSummary,
+    ExportSummaryList,
     ExternalRef,
     IntegrationProvider,
     LocalKind,
@@ -173,3 +176,58 @@ async def finish_export(
         )
     logger.info("export.finished", workspace_id=str(workspace_id), status=status.value)
     return ExportJob.model_validate(row)
+
+
+async def export_summaries(
+    session: AsyncSession,
+    workspace_id: UUID,
+    idea_ids: Collection[UUID],
+    provider: IntegrationProvider = IntegrationProvider.LINEAR,
+) -> ExportSummaryList:
+    """The newest finished export of each idea in ``idea_ids``. Ideas with no finished export
+    are left out."""
+    await set_workspace(session, workspace_id)
+    rows = await repo.export_jobs.list_latest_finished(
+        session,
+        workspace_id,
+        provider.value,
+        idea_ids,
+        [status.value for status in FINISHED_STATUSES],
+    )
+    return ExportSummaryList(items=[_summary(ExportJob.model_validate(row)) for row in rows])
+
+
+def _summary(job: ExportJob) -> ExportSummary:
+    result = job.result
+    return ExportSummary(
+        idea_id=job.idea_id,
+        status=job.status,
+        project_url=_text_or_none(result.get("project_url")),
+        created=_count(result.get("created")),
+        updated=_count(result.get("updated")),
+        links=_count(result.get("links")),
+        failed=_failed_items(result.get("failed")),
+        finished_at=job.finished_at,
+    )
+
+
+def _count(value: object) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+
+def _text_or_none(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
+def _failed_items(value: object) -> list[ExportFailedItem]:
+    if not isinstance(value, list):
+        return []
+    return [
+        ExportFailedItem(
+            kind=str(item.get("kind", "")),
+            name=str(item.get("name", "")),
+            reason=str(item.get("reason", "")),
+        )
+        for item in value
+        if isinstance(item, dict)
+    ]

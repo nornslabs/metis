@@ -323,3 +323,32 @@ describe("runReducer sync", () => {
     expect(state.steps[0]?.done).toBe(false);
   });
 });
+
+describe("runReducer, export", () => {
+  const progress = (done: number): RunEvent => ({ type: "export_progress", item: "issue", name: `T${done}`, action: "create", done, total: 10 });
+
+  test("keeps the newest progress, and never moves the bar back on a replay", () => {
+    const state = play([progress(2), progress(5), progress(3)]);
+    expect(state.exportProgress).toMatchObject({ done: 5, name: "T5" });
+  });
+
+  test("keeps the finish of a clean export", () => {
+    const state = play([{ type: "export_finished", projectUrl: "https://linear.app/p", created: 4, updated: 1, links: 2 }]);
+    expect(state.exportFinish).toEqual({ projectUrl: "https://linear.app/p", created: 4, updated: 1, links: 2 });
+  });
+
+  test("starts with no export state", () => {
+    const state = initialRunState(RUN_VIEW);
+    expect(state.exportProgress).toBeNull();
+    expect(state.exportFinish).toBeNull();
+  });
+
+  test("seeds a pending choose_team from the run view", () => {
+    const state = initialRunState({
+      status: "awaiting_user",
+      error: null,
+      pending_interrupt: { type: "choose_team", teams: [{ id: "t1", name: "Ship", key: "SHIP" }], saved_team_id: null },
+    });
+    expect(state.interrupt).toMatchObject({ kind: "choose_team", savedTeamId: null });
+  });
+});

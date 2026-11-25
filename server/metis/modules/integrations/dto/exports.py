@@ -7,7 +7,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
-from pydantic import ConfigDict
+from pydantic import ConfigDict, Field
 
 from metis.helpers.dto import FrozenModel
 
@@ -69,3 +69,29 @@ class ExportJob(FrozenModel):
         """What the finished export saved (counts, failed items, project URL); empty before."""
         stored = self.summary.get(RESULT_KEY)
         return stored if isinstance(stored, dict) else {}
+
+
+class ExportFailedItem(FrozenModel):
+    """One item the export could not save, as shown to members. ``reason`` is a short code or
+    sentence kept in the job's result; the web renders it as plain text."""
+
+    kind: str
+    name: str
+    reason: str
+
+
+class ExportSummary(FrozenModel):
+    """The newest finished export of one idea: what it saved, where, and what failed."""
+
+    idea_id: UUID
+    status: ExportStatus
+    project_url: str | None = None
+    created: int = 0
+    updated: int = 0
+    links: int = 0
+    failed: list[ExportFailedItem] = Field(default_factory=list)
+    finished_at: datetime | None = None
+
+
+class ExportSummaryList(FrozenModel):
+    items: list[ExportSummary]

@@ -40,6 +40,15 @@ export const queryKeys = {
     ["ideas", workspaceId, ideaId, "spec-version", number] as const,
   /** The idea's newest plan, or null while there is none (also under the idea key). */
   plan: (workspaceId: string | null, ideaId: string) => ["ideas", workspaceId, ideaId, "plan"] as const,
+  /** The workspace's MCP connections (`GET /v1/integrations`). */
+  integrations: (workspaceId: string | null) => ["integrations", workspaceId] as const,
+  /** The tools the connected Linear server offers. */
+  linearTools: (workspaceId: string | null) => ["integrations", workspaceId, "linear", "tools"] as const,
+  /** Newest finished exports of the ideas in one page (`GET /v1/exports/summaries`). */
+  exportSummaries: (workspaceId: string | null, ideaIds: readonly string[]) =>
+    ["exports", workspaceId, "summaries", ...ideaIds] as const,
+  /** Prefix of every export summary query, for invalidation when an export ends. */
+  allExportSummaries: () => ["exports"] as const,
   suggestions: (workspaceId: string | null, ideaId: string) =>
     ["ideas", workspaceId, ideaId, "suggestions"] as const,
 };

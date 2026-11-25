@@ -7,8 +7,11 @@ from metis.modules.integrations.dto.connect import ConnectResult, PendingConnect
 from metis.modules.integrations.dto.exports import (
     FINISHED_STATUSES,
     RESULT_KEY,
+    ExportFailedItem,
     ExportJob,
     ExportStatus,
+    ExportSummary,
+    ExportSummaryList,
     ExternalRef,
     LocalKind,
 )
@@ -32,8 +35,11 @@ __all__ = [
     "ConnectResult",
     "ConnectStarted",
     "ConnectionStatus",
+    "ExportFailedItem",
     "ExportJob",
     "ExportStatus",
+    "ExportSummary",
+    "ExportSummaryList",
     "ExternalRef",
     "IntegrationList",
     "IntegrationProvider",
