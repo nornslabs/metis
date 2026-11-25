@@ -141,6 +141,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/exports/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Export Summaries
+         * @description The newest finished export of each idea: status, Linear project URL, counts, failures.
+         */
+        get: operations["get_export_summaries_v1_exports_summaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/health": {
         parameters: {
             query?: never;
@@ -1127,6 +1147,65 @@ export interface components {
         ExportApprovalResume: {
             /** Approved */
             approved: boolean;
+        };
+        /**
+         * ExportFailedItem
+         * @description One item the export could not save, as shown to members. ``reason`` is a short code or
+         *     sentence kept in the job's result; the web renders it as plain text.
+         */
+        ExportFailedItem: {
+            /** Kind */
+            kind: string;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * ExportStatus
+         * @description Matches the ``export_jobs.status`` CHECK. The approval step writes the first two, the
+         *     writes move ``running`` to one of the last three (``partial``: some Linear items were saved
+         *     and some failed).
+         * @enum {string}
+         */
+        ExportStatus: "approved" | "declined" | "running" | "succeeded" | "partial" | "failed";
+        /**
+         * ExportSummary
+         * @description The newest finished export of one idea: what it saved, where, and what failed.
+         */
+        ExportSummary: {
+            /**
+             * Created
+             * @default 0
+             */
+            created: number;
+            /** Failed */
+            failed?: components["schemas"]["ExportFailedItem"][];
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /**
+             * Links
+             * @default 0
+             */
+            links: number;
+            /** Project Url */
+            project_url?: string | null;
+            status: components["schemas"]["ExportStatus"];
+            /**
+             * Updated
+             * @default 0
+             */
+            updated: number;
+        };
+        /** ExportSummaryList */
+        ExportSummaryList: {
+            /** Items */
+            items: components["schemas"]["ExportSummary"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -2325,6 +2404,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuthProviderName"][];
+                };
+            };
+        };
+    };
+    get_export_summaries_v1_exports_summaries_get: {
+        parameters: {
+            query: {
+                /** @description Comma-separated idea ids, 1 to 50 */
+                idea_ids: string;
+            };
+            header?: {
+                "X-Workspace-Id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportSummaryList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

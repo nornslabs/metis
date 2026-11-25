@@ -9,6 +9,7 @@ import {
   type RunInterrupt,
   type RunStatus,
 } from "./schemas";
+import type { ExportItem } from "@/lib/schemas/export";
 
 /** One specialist step: a row in the step list, with the tool names it called. */
 export type RunStep = {
@@ -47,6 +48,27 @@ export type RunState = {
   readonly interruptCount: number;
   /** The newest score run the stream announced (`score` event); a change refetches the scores. */
   readonly scoreRunId: string | null;
+  /** The newest `export_progress`, or null before the export saved anything. */
+  readonly exportProgress: ExportProgress | null;
+  /** The `export_finished`, or null while the export has not ended clean. */
+  readonly exportFinish: ExportFinish | null;
+};
+
+/** The newest `export_progress` of the run: the item just saved and how far the export is. */
+export type ExportProgress = {
+  readonly item: ExportItem;
+  readonly name: string;
+  readonly action: "create" | "update";
+  readonly done: number;
+  readonly total: number;
+};
+
+/** The `export_finished` of the run: every item was saved. */
+export type ExportFinish = {
+  readonly projectUrl: string | null;
+  readonly created: number;
+  readonly updated: number;
+  readonly links: number;
 };
 
 /** The parts of `RunView` the reducer starts from. */
@@ -80,7 +102,19 @@ export function initialRunState(seed: RunSeed): RunState {
   const interrupt = parsed?.success ? parsed.data : null;
   const notices: readonly RunNotice[] =
     parsed && !parsed.success ? [{ code: UNREADABLE_PAUSE_CODE, text: UNREADABLE_PAUSE_TEXT }] : [];
-  return { status, steps: [], notices, text: "", segments: [""], error, interrupt, interruptCount: 0, scoreRunId: null };
+  return {
+    status,
+    steps: [],
+    notices,
+    text: "",
+    segments: [""],
+    error,
+    interrupt,
+    interruptCount: 0,
+    scoreRunId: null,
+    exportProgress: null,
+    exportFinish: null,
+  };
 }
 
 function lastIndexOfNode(steps: readonly RunStep[], node: string): number {
@@ -190,6 +224,16 @@ export function runReducer(state: RunState, event: RunAction): RunState {
       return addNotice(state, { code: event.code, text: event.text });
     case "score":
       return { ...state, scoreRunId: event.scoreRunId };
+    case "export_progress": {
+      const { item, name, action, done, total } = event;
+      // A replay can deliver an older event after a newer one; the bar never goes back.
+      if (state.exportProgress && state.exportProgress.done > done) return state;
+      return { ...state, exportProgress: { item, name, action, done, total } };
+    }
+    case "export_finished": {
+      const { projectUrl, created, updated, links } = event;
+      return { ...state, exportFinish: { projectUrl, created, updated, links } };
+    }
     case "interrupt":
       return {
         ...state,

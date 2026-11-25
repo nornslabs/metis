@@ -9,8 +9,11 @@ import type { AdviceResume } from "@/lib/scores/decision";
 
 export type ResumeRunInput = {
   runId: string;
-  /** Text or picked options for a question, `true` / `false` for an approval, a decision for the advice. */
-  value: QuestionResumeValue | boolean | AdviceResume;
+  /**
+   * Text or picked options for a question, `true` / `false` for an approval, a decision for the
+   * advice, `{team_id}` for the export's team and `{approved}` for the export's preview.
+   */
+  value: QuestionResumeValue | boolean | AdviceResume | { team_id: string } | { approved: boolean };
 };
 
 /**

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { describeError } from "@/lib/api/errors";
 import { useIdeas, type IdeaFilter } from "@/lib/api/queries/use-ideas";
+import { useExportSummaries } from "@/lib/api/queries/use-export-summaries";
 import { useScoreSummaries } from "@/lib/api/queries/use-score-summaries";
 import { groupByActivity } from "@/lib/history/group";
 import { toHistoryRow, type HistoryRow } from "@/lib/history/rows";
@@ -55,7 +56,11 @@ export function HistoryList() {
   const ideas = useIdeas({ q, filter });
   const loaded = useMemo(() => ideas.data?.pages.flatMap((page) => page.items) ?? [], [ideas.data]);
   const summaries = useScoreSummaries(loaded.map((idea) => idea.id));
-  const rows = useMemo(() => loaded.map((idea) => toHistoryRow(idea, summaries.get(idea.id))), [loaded, summaries]);
+  const exportSummaries = useExportSummaries(loaded.map((idea) => idea.id));
+  const rows = useMemo(
+    () => loaded.map((idea) => toHistoryRow(idea, summaries.get(idea.id), exportSummaries.get(idea.id))),
+    [loaded, summaries, exportSummaries],
+  );
   const groups = useMemo(() => groupByActivity(rows), [rows]);
 
   const { searchRef, closeHistory } = useWorkspacePanels();

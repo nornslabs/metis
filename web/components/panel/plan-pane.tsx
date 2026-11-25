@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { ExportStatus } from "@/components/export/export-status";
+import { PlanExportMenu } from "@/components/export/plan-export-menu";
 import { LoadFailure } from "@/components/panel/load-failure";
 import { PaneBanner } from "@/components/panel/pane-banner";
 import { PaneFooter } from "@/components/panel/pane-footer";
@@ -111,6 +113,7 @@ function PlanBody({ ideaId, plan }: { ideaId: string; plan: Plan }) {
 
   return (
     <div>
+      <ExportStatus ideaId={ideaId} />
       <SaveBanners ideaId={ideaId} />
       <PlanSummaryStrip summary={planView.summary} />
       <div className="flex items-center justify-between gap-2.5 border-b px-4 py-2">
@@ -179,6 +182,8 @@ export function PlanPaneFooter(props: PlanPaneProps) {
           {status.text}
         </span>
       }
-    />
+    >
+      <PlanExportMenu ideaId={ideaId} hasTasks={plan.data.phases.some((phase) => phase.tasks.length > 0)} />
+    </PaneFooter>
   );
 }

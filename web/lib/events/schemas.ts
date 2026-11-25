@@ -1,5 +1,11 @@
 import { z } from "zod";
 
+import {
+  exportActionSchema,
+  exportItemSchema,
+  exportPreviewSchema,
+  type ExportPreview,
+} from "@/lib/schemas/export";
 import { reviewedPhaseSchema, type ReviewedPhase } from "@/lib/schemas/plan";
 
 /**
@@ -16,6 +22,8 @@ export const RUN_EVENT_TYPES = [
   "interrupt",
   "notice",
   "score",
+  "export_progress",
+  "export_finished",
 ] as const;
 
 export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
@@ -76,7 +84,27 @@ export type AdviceInterrupt = {
 export type SpecReviewInterrupt = { kind: "spec_review"; text: string; specVersionId: string; number: number };
 /** The run paused for the user to review the Planner's phases; `text` is their names, so a new proposal is a new pause. */
 export type PhaseReviewInterrupt = { kind: "phase_review"; text: string; phases: readonly ReviewedPhase[] };
-export type RunInterrupt = QuestionInterrupt | ApprovalInterrupt | AdviceInterrupt | SpecReviewInterrupt | PhaseReviewInterrupt;
+/** One Linear team the export may use. */
+export type ExportTeamChoice = { readonly id: string; readonly name: string; readonly key: string };
+/** The export waits for a Linear team; `savedTeamId` is set when the saved team is no longer in Linear. `text` is the team ids. */
+export type ChooseTeamInterrupt = {
+  kind: "choose_team";
+  text: string;
+  teams: readonly ExportTeamChoice[];
+  savedTeamId: string | null;
+};
+/** The export waits for approval of `preview`; `text` is the plan version, so a new preview is a new pause. */
+export type ExportApprovalInterrupt = { kind: "export_approval"; text: string; preview: ExportPreview };
+/** The two pauses of the Linear export. */
+export type ExportInterrupt = ChooseTeamInterrupt | ExportApprovalInterrupt;
+export type RunInterrupt =
+  | QuestionInterrupt
+  | ApprovalInterrupt
+  | AdviceInterrupt
+  | SpecReviewInterrupt
+  | PhaseReviewInterrupt
+  | ChooseTeamInterrupt
+  | ExportApprovalInterrupt;
 
 const questionOptionSchema = z.object({
   id: z.string().min(1),
@@ -129,6 +157,12 @@ export const interruptSchema = z
     }),
     z.object({ type: z.literal("spec_review"), spec_version_id: z.string(), number: z.number().int().positive() }),
     z.object({ type: z.literal("phase_review"), phases: z.array(reviewedPhaseSchema).min(1) }),
+    z.object({
+      type: z.literal("choose_team"),
+      teams: z.array(z.object({ id: z.string().min(1), name: z.string(), key: z.string() })).min(1),
+      saved_team_id: z.string().nullish(),
+    }),
+    z.object({ type: z.literal("export_approval"), preview: exportPreviewSchema }),
   ])
   .transform((value): RunInterrupt => {
     if (value.type === "question") return toQuestionInterrupt(value);
@@ -140,6 +174,17 @@ export const interruptSchema = z
     }
     if (value.type === "phase_review") {
       return { kind: "phase_review", text: JSON.stringify(value.phases), phases: value.phases };
+    }
+    if (value.type === "choose_team") {
+      return {
+        kind: "choose_team",
+        text: value.teams.map((team) => team.id).join(","),
+        teams: value.teams,
+        savedTeamId: value.saved_team_id ?? null,
+      };
+    }
+    if (value.type === "export_approval") {
+      return { kind: "export_approval", text: String(value.preview.plan_version), preview: value.preview };
     }
     const details = typeof value.details === "string" && value.details.trim() !== "" ? value.details : undefined;
     return { kind: "approval", text: value.action, ...(details && { details }) };
@@ -166,6 +211,36 @@ const payloadSchemas = {
   score: z
     .object({ score_run_id: z.string(), total: z.number(), band: scoreBandSchema })
     .transform(({ score_run_id, total, band }) => ({ type: "score" as const, scoreRunId: score_run_id, total, band })),
+  export_progress: z
+    .object({
+      item: exportItemSchema,
+      name: z.string(),
+      action: exportActionSchema,
+      done: z.number().int().nonnegative(),
+      total: z.number().int().positive(),
+    })
+    .transform(({ item, name, action, done, total }) => ({
+      type: "export_progress" as const,
+      item,
+      name,
+      action,
+      done,
+      total,
+    })),
+  export_finished: z
+    .object({
+      project_url: z.string().nullish(),
+      created: z.number().int().nonnegative(),
+      updated: z.number().int().nonnegative(),
+      links: z.number().int().nonnegative(),
+    })
+    .transform(({ project_url, created, updated, links }) => ({
+      type: "export_finished" as const,
+      projectUrl: project_url ?? null,
+      created,
+      updated,
+      links,
+    })),
 } satisfies Record<RunEventType, z.ZodType>;
 
 export type RunEvent = {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { components } from "@/lib/api/schema";
+import type { ExportSummary } from "@/lib/schemas/export";
 
 import { toHistoryRow } from "./rows";
 
@@ -39,3 +40,27 @@ describe("toHistoryRow", () => {
     expect(row.score).toBeNull();
   });
 });
+
+describe("toHistoryRow export link", () => {
+  const exported: ExportSummary = {
+    idea_id: "i1",
+    status: "succeeded",
+    project_url: "https://linear.app/x/project/p",
+    created: 3,
+    updated: 0,
+    links: 1,
+    failed: [],
+    finished_at: "2026-11-25T00:00:00Z",
+  };
+
+  it("links to the Linear project after a clean export", () => {
+    expect(toHistoryRow(IDEA, undefined, exported).exportUrl).toBe("https://linear.app/x/project/p");
+  });
+
+  it("has no link for a partial export, no export, or a URL that is not https", () => {
+    expect(toHistoryRow(IDEA, undefined, { ...exported, status: "partial" }).exportUrl).toBeNull();
+    expect(toHistoryRow(IDEA, undefined, undefined).exportUrl).toBeNull();
+    expect(toHistoryRow(IDEA, undefined, { ...exported, project_url: "javascript:alert(1)" }).exportUrl).toBeNull();
+  });
+});
+
