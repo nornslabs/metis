@@ -141,6 +141,7 @@ def build_integrator(
         if chosen:
             await _save_team(open_session, workspace_id, team)
         logger.info("export.decided", approved=approved)
+        result: dict[str, Any] | None = None
         if approved:
             flag_context = FlagContext(
                 workspace_id=workspace_id,
@@ -157,8 +158,8 @@ def build_integrator(
                     }
                 )
             else:
-                await _write(context, ledger, tools, source, preview, previewed)
-        return await _finish(state, context, ledger, approved)
+                result = await _write(context, ledger, tools, source, preview, previewed)
+        return await _finish(state, context, approved, result)
 
     return node
 
@@ -180,6 +181,7 @@ async def _replay(
     if preview.team.id != source.saved_team_id:
         await _save_team(open_session, context.workspace_id, preview.team)
     logger.info("export.decision_replayed", approved=approved)
+    result: dict[str, Any] | None = None
     if approved:
         _flags = flags or build_flag_provider()
         settings = get_settings()
@@ -192,10 +194,10 @@ async def _replay(
             logger.info("export.skipped_linear_disabled")
         else:
             tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
-            await _write(
+            result = await _write(
                 context, ledger, tools, source, preview, _stored_plan_version(decided)
             )
-    return await _finish(state, context, ledger, approved)
+    return await _finish(state, context, approved, result)
 
 
 class _Source:
