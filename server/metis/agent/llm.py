@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
@@ -54,6 +55,29 @@ _DEFAULT_RATE_LIMITS: dict[str, object] = {
 def _flag_value(routing: dict[str, object], key: str) -> str | None:
     value = routing.get(key)
     return str(value) if value is not None else None
+
+
+def _vendor_from_base_url(base_url: str | None) -> str:
+    """Map a base URL to a vendor name for provider-specific kill switches.
+
+    Verifies the actual credential endpoint before mapping the broad
+    ``ProviderKind.LLM`` category to a vendor-specific flag name.
+    """
+    if not base_url:
+        return "default"
+    try:
+        hostname = (urlsplit(base_url).hostname or "").lower()
+    except Exception:  # noqa: BLE001  (defensive parse; fall back to default)
+        return "default"
+    if "openai" in hostname:
+        return "openai"
+    if "anthropic" in hostname:
+        return "anthropic"
+    if "google" in hostname or "generativelanguage" in hostname:
+        return "google"
+    if hostname in {"localhost", "127.0.0.1", "::1", "host.docker.internal"}:
+        return "local"
+    return "default"
 
 
 class LLMGateway:
@@ -105,6 +129,27 @@ class LLMGateway:
                 meta={"provider": "llm", "reason": "kill_switch"},
             )
 
+    async def _require_provider_enabled(
+        self, provider_kind: ProviderKind, vendor: str
+    ) -> None:
+        """Raise ``ProviderNotConfiguredError`` when a provider-specific kill switch is off.
+
+        Checks ``llm_{vendor}_enabled`` (e.g. ``llm_openai_enabled``) after the master
+        ``llm_enabled`` switch has already passed. Raises ``ProviderNotConfiguredError``
+        naming the disabled vendor so callers know which provider is blocked.
+        """
+        settings = get_settings()
+        context = FlagContext(
+            workspace_id=self._workspace_id,
+            environment=settings.app_env,
+            custom_attributes={"tier": settings.app_env, "provider": provider_kind.value},
+        )
+        if not await self._flags.is_enabled(f"llm_{vendor}_enabled", context):
+            raise ProviderNotConfiguredError(
+                f"LLM calls are disabled: the ``llm_{vendor}_enabled`` kill switch is off.",
+                meta={"provider": vendor, "reason": "kill_switch"},
+            )
+
     async def chat_model(
         self, session: AsyncSession, purpose: str, tier: str = "default"
     ) -> LLMProvider:
@@ -143,8 +188,11 @@ class LLMGateway:
         cached = self._models.get(purpose)
         if cached is not None:
             return cached
-        credentials, base_url, _ = await self._credentials(session)
+        credentials, base_url, _, provider_kind = await self._credentials(session)
         assert credentials.model is not None
+
+        vendor = _vendor_from_base_url(base_url)
+        await self._require_provider_enabled(provider_kind, vendor)
 
         # Default routing uses the workspace's saved model as the fallback.
         default_routing: dict[str, object] = {
@@ -211,16 +259,18 @@ class LLMGateway:
         if embedder is not None:
             await embedder.aclose()
 
-    async def _credentials(self, session: AsyncSession) -> tuple[ProviderCredentials, str, str]:
+    async def _credentials(
+        self, session: AsyncSession
+    ) -> tuple[ProviderCredentials, str, str, ProviderKind]:
         """The workspace's LLM credentials with their ``base_url`` and chat ``model``."""
         credentials = await get_key_for_use(session, self._workspace_id, ProviderKind.LLM)
         if credentials.base_url is None or credentials.model is None:
             raise provider_not_configured(ProviderKind.LLM)
-        return credentials, credentials.base_url, credentials.model
+        return credentials, credentials.base_url, credentials.model, credentials.kind
 
     async def _get_embedder(self, session: AsyncSession) -> Embedder:
         if self._embedder is None:
-            credentials, base_url, _ = await self._credentials(session)
+            credentials, base_url, _, _ = await self._credentials(session)
             self._embedder = build_embedder(
                 base_url=base_url,
                 api_key=credentials.api_key,
