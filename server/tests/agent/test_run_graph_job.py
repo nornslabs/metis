@@ -19,7 +19,7 @@ from metis.agent import runner
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.agent.tools.ask_user import ask_user, request_approval
-from metis.core.errors import UpstreamError
+from metis.core.errors import UpstreamError, UpstreamTimeoutError
 from metis.core.events import STREAM_TTL_SECONDS, RunEventType, stream_key
 from metis.core.run_control import cancel_key, lock_key
 from metis.modules.ideas import RunKind, Stage
@@ -388,6 +388,25 @@ async def test_a_domain_error_keeps_its_code(
     assert row.error is not None
     assert row.error["code"] == "provider.upstream_error"
     assert "sk-1" not in repr(row)
+
+
+async def test_a_model_timeout_ends_the_run_as_model_timed_out(
+    engine: AsyncEngine,
+    redis: Redis,
+    app_sessions: async_sessionmaker[AsyncSession],
+    checkpointer: AsyncPostgresSaver,
+) -> None:
+    boom = _raising(UpstreamTimeoutError("took too long", meta={"provider": "llm"}))
+    ctx = job_ctx(redis, app_sessions, {Specialist.RESEARCHER: boom})
+    run = await queued_run(engine)
+
+    await run_job(ctx, run)
+
+    row = await run_row(engine, run)
+    events = await events_of(redis, run)
+    error = {"code": "provider.timeout", "message": "Model Timed Out"}
+    assert (row.status, row.error) == ("failed", error)
+    assert events[-1].data == {"status": "failed", "error": error}
 
 
 async def test_the_workspaces_step_limit_ends_the_run_as_failed(

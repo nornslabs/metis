@@ -17,8 +17,9 @@ import pytest
 from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from metis.adapters.llm.chat import build_chat_model
 from metis.agent.llm import LLMGateway
-from metis.core.errors import ProviderNotConfiguredError, UpstreamError
+from metis.core.errors import ProviderNotConfiguredError, UpstreamError, UpstreamTimeoutError
 from metis.core.ports import LLMProvider
 from metis.helpers.http import FailureReason
 from metis.helpers.ids import uuid7
@@ -282,6 +283,86 @@ async def test_a_transient_server_error_is_retried(
     assert reply.content == "hello"
     assert len(server.requests) == 2
     assert len(await usage_rows(engine, workspace_id)) == 1
+
+
+async def test_a_timeout_is_one_attempt_and_a_distinct_model_timed_out_error(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession], server: FakeLLMServer
+) -> None:
+    workspace_id = await workspace_with_key(engine)
+
+    def stall(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("read timed out", request=request)
+
+    server.responder = stall
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
+
+    with pytest.raises(UpstreamTimeoutError) as caught:
+        await model.ainvoke(HELLO)
+
+    assert len(server.requests) == 1
+    assert caught.value.code.value == "provider.timeout"
+    assert caught.value.status == 504
+    assert caught.value.title == "Model Timed Out"
+    assert caught.value.meta == {"provider": "llm", "reason": "timeout"}
+
+
+async def test_a_rate_limit_is_retried_until_the_call_succeeds(
+    engine: AsyncEngine,
+    app_sessions: async_sessionmaker[AsyncSession],
+    server: FakeLLMServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("metis.adapters.llm.chat.RETRY_BASE_DELAY_SECONDS", 0)
+    workspace_id = await workspace_with_key(engine)
+    limited = httpx.Response(429, json={"error": {"message": "slow down"}})
+    replies = iter([limited, limited, chat_completion()])
+    server.responder = lambda _request: next(replies)
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
+
+    reply = await model.ainvoke(HELLO)
+
+    assert reply.content == "hello"
+    assert len(server.requests) == 3
+
+
+async def test_retries_stop_after_the_limit_and_keep_the_last_reason(
+    engine: AsyncEngine,
+    app_sessions: async_sessionmaker[AsyncSession],
+    server: FakeLLMServer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("metis.adapters.llm.chat.RETRY_BASE_DELAY_SECONDS", 0)
+    workspace_id = await workspace_with_key(engine)
+    server.responder = lambda _request: httpx.Response(500, json={"error": {"message": "boom"}})
+    model = await model_for(await gateway(engine, workspace_id, app_sessions, server), app_sessions)
+
+    assert await failure_reason(model) == FailureReason.SERVER_ERROR.value
+    assert len(server.requests) == 3  # the call and two retries
+
+
+@pytest.mark.parametrize(
+    ("purpose", "expected"),
+    [
+        ("interview", 11.0),
+        ("research", 11.0),
+        ("score", 11.0),
+        ("advise", 11.0),
+        ("spec", 22.0),
+        ("plan", 22.0),
+        ("something-new", 11.0),
+    ],
+)
+def test_the_call_timeout_follows_the_purpose(purpose: str, expected: float) -> None:
+    chat = build_chat_model(
+        base_url="https://llm.example.com/v1",
+        api_key=LLM_KEY,
+        model=LLM_MODEL,
+        purpose=purpose,
+        timeout_seconds=11.0,
+        long_timeout_seconds=22.0,
+    )
+
+    assert chat._model.request_timeout == expected  # type: ignore[attr-defined]  # noqa: SLF001
 
 
 @pytest.mark.usefixtures("no_retries")
