@@ -113,6 +113,57 @@ class TestSettingsValidation:
                 llm_call_timeout_seconds=5,
             )
 
+    @staticmethod
+    def _flag_settings(**overrides: object) -> Settings:
+        base: dict[str, object] = {
+            "database_url": "postgresql+asyncpg://test:test@localhost:5432/test",
+            "redis_url": "redis://localhost:6379/0",
+            "encryption_master_key": get_valid_secret(),
+        }
+        return Settings(**{**base, **overrides})  # type: ignore[arg-type]
+
+    def test_feature_flags_default_to_the_static_provider(self) -> None:
+        settings = self._flag_settings()
+
+        assert settings.feature_flag_provider == "static"
+        assert settings.flagsmith_environment_key is None
+        assert settings.flagsmith_api_url == AppSettings.DEFAULT_FLAGSMITH_API_URL
+
+    def test_flagsmith_without_an_environment_key_is_refused(self) -> None:
+        with pytest.raises(ValidationError, match="flagsmith_environment_key"):
+            self._flag_settings(feature_flag_provider="flagsmith")
+
+    def test_an_unknown_feature_flag_provider_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            self._flag_settings(feature_flag_provider="launchdarkly")
+
+    def test_the_flagsmith_environment_key_is_redacted_in_repr(self) -> None:
+        settings = self._flag_settings(
+            feature_flag_provider="flagsmith", flagsmith_environment_key="ser.super-secret"
+        )
+
+        assert "ser.super-secret" not in repr(settings)
+
+    @pytest.mark.parametrize(
+        ("app_env", "url", "accepted"),
+        [
+            ("development", "http://localhost:8000/api/v1/", True),
+            ("development", "http://flagsmith.example.com/api/v1/", False),
+            ("staging", "http://localhost:8000/api/v1/", False),
+            ("staging", "https://flags.example.com/api/v1/", True),
+        ],
+    )
+    def test_flagsmith_api_url_must_be_https_outside_local_development(
+        self, app_env: str, url: str, accepted: bool
+    ) -> None:
+        if accepted:
+            assert (
+                self._flag_settings(app_env=app_env, flagsmith_api_url=url).flagsmith_api_url == url
+            )
+            return
+        with pytest.raises(ValidationError, match="flagsmith_api_url"):
+            self._flag_settings(app_env=app_env, flagsmith_api_url=url)
+
     def test_run_recovery_defaults(self) -> None:
         settings = Settings(
             database_url="postgresql+asyncpg://test:test@localhost:5432/test",
