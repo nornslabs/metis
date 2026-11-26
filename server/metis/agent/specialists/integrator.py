@@ -182,7 +182,13 @@ async def _replay(
         await _save_team(open_session, context.workspace_id, preview.team)
     logger.info("export.decision_replayed", approved=approved)
     result: dict[str, Any] | None = None
-    if approved:
+    if decided.status is ExportStatus.SUCCEEDED:
+        result = decided.result
+    elif decided.status is ExportStatus.PARTIAL:
+        raise _partial_error(decided.result)
+    elif decided.status is ExportStatus.FAILED:
+        raise UpstreamError("The Linear export did not complete")
+    elif approved:
         _flags = flags or build_flag_provider()
         settings = get_settings()
         flag_context = FlagContext(
@@ -197,7 +203,13 @@ async def _replay(
             result = await _write(
                 context, ledger, tools, source, preview, _stored_plan_version(decided)
             )
-    return await _finish(state, context, approved, result)
+    return await _finish(
+        state,
+        context,
+        approved,
+        result,
+        publish_finished=decided.status is not ExportStatus.SUCCEEDED,
+    )
 
 
 class _Source:
@@ -485,7 +497,12 @@ def _partial_error(result: dict[str, Any]) -> ExportPartialError:
 
 
 async def _finish(
-    state: MetisState, context: McpRunContext, approved: bool, result: dict[str, Any] | None
+    state: MetisState,
+    context: McpRunContext,
+    approved: bool,
+    result: dict[str, Any] | None,
+    *,
+    publish_finished: bool = True,
 ) -> dict[str, Any]:
     update: dict[str, Any] = {
         "export_state": STATE_APPROVED if approved else STATE_DECLINED,
@@ -494,12 +511,13 @@ async def _finish(
     if approved and result is not None:
         update["stage"] = Stage.EXPORTED
         update["pending_approval"] = None
-        await publish(
-            str(context.run_id),
-            RunEventType.EXPORT_FINISHED,
-            {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
-            redis=context.redis,
-        )
+        if publish_finished:
+            await publish(
+                str(context.run_id),
+                RunEventType.EXPORT_FINISHED,
+                {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
+                redis=context.redis,
+            )
     get_stream_writer()(
         {"type": RunEventType.NODE_FINISHED.value, "node": Specialist.INTEGRATOR.value}
     )
