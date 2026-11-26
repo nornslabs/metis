@@ -2232,6 +2232,10 @@ export interface components {
          * @description Run limits; ``version`` 0 means defaults that were never saved.
          */
         WorkspaceSettingsView: {
+            /** Capabilities */
+            capabilities?: {
+                [key: string]: unknown;
+            };
             /** Linear Team Id */
             linear_team_id?: string | null;
             /** Max Steps */
