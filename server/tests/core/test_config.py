@@ -82,6 +82,37 @@ class TestSettingsValidation:
         error_str = str(exc_info.value)
         assert "32" in error_str and ("bytes" in error_str or "byte" in error_str)
 
+    def test_llm_call_timeouts_default_to_60_and_240_seconds(self) -> None:
+        settings = Settings(
+            database_url="postgresql+asyncpg://test:test@localhost:5432/test",
+            redis_url="redis://localhost:6379/0",
+            encryption_master_key=get_valid_secret(),
+        )
+
+        assert settings.llm_call_timeout_seconds == 60
+        assert settings.llm_long_call_timeout_seconds == 240
+
+    def test_the_long_llm_timeout_cannot_be_below_the_short_one(self) -> None:
+        with pytest.raises(ValidationError) as exc_info:
+            Settings(
+                database_url="postgresql+asyncpg://test:test@localhost:5432/test",
+                redis_url="redis://localhost:6379/0",
+                encryption_master_key=get_valid_secret(),
+                llm_call_timeout_seconds=120,
+                llm_long_call_timeout_seconds=90,
+            )
+
+        assert "llm_long_call_timeout_seconds" in str(exc_info.value)
+
+    def test_an_llm_timeout_below_ten_seconds_is_refused(self) -> None:
+        with pytest.raises(ValidationError):
+            Settings(
+                database_url="postgresql+asyncpg://test:test@localhost:5432/test",
+                redis_url="redis://localhost:6379/0",
+                encryption_master_key=get_valid_secret(),
+                llm_call_timeout_seconds=5,
+            )
+
     def test_production_requires_log_json(self) -> None:
         """Production environment must have log_json=True."""
         with pytest.raises(ValidationError) as exc_info:
