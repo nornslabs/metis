@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
+from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -55,4 +56,25 @@ class Embedder(Protocol):
 
     async def aclose(self) -> None:
         """Release the HTTP client."""
+        ...
+
+
+@dataclass(frozen=True)
+class FlagContext:
+    """The context a feature flag is evaluated against: who the flag is for and where.
+
+    ``custom_attributes`` carries anything the provider uses to decide (for example a
+    workspace's tier). Providers may ignore any part of it.
+    """
+
+    workspace_id: UUID
+    environment: str
+    custom_attributes: dict[str, object] = field(default_factory=dict)
+
+
+class FeatureFlags(Protocol):
+    """Feature flags: whether a named flag is on for a given run context."""
+
+    async def is_enabled(self, flag: str, context: FlagContext) -> bool:
+        """True when ``flag`` is enabled for ``context``."""
         ...
