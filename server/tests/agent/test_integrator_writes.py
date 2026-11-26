@@ -1,4 +1,5 @@
 """The Integrator's second step (SHIP-253): the Linear project and one milestone per phase.
+(SHIP-254 adds the issues; their own tests are in ``test_integrator_issues``.)
 
 Seam: the ``run_graph`` job with the real Integrator node, on real Postgres as ``metis_app``, real
 Redis and the real checkpointer, and Linear faked in-process (``tests/helpers/fake_linear``). A
@@ -19,10 +20,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from metis.agent.specialists.integrator import build_integrator
-from metis.agent.state import initial_state
 from metis.core.events import RunEventType
-from metis.modules.ideas import Stage
 from tests.agent.export_helpers import (
     TOOLS,
     approval,
@@ -32,12 +30,12 @@ from tests.agent.export_helpers import (
     export_run,
     external_refs,
     local_ids,
+    rerun_node,
 )
-from tests.agent.linear_helpers import connect_workspace, mcp_client, oauth_client
+from tests.agent.linear_helpers import connect_workspace
 from tests.agent.planner_helpers import idea_of
 from tests.agent.run_job_helpers import QueuedRun, events_of, run_job, run_row
 from tests.helpers.fake_linear import FakeLinear
-from tests.modules.scoring.scoring_helpers import in_workspace
 
 PHASES = ["Phase 1 — Foundations", "Phase 2 — Core", "Phase 3 — Launch"]
 
@@ -84,27 +82,7 @@ async def _retry(
     run: QueuedRun,
     monkeypatch: pytest.MonkeyPatch,
 ) -> dict[str, Any]:
-    """Run the node again on the same run: the approval is found, nothing is asked, the writes
-    carry on."""
-    node = build_integrator(
-        lambda ws: in_workspace(sessions, ws), redis, oauth_client(linear), mcp_client(linear)
-    )
-
-    def refuse_to_ask(*_: Any, **__: Any) -> Any:
-        raise AssertionError("a retry must not interrupt")
-
-    monkeypatch.setattr("metis.agent.specialists.integrator.interrupt", refuse_to_ask)
-    monkeypatch.setattr(
-        "metis.agent.specialists.integrator.get_stream_writer", lambda: lambda _event: None
-    )
-    state = initial_state(
-        run_id=run.run_id,
-        workspace_id=run.workspace_id,
-        idea_id=await idea_of(engine, run),
-        stage=Stage.PLANNING,
-        max_steps=50,
-    )
-    return await node(state)
+    return await rerun_node(engine, sessions, redis, linear, run, monkeypatch)
 
 
 async def _idea_title(engine: AsyncEngine, run: QueuedRun) -> str:
@@ -153,8 +131,8 @@ async def test_the_first_export_saves_a_ref_for_the_idea_and_every_phase(
         "milestone-2",
         "milestone-3",
     ]
-    assert len(refs) == 4
-    assert [j["status"] for j in await export_jobs(engine, run)] == ["running"]
+    assert len(refs) == 4 + 3  # the idea, its phases and its tasks
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["succeeded"]
 
 
 async def test_one_progress_event_is_published_per_item_in_order(
@@ -166,13 +144,17 @@ async def test_one_progress_event_is_published_per_item_in_order(
         e.data for e in await events_of(redis, run) if e.type is RunEventType.EXPORT_PROGRESS
     ]
     assert [(p["item"], p["done"], p["total"]) for p in progress] == [
-        ("project", 1, 4),
-        ("milestone", 2, 4),
-        ("milestone", 3, 4),
-        ("milestone", 4, 4),
+        ("project", 1, 8),
+        ("milestone", 2, 8),
+        ("milestone", 3, 8),
+        ("milestone", 4, 8),
+        ("issue", 5, 8),
+        ("issue", 6, 8),
+        ("issue", 7, 8),
+        ("links", 8, 8),
     ]
-    assert {p["action"] for p in progress} == {"create"}
-    assert [p["name"] for p in progress[1:]] == PHASES
+    assert {p["action"] for p in progress[:7]} == {"create"}
+    assert [p["name"] for p in progress[1:4]] == PHASES
 
 
 # ----------------------------------------------------------------------- a re-run
@@ -192,6 +174,7 @@ async def test_running_the_export_again_updates_and_never_duplicates(
 
     assert (_creates(linear, "save_project"), _creates(linear, "save_milestone")) == creates
     assert len(linear.projects) == 1 and len(linear.milestones) == 3
+    assert len(linear.issues) == 3 and _creates(linear, "save_issue") == 3
     assert await external_refs(engine, run) == before
     assert len(await export_jobs(engine, run)) == 1
 
@@ -243,6 +226,7 @@ async def test_an_export_that_stopped_midway_creates_only_the_missing_milestones
     saved = await external_refs(engine, run)
     assert sorted(saved.values()) == ["milestone-1", "project-1"]  # committed before the failure
     assert len(linear.milestones) == 1
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["partial"]
 
     await _retry(engine, app_sessions, redis, linear, run, monkeypatch)
 
@@ -251,10 +235,11 @@ async def test_an_export_that_stopped_midway_creates_only_the_missing_milestones
     assert _creates(linear, "save_project") == 1
     # 3 phases plus the one attempt that failed: the retry did not re-create the saved milestone.
     assert _creates(linear, "save_milestone") == len(PHASES) + 1
-    assert len(await external_refs(engine, run)) == 4
+    assert len(await external_refs(engine, run)) == 4 + 3
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["succeeded"]
 
 
-async def test_a_failing_project_save_leaves_no_ref_and_the_export_running(
+async def test_a_failing_project_save_leaves_no_ref_and_the_export_failed(
     engine: AsyncEngine, ctx: dict[str, Any], app_sessions: Any, linear: FakeLinear
 ) -> None:
     linear.fail_save_at = 1
@@ -264,7 +249,7 @@ async def test_a_failing_project_save_leaves_no_ref_and_the_export_running(
     assert (await run_row(engine, run)).status == "failed"
     assert await external_refs(engine, run) == {}
     assert linear.milestones == {}
-    assert [j["status"] for j in await export_jobs(engine, run)] == ["running"]
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["failed"]
 
 
 async def test_an_answer_with_no_id_is_a_failure_and_saves_no_ref(

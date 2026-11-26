@@ -30,6 +30,13 @@ async def enqueue_outbox_relay(ctx: dict[str, Any]) -> None:
     await enqueue("outbox_relay", job_id=f"outbox_relay:{window}", pool=ctx["redis"])
 
 
+async def enqueue_recover_runs(ctx: dict[str, Any]) -> None:
+    """Enqueue one ``recover_runs`` per interval window; duplicate ticks dedupe."""
+    interval = get_settings().run_recovery_interval_seconds
+    window = int(time.time()) // interval
+    await enqueue("recover_runs", job_id=f"recover_runs:{window}", pool=ctx["redis"])
+
+
 async def enqueue_cleanup(ctx: dict[str, Any]) -> None:
     """Enqueue one ``cleanup`` per day; duplicate ticks dedupe."""
     day = int(time.time()) // SECONDS_PER_DAY
@@ -51,6 +58,10 @@ class SchedulerSettings:
     functions: list[Any] = []
     cron_jobs = [
         cron(enqueue_outbox_relay, second=set(range(0, 60, OUTBOX_RELAY_INTERVAL_SECONDS))),
+        cron(
+            enqueue_recover_runs,
+            second=set(range(0, 60, get_settings().run_recovery_interval_seconds)),
+        ),
         cron(enqueue_cleanup, hour=CLEANUP_HOUR_UTC, minute=0, second=0),
     ]
     queue_name = SCHEDULER_QUEUE

@@ -83,6 +83,7 @@ from metis.modules.ideas.service.workflow_runs import (
     mark_running,
     mark_succeeded,
     start_refresh_run,
+    touch_run,
 )
 
 __all__ = [
@@ -143,6 +144,7 @@ __all__ = [
     "mark_cancelled",
     "mark_failed",
     "mark_running",
+    "touch_run",
     "mark_succeeded",
     "open_question",
     "question_progress",

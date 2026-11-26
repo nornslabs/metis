@@ -1,4 +1,5 @@
 import type { components } from "@/lib/api/schema";
+import { safeProjectUrl, type ExportSummary } from "@/lib/schemas/export";
 import { stageLabel } from "@/lib/events/labels";
 import { BAND_LABELS } from "@/lib/scores/view";
 
@@ -19,10 +20,16 @@ export interface HistoryRow {
   band: ScoreBand | null;
   /** Score totals per version, oldest first (empty when unscored). */
   totals: readonly number[];
+  /** The Linear project of the newest clean export, or null (never exported, failed, or no https URL). */
+  exportUrl: string | null;
 }
 
 /** Joins an idea with its summary (if any). The summary's last total is the latest score. */
-export function toHistoryRow(idea: Idea, summary: IdeaScoreSummary | undefined): HistoryRow {
+export function toHistoryRow(
+  idea: Idea,
+  summary: IdeaScoreSummary | undefined,
+  exported?: ExportSummary,
+): HistoryRow {
   const totals = summary?.totals ?? [];
   return {
     id: idea.id,
@@ -32,6 +39,7 @@ export function toHistoryRow(idea: Idea, summary: IdeaScoreSummary | undefined):
     score: totals.at(-1) ?? idea.current_score,
     band: summary?.band ?? null,
     totals,
+    exportUrl: exported?.status === "succeeded" ? safeProjectUrl(exported.project_url) : null,
   };
 }
 

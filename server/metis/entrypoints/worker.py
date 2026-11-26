@@ -20,6 +20,7 @@ from metis.core.db import engine, get_session_maker
 from metis.core.jobs import AGENT_QUEUE, MAINTENANCE_QUEUE, logged_job, redis_settings
 from metis.core.logging import configure_logging, get_logger
 from metis.core.outbox import relay_once
+from metis.jobs.recover_runs import recover_runs
 from metis.jobs.run_graph import run_graph
 
 AGENT_MAX_JOBS = 10
@@ -96,7 +97,7 @@ class AgentWorkerSettings:
 class MaintenanceWorkerSettings:
     """Worker for the ``maintenance`` queue; one job at a time."""
 
-    functions = [outbox_relay, cleanup]
+    functions = [outbox_relay, cleanup, recover_runs]
     queue_name = MAINTENANCE_QUEUE
     max_jobs = MAINTENANCE_MAX_JOBS
     on_startup = on_startup

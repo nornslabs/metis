@@ -1,10 +1,17 @@
 import { AdviceDecision } from "@/components/chat/advice-decision";
+import { ExportPrompt } from "@/components/export/export-prompt";
 import { ApprovalPrompt } from "@/components/chat/approval-prompt";
 import { PhaseReviewPrompt } from "@/components/chat/phase-review-prompt";
 import { SpecReviewPrompt } from "@/components/chat/spec-review-prompt";
 import { UserBubble } from "@/components/chat/user-bubble";
 import type { AdviceChoice, Decision } from "@/components/chat/use-answer-actions";
-import type { AdviceInterrupt, ApprovalInterrupt, PhaseReviewInterrupt, SpecReviewInterrupt } from "@/lib/events/schemas";
+import type {
+  AdviceInterrupt,
+  ApprovalInterrupt,
+  ExportInterrupt,
+  PhaseReviewInterrupt,
+  SpecReviewInterrupt,
+} from "@/lib/events/schemas";
 import type { AdviceDecision as AdviceChoiceKind, AdviceResume, } from "@/lib/scores/decision";
 import type { Suggestion } from "@/lib/scores/view";
 
@@ -13,6 +20,9 @@ interface RunApprovalsProps {
   approval: ApprovalInterrupt | null;
   specReview: SpecReviewInterrupt | null;
   phaseReview: PhaseReviewInterrupt | null;
+  /** The `choose_team` or `export_approval` pause, or null. */
+  exportStep: ExportInterrupt | null;
+  runId: string;
   ideaId: string;
   ideaText: string;
   accepted: readonly Suggestion[];
@@ -31,6 +41,8 @@ export function RunApprovals({
   approval,
   specReview,
   phaseReview,
+  exportStep,
+  runId,
   ideaId,
   ideaText,
   accepted,
@@ -52,6 +64,7 @@ export function RunApprovals({
       ))}
       {specReview ? <SpecReviewPrompt ideaId={ideaId} interrupt={specReview} onOpenSpec={onOpenSpec} /> : null}
       {phaseReview ? <PhaseReviewPrompt ideaId={ideaId} interrupt={phaseReview} onOpenPhases={onOpenPhases} /> : null}
+      {exportStep ? <ExportPrompt key={`${exportStep.kind}:${exportStep.text}`} ideaId={ideaId} runId={runId} interrupt={exportStep} /> : null}
       {approval ? <ApprovalPrompt interrupt={approval} disabled={disabled} onDecide={onDecide} /> : null}
       {decisions.map((decision) => (
         <UserBubble key={decision.seq} text={decision.approved ? "Approved" : "Rejected"} />

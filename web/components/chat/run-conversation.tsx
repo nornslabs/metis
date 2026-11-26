@@ -8,6 +8,7 @@ import { useForm, useWatch } from "react-hook-form";
 import { Composer } from "@/components/chat/composer";
 import { VoiceButton } from "@/components/chat/voice-button";
 import { ConversationLayout } from "@/components/chat/conversation-layout";
+import { useLiveExportSync } from "@/components/export/use-live-export-sync";
 import { Dock } from "@/components/chat/dock";
 import { OutputCards } from "@/components/chat/output-cards";
 import { RunApprovals } from "@/components/chat/run-approvals";
@@ -53,6 +54,7 @@ const APPROVAL_PLACEHOLDER = "Approve or reject above";
 const ADVICE_PLACEHOLDER = "Decide above";
 const SPEC_REVIEW_PLACEHOLDER = "Confirm the spec above";
 const PHASE_REVIEW_PLACEHOLDER = "Approve the phases above";
+const EXPORT_PLACEHOLDER = "Answer the export above";
 const ANSWER_PLACEHOLDER = "Type your answer";
 const NOOP = () => undefined;
 
@@ -86,18 +88,20 @@ type PlaceholderInput = {
   advice: boolean;
   specReview: boolean;
   phaseReview: boolean;
+  exportStep: boolean;
   canContinue: boolean;
   starting: boolean;
   active: boolean;
 };
 
 /** What the composer says: what it takes now, or why it waits. */
-function composerPlaceholder({ answering, approval, advice, specReview, phaseReview, canContinue, starting, active }: PlaceholderInput): string {
+function composerPlaceholder({ answering, approval, advice, specReview, phaseReview, exportStep, canContinue, starting, active }: PlaceholderInput): string {
   if (answering) return ANSWER_PLACEHOLDER;
   if (approval) return APPROVAL_PLACEHOLDER;
   if (advice) return ADVICE_PLACEHOLDER;
   if (specReview) return SPEC_REVIEW_PLACEHOLDER;
   if (phaseReview) return PHASE_REVIEW_PLACEHOLDER;
+  if (exportStep) return EXPORT_PLACEHOLDER;
   if (canContinue) return starting ? "Sending…" : "Continue this chat…";
   return active ? WORKING_PLACEHOLDER : NO_ANSWER_PLACEHOLDER;
 }
@@ -143,6 +147,7 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
   const specReviewId = interrupt?.kind === "spec_review" ? interrupt.specVersionId : null;
   useRefetchOnProgress(idea.id, seq, researchDone, state.scoreRunId, specReviewId);
   const { openOutput } = useWorkspacePanels();
+  useLiveExportSync(idea.id, run.id, state);
 
   const form = useForm<AnswerFormValues>({ resolver: zodResolver(answerSchema), defaultValues: { text: "" } });
   const text = useWatch({ control: form.control, name: "text" });
@@ -153,7 +158,7 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
   const active = isActiveStatus(state.status) && !streamLost;
   const canContinue = isTerminalStatus(state.status);
   const canSubmitPrompt = canContinue && !starting;
-  const { awaiting, question, offered, approval, advice, specReview, phaseReview, answeredHere, mode } = useRunPrompts({
+  const { awaiting, question, offered, approval, advice, specReview, phaseReview, exportStep, answeredHere, mode } = useRunPrompts({
     state,
     streamLost,
     turnsPending: turns.isPending,
@@ -175,6 +180,7 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
     advice: advice !== null,
     specReview: specReview !== null,
     phaseReview: phaseReview !== null,
+    exportStep: exportStep !== null,
     canContinue,
     starting,
     active,
@@ -318,6 +324,8 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
               approval={approval}
               specReview={specReview}
               phaseReview={phaseReview}
+              exportStep={exportStep}
+              runId={run.id}
               ideaId={idea.id}
               ideaText={idea.raw_text}
               accepted={acceptedFor(suggestions.data ?? [], advice?.scoreRunId ?? "")}

@@ -196,3 +196,49 @@ describe("parseRunEvent", () => {
     });
   });
 });
+
+describe("parseRunEvent, export", () => {
+  const preview = {
+    team: { id: "t1", name: "Ship" },
+    plan_version: 4,
+    project: { name: "Pocket CRM", action: "create" },
+    milestones: { total: 2, create: 1, update: 1, items: [{ name: "P1", action: "create" }, { name: "P2", action: "update" }] },
+    issues: { total: 5, create: 4, update: 1 },
+    blocked_by_links: 3,
+    labels: { total: 1, items: [{ name: "web", exists: null }] },
+  };
+
+  test("reads an export_progress event", () => {
+    const data = { item: "issue", name: "Build it", action: "create", done: 3, total: 12 };
+    expect(parseRunEvent("export_progress", frame("export_progress", data))).toEqual({ type: "export_progress", ...data });
+  });
+
+  test("ignores an export_progress with an unknown item or a zero total", () => {
+    expect(parseRunEvent("export_progress", frame("export_progress", { item: "label", name: "x", action: "create", done: 1, total: 2 }))).toBeNull();
+    expect(parseRunEvent("export_progress", frame("export_progress", { item: "issue", name: "x", action: "create", done: 0, total: 0 }))).toBeNull();
+  });
+
+  test("reads an export_finished event with and without a project url", () => {
+    const parsed = parseRunEvent("export_finished", frame("export_finished", { project_url: "https://linear.app/p", created: 4, updated: 1, links: 2 }));
+    expect(parsed).toEqual({ type: "export_finished", projectUrl: "https://linear.app/p", created: 4, updated: 1, links: 2 });
+    expect(parseRunEvent("export_finished", frame("export_finished", { project_url: null, created: 0, updated: 0, links: 0 }))).toMatchObject({ projectUrl: null });
+  });
+
+  test("reads a choose_team interrupt, with the saved team that vanished", () => {
+    const parsed = parseRunEvent("interrupt", frame("interrupt", { type: "choose_team", teams: [{ id: "t1", name: "Ship", key: "SHIP" }], saved_team_id: "gone" }));
+    expect(parsed).toEqual({
+      type: "interrupt",
+      interrupt: { kind: "choose_team", text: "t1", teams: [{ id: "t1", name: "Ship", key: "SHIP" }], savedTeamId: "gone" },
+    });
+  });
+
+  test("reads an export_approval interrupt and keeps unknown label marks as null", () => {
+    const parsed = parseRunEvent("interrupt", frame("interrupt", { type: "export_approval", preview }));
+    expect(parsed).toMatchObject({ interrupt: { kind: "export_approval", text: "4", preview: { labels: { items: [{ exists: null }] } } } });
+  });
+
+  test("turns a malformed export interrupt into the unreadable-pause notice", () => {
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "choose_team", teams: [] }))).toMatchObject({ type: "notice", code: UNREADABLE_PAUSE_CODE });
+    expect(parseRunEvent("interrupt", frame("interrupt", { type: "export_approval", preview: {} }))).toMatchObject({ type: "notice", code: UNREADABLE_PAUSE_CODE });
+  });
+});

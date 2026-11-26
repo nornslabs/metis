@@ -14,15 +14,19 @@ At ``planning`` the node (no model call):
 
 After an approval, and only if the plan is still the version the user saw, the node marks the
 run's export job ``running`` and creates or updates the project and one milestone per phase
-(``export_writes``). The run then ends (``export_state``) with the stage left at ``planning``;
-the issues are a later step. Re-running the node after a resume replays the same interrupts in
-the same order, so the team is saved only once both are answered, and the decision record is
+(``export_writes``), then the labels, one issue per task and the blocked-by links
+(``export_issues``) (SHIP-254). It ends the job ``succeeded``, ``partial`` or ``failed``; only a
+clean export moves the stage to ``exported`` and clears the approval, while a partial or failed one
+fails the run (what was saved stays, and a new export carries on from it).
+Re-running the node after a resume replays the same interrupts in the same order, so the team
+is saved only once both are answered, and the decision record is
 idempotent per run. A re-run that finds the run's decision already recorded asks nothing and goes
 straight to the writes, which carry on from the refs already saved (``_replay``).
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -37,6 +41,7 @@ from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.agent.tools.ask_user import CHOOSE_TEAM, EXPORT_APPROVAL
+from metis.agent.tools.export_issues import IssueSource, write_issues_and_links
 from metis.agent.tools.export_linear import (
     LIST_LABELS,
     LIST_TEAMS,
@@ -45,16 +50,22 @@ from metis.agent.tools.export_linear import (
 )
 from metis.agent.tools.export_preview import ExportPreview, ExportTeam, build_export_preview
 from metis.agent.tools.export_project import ProjectScore, idea_url
-from metis.agent.tools.export_writes import ProjectSource, write_project_and_milestones
+from metis.agent.tools.export_writes import (
+    ExportTally,
+    ProjectSource,
+    write_project_and_milestones,
+)
 from metis.agent.tools.mcp import McpRunContext, load_mcp_tools
 from metis.agent.tools.mcp_policy import INTEGRATOR_POLICY, ApprovalLedger
 from metis.agent.tools.research_kb import SessionOpener
 from metis.core.config import get_settings
 from metis.core.errors import (
+    ExportPartialError,
     ExportPlanChangedError,
     NoLinearTeamError,
     NoPlanToExportError,
     PlanNotFoundError,
+    UpstreamError,
 )
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
@@ -62,7 +73,9 @@ from metis.core.ports import FeatureFlags, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
 from metis.modules import ideas, identity, integrations, planning, scoring
+from metis.modules.ideas import Stage
 from metis.modules.integrations import (
+    FINISHED_STATUSES,
     ExportJob,
     ExportStatus,
     IntegrationProvider,
@@ -73,12 +86,9 @@ from metis.modules.planning import Plan
 EXPORT_ACTION = "export"
 # A recorded job in these statuses has an approval whose writes may still need to carry on.
 _WRITING_STATUSES = frozenset({ExportStatus.APPROVED, ExportStatus.RUNNING})
+# A job that already ended: a re-run (a crash before the run was recorded) must not write again.
 STATE_APPROVED = "approved"
 STATE_DECLINED = "declined"
-NOTICE_ISSUES_PENDING = "export.issues_pending"
-NOTICE_ISSUES_PENDING_TEXT = (
-    "The project and milestones are in Linear. Creating the issues is not available yet."
-)
 
 logger = get_logger(__name__)
 
@@ -166,7 +176,7 @@ async def _replay(
     record and the checkpoint). It asks nothing: the saved team may already have changed, which
     would shift the order of the interrupts the stored answers belong to."""
     preview = ExportPreview.model_validate(decided.summary)
-    approved = decided.status in _WRITING_STATUSES
+    approved = decided.status in _WRITING_STATUSES | FINISHED_STATUSES
     if preview.team.id != source.saved_team_id:
         await _save_team(open_session, context.workspace_id, preview.team)
     logger.info("export.decision_replayed", approved=approved)
@@ -328,8 +338,8 @@ async def _write(
     source: _Source,
     preview: ExportPreview,
     previewed_plan_version: int | None,
-) -> None:
-    """Create or update the project and milestones for an approved export.
+) -> dict[str, Any]:
+    """Create or update everything for an approved export and end its job; returns the result.
 
     Stops before any write if the plan is not the version the user saw (an approval that names no
     version counts as a mismatch: the guard never passes by default). The approval is recorded
@@ -347,34 +357,145 @@ async def _write(
     ledger.grant(EXPORT_ACTION, preview.summary_line())
     async with context.open_session(context.workspace_id) as session:
         await integrations.mark_export_running(session, context.workspace_id, context.run_id)
-    await write_project_and_milestones(
+    return await _run_writes(context, tools, source, preview)
+
+
+async def _run_writes(
+    context: McpRunContext, tools: dict[str, BaseTool], source: _Source, preview: ExportPreview
+) -> dict[str, Any]:
+    """Write everything and end the job. A clean export returns its result; anything else ends
+    the job ``partial`` (something was saved) or ``failed`` and raises."""
+    tally = ExportTally()
+    progress = _Progress(project_url=None)
+    try:
+        halt = await _write_everything(context, tools, source, preview, tally, progress)
+    except Exception:
+        await _end_job(context, tally, progress.project_url, clean=False)
+        raise
+    clean = halt is None and not tally.failed
+    result = await _end_job(context, tally, progress.project_url, clean=clean)
+    if halt is not None:
+        raise halt
+    if not clean:
+        raise _partial_error(result)
+    return result
+
+
+@dataclass
+class _Progress:
+    """The project's URL, known as soon as the project is saved (the job result needs it even
+    when a later step fails)."""
+
+    project_url: str | None
+
+
+async def _write_everything(
+    context: McpRunContext,
+    tools: dict[str, BaseTool],
+    source: _Source,
+    preview: ExportPreview,
+    tally: ExportTally,
+    progress: _Progress,
+) -> UpstreamError | None:
+    """The project and milestones, then the issues and links. Returns the error that stopped the
+    issue step early, if any; anything else that goes wrong is raised."""
+    plan = source.plan
+    url = idea_url(get_settings().web_base_url, source.idea_id)
+    total = _progress_total(plan)
+    written = await write_project_and_milestones(
         context,
         tools,
         ProjectSource(
             idea_id=source.idea_id,
             title=source.title,
-            url=idea_url(get_settings().web_base_url, source.idea_id),
+            url=url,
             spec_text=source.spec_text,
             score=source.score,
-            plan=source.plan,
+            plan=plan,
             team_id=preview.team.id,
         ),
+        tally,
+        total,
+    )
+    progress.project_url = written.project.external_url
+    return await write_issues_and_links(
+        context,
+        tools,
+        IssueSource(
+            plan=plan,
+            team_id=preview.team.id,
+            project_id=written.project.external_id,
+            milestone_ids=written.milestone_ids,
+            idea_url=url,
+            done=1 + len(plan.phases),
+            total=total,
+        ),
+        tally,
+    )
+
+
+def _progress_total(plan: Plan) -> int:
+    """Items the progress bar counts: the project, each phase, each task and one links item."""
+    tasks = [task for phase in plan.phases for task in phase.tasks]
+    has_links = any(task.blocked_by for task in tasks)
+    return 1 + len(plan.phases) + len(tasks) + (1 if has_links else 0)
+
+
+async def _end_job(
+    context: McpRunContext, tally: ExportTally, project_url: str | None, *, clean: bool
+) -> dict[str, Any]:
+    """End the run's job: ``succeeded`` when clean, else ``partial`` (something was saved) or
+    ``failed``. Returns the result stored with it."""
+    result: dict[str, Any] = {
+        "created": tally.created,
+        "updated": tally.updated,
+        "links": tally.links,
+        "failed": list(tally.failed),
+        "project_url": project_url,
+    }
+    if clean:
+        status = ExportStatus.SUCCEEDED
+    else:
+        status = ExportStatus.PARTIAL if tally.saved_any else ExportStatus.FAILED
+    try:
+        async with context.open_session(context.workspace_id) as session:
+            await integrations.finish_export(
+                session, context.workspace_id, context.run_id, status, result
+            )
+    except Exception:
+        if clean:
+            raise
+        logger.warning("export.finish_failed", status=status.value)
+    return result
+
+
+def _partial_error(result: dict[str, Any]) -> ExportPartialError:
+    failed = result.get("failed")
+    return ExportPartialError(
+        "Some items could not be saved in Linear; export again to carry on",
+        meta={
+            "created": result.get("created", 0),
+            "updated": result.get("updated", 0),
+            "links": result.get("links", 0),
+            "failed": len(failed) if isinstance(failed, list) else 0,
+        },
     )
 
 
 async def _finish(
-    state: MetisState, context: McpRunContext, ledger: ApprovalLedger, approved: bool
+    state: MetisState, context: McpRunContext, approved: bool, result: dict[str, Any] | None
 ) -> dict[str, Any]:
     update: dict[str, Any] = {
         "export_state": STATE_APPROVED if approved else STATE_DECLINED,
         "step_count": state["step_count"] + 1,
     }
-    if approved:
-        update["pending_approval"] = ledger.record
+    if approved and result is not None:
+        update["stage"] = Stage.EXPORTED
+        update["pending_approval"] = None
         await publish(
             str(context.run_id),
-            RunEventType.NOTICE,
-            {"code": NOTICE_ISSUES_PENDING, "text": NOTICE_ISSUES_PENDING_TEXT},
+            RunEventType.EXPORT_FINISHED,
+            {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
             redis=context.redis,
         )
     get_stream_writer()(

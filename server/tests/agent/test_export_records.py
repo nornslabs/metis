@@ -25,6 +25,7 @@ from tests.agent.export_helpers import (
     export_run,
     external_refs,
     local_ids,
+    outbox_count,
     owner_of,
     saved_team,
 )
@@ -267,3 +268,66 @@ async def test_a_declined_export_cannot_be_marked_running(
             await integrations.mark_export_running(session, run.workspace_id, run.run_id)
 
     assert [j["status"] for j in await export_jobs(engine, run)] == ["declined"]
+
+
+async def test_finishing_a_running_export_stores_the_result_and_writes_one_event(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+    result = {"created": 4, "updated": 1, "links": 2, "failed": [], "project_url": "https://x/p"}
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        await integrations.mark_export_running(session, run.workspace_id, run.run_id)
+        first = await integrations.finish_export(
+            session, run.workspace_id, run.run_id, ExportStatus.SUCCEEDED, result
+        )
+        second = await integrations.finish_export(
+            session, run.workspace_id, run.run_id, ExportStatus.FAILED, {"created": 0}
+        )
+
+    assert first.status is ExportStatus.SUCCEEDED and first.finished_at is not None
+    assert second.status is ExportStatus.SUCCEEDED  # a job that is not running is left alone
+    [job] = await export_jobs(engine, run)
+    assert job["status"] == "succeeded"
+    assert job["summary"]["result"] == result
+    assert "issues" in job["summary"]  # the preview the user saw is kept
+    assert await outbox_count(engine, run, "ExportFinished") == 1
+
+
+async def test_a_partial_or_failed_finish_writes_no_event(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        await integrations.mark_export_running(session, run.workspace_id, run.run_id)
+        await integrations.finish_export(
+            session, run.workspace_id, run.run_id, ExportStatus.PARTIAL, {"created": 1}
+        )
+
+    assert [j["status"] for j in await export_jobs(engine, run)] == ["partial"]
+    assert await outbox_count(engine, run, "ExportFinished") == 0
+
+
+async def test_an_export_cannot_be_finished_as_approved_or_declined(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+
+    with pytest.raises(ValueError):
+        async with in_workspace(app_sessions, run.workspace_id) as session:
+            await integrations.finish_export(
+                session, run.workspace_id, run.run_id, ExportStatus.APPROVED, {}
+            )
+
+
+async def test_finishing_a_job_before_it_runs_changes_nothing(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession]
+) -> None:
+    run, _ = await _record(engine, app_sessions, approved=True)
+
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        job = await integrations.finish_export(
+            session, run.workspace_id, run.run_id, ExportStatus.SUCCEEDED, {}
+        )
+
+    assert job.status is ExportStatus.APPROVED
+    assert await outbox_count(engine, run, "ExportFinished") == 0

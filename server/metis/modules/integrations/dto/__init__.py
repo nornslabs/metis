@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from metis.adapters.mcp.linear import ToolInfo
 from metis.modules.integrations.dto.connect import ConnectResult, PendingConnect
-from metis.modules.integrations.dto.exports import ExportJob, ExportStatus, ExternalRef, LocalKind
+from metis.modules.integrations.dto.exports import (
+    FINISHED_STATUSES,
+    RESULT_KEY,
+    ExportFailedItem,
+    ExportJob,
+    ExportStatus,
+    ExportSummary,
+    ExportSummaryList,
+    ExternalRef,
+    LocalKind,
+)
 from metis.modules.integrations.dto.providers import (
     ConnectionStatus,
     IntegrationProvider,
@@ -19,12 +29,17 @@ from metis.modules.integrations.dto.views import (
 )
 
 __all__ = [
+    "FINISHED_STATUSES",
+    "RESULT_KEY",
     "ConnectRequest",
     "ConnectResult",
     "ConnectStarted",
     "ConnectionStatus",
+    "ExportFailedItem",
     "ExportJob",
     "ExportStatus",
+    "ExportSummary",
+    "ExportSummaryList",
     "ExternalRef",
     "IntegrationList",
     "IntegrationProvider",

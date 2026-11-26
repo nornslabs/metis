@@ -14,6 +14,7 @@ import httpx
 import openai
 
 from metis.adapters.llm.chat import CALL_TIMEOUT_SECONDS, MAX_RETRIES, PROVIDER, map_error
+from metis.core.errors import UpstreamTimeoutError
 from metis.core.ports import EmbeddingBatch
 from metis.helpers.http import FailureReason, provider_error
 
@@ -75,4 +76,8 @@ def _map_error(exc: Exception) -> Exception:
         return provider_error(PROVIDER, FailureReason.NOT_SUPPORTED)
     if isinstance(exc, openai.BadRequestError) and exc.code == MODEL_NOT_FOUND_CODE:
         return provider_error(PROVIDER, FailureReason.NOT_SUPPORTED)
-    return map_error(exc)
+    mapped = map_error(exc)
+    if isinstance(mapped, UpstreamTimeoutError):
+        # Embeddings keep the plain upstream error: only chat calls have the timed-out code.
+        return provider_error(PROVIDER, FailureReason.TIMEOUT)
+    return mapped

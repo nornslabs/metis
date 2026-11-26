@@ -64,6 +64,7 @@ class ErrorCode(StrEnum):
     PROVIDER_LLM_NOT_READY = "provider.llm_not_ready"
     PROVIDER_KEY_NOT_FOUND = "provider.key_not_found"
     UPSTREAM_ERROR = "provider.upstream_error"
+    UPSTREAM_TIMEOUT = "provider.timeout"
     BUDGET_EXCEEDED = "provider.budget_exceeded"
 
     # ---------------------------------------------------------------------- crypto
@@ -84,6 +85,8 @@ class ErrorCode(StrEnum):
     RUN_EVENT_MALFORMED = "run.event_malformed"
     RUN_STEP_LIMIT_REACHED = "run.step_limit_reached"
     RUN_FAILED = "run.failed"
+    RUN_RECOVERY_EXHAUSTED = "run.recovery_exhausted"
+    RUN_STALLED = "run.stalled"
     RUN_IDEMPOTENCY_MISMATCH = "run.idempotency_mismatch"
     RUN_ENQUEUE_FAILED = "run.enqueue_failed"
 
@@ -142,6 +145,7 @@ class ErrorCode(StrEnum):
     EXPORT_NO_LINEAR_TEAM = "export.no_linear_team"
     EXPORT_NO_PLAN = "export.no_plan"
     EXPORT_PLAN_CHANGED = "export.plan_changed"
+    EXPORT_PARTIAL = "export.partial"
 
 
 @dataclass(frozen=True)
@@ -298,6 +302,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Upstream Error",
         retryable=True,
     ),
+    ErrorCode.UPSTREAM_TIMEOUT: ErrorSpec(
+        status=504,
+        title="Model Timed Out",
+        retryable=True,
+    ),
     ErrorCode.BUDGET_EXCEEDED: ErrorSpec(
         status=402,
         title="Budget Exceeded",
@@ -369,6 +378,16 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         status=500,
         title="Run Failed",
         retryable=False,
+    ),
+    ErrorCode.RUN_RECOVERY_EXHAUSTED: ErrorSpec(
+        status=500,
+        title="Run Interrupted Too Many Times",
+        retryable=True,
+    ),
+    ErrorCode.RUN_STALLED: ErrorSpec(
+        status=500,
+        title="Run Stalled",
+        retryable=True,
     ),
     ErrorCode.RUN_IDEMPOTENCY_MISMATCH: ErrorSpec(
         status=409,
@@ -596,6 +615,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
         title="Plan Changed Since Approval",
         retryable=False,
     ),
+    ErrorCode.EXPORT_PARTIAL: ErrorSpec(
+        status=502,
+        title="Export Only Partly Done",
+        retryable=True,
+    ),
 }
 
 
@@ -712,6 +736,12 @@ class UpstreamError(MetisError):
     """Generic 502 upstream error."""
 
     code: ErrorCode = ErrorCode.UPSTREAM_ERROR
+
+
+class UpstreamTimeoutError(UpstreamError):
+    """The model did not answer within the call timeout (504)."""
+
+    code: ErrorCode = ErrorCode.UPSTREAM_TIMEOUT
 
 
 class BudgetError(MetisError):
@@ -945,6 +975,13 @@ class ExportPlanChangedError(ConflictError):
     code: ErrorCode = ErrorCode.EXPORT_PLAN_CHANGED
 
 
+class ExportPartialError(UpstreamError):
+    """502: some Linear items were not saved. What was saved stays; a new export carries on.
+    ``meta`` holds ``created``, ``updated``, ``links`` and ``failed`` (counts)."""
+
+    code: ErrorCode = ErrorCode.EXPORT_PARTIAL
+
+
 class PlanNotFoundError(NotFoundError):
     """404: no such plan, phase or task in the caller's workspace (or its idea is archived)."""
 
@@ -1006,6 +1043,7 @@ __all__ = [
     "NoLinearTeamError",
     "NoPlanToExportError",
     "ExportPlanChangedError",
+    "ExportPartialError",
     "IntegrationProviderUnsupportedError",
     "IntegrationOAuthStateInvalidError",
     "IntegrationOAuthFailedError",

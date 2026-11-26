@@ -24,6 +24,7 @@ MAINTENANCE_QUEUE = "maintenance"
 JOB_QUEUES: dict[str, str] = {
     "ping": AGENT_QUEUE,
     "run_graph": AGENT_QUEUE,
+    "recover_runs": MAINTENANCE_QUEUE,
     "outbox_relay": MAINTENANCE_QUEUE,
     "cleanup": MAINTENANCE_QUEUE,
 }

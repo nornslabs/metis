@@ -76,9 +76,9 @@ test.describe("settings sheet", () => {
     await expect(page.getByLabel("Email")).toHaveAttribute("readonly", "");
   });
 
-  test("integrations says Soon and preferences holds the theme", async ({ page }) => {
+  test("integrations shows Linear and preferences holds the theme", async ({ page }) => {
     await openSettings(page, "integrations");
-    await expect(page.getByText("Soon")).toBeVisible();
+    await expect(page.getByText("Not connected")).toBeVisible();
     await page.getByRole("tab", { name: "Preferences" }).click();
     await page.getByRole("button", { name: "Dark" }).click();
     await expect(page.locator("html")).toHaveClass(/dark/);

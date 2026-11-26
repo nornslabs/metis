@@ -86,10 +86,12 @@ class WorkflowRun(FrozenModel):
 
 
 class RunRef(FrozenModel):
-    """A run found without a workspace in scope: enough to enqueue its job."""
+    """A run found without a workspace in scope: enough to enqueue its job and to tell
+    whether it is making progress (``updated_at``)."""
 
     run_id: UUID
     workspace_id: UUID
+    updated_at: datetime
 
 
 class RunView(FrozenModel):

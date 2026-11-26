@@ -7,20 +7,13 @@ import { bodyOf } from "@/lib/api/result";
 import type { components } from "@/lib/api/schema";
 import { useWorkspaceId } from "@/lib/api/use-workspace-id";
 
+import { SUMMARY_IDS_MAX, chunk } from "./chunk";
 import { queryKeys } from "./keys";
 
 type IdeaScoreSummary = components["schemas"]["IdeaScoreSummary"];
 
-/** The server accepts at most this many ids per call. */
-const SUMMARY_IDS_MAX = 50;
 /** A page of trends is reused for this long before it is fetched again. */
 const SUMMARIES_STALE_MS = 30_000;
-
-function chunk<T>(items: readonly T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let start = 0; start < items.length; start += size) chunks.push(items.slice(start, start + size));
-  return chunks;
-}
 
 /**
  * Score trends (totals per version and band) of the given ideas, by idea id. One call per page of

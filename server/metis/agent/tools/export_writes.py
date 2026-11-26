@@ -12,7 +12,7 @@ four small adapter functions at the bottom, so a mismatch with the real server i
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 from uuid import UUID
 
@@ -56,6 +56,35 @@ class ProjectSource:
     team_id: str
 
 
+@dataclass
+class ExportTally:
+    """What one export run saved so far, filled in as items are saved (the writes stop at a
+    failure, and the job must still be ended with the counts up to there)."""
+
+    created: int = 0
+    updated: int = 0
+    links: int = 0
+    failed: list[dict[str, str]] = field(default_factory=list)
+
+    def record(self, action: str) -> None:
+        if action == "create":
+            self.created += 1
+        else:
+            self.updated += 1
+
+    @property
+    def saved_any(self) -> bool:
+        return self.created + self.updated > 0
+
+
+@dataclass(frozen=True)
+class ProjectWrite:
+    """The project and the milestones as Linear holds them after the first two steps."""
+
+    project: SavedItem
+    milestone_ids: dict[UUID, str]
+
+
 @dataclass(frozen=True)
 class SavedItem:
     """A Linear item as the tool answered: its id and, when given, its url."""
@@ -65,8 +94,12 @@ class SavedItem:
 
 
 async def write_project_and_milestones(
-    context: McpRunContext, tools: dict[str, BaseTool], source: ProjectSource
-) -> None:
+    context: McpRunContext,
+    tools: dict[str, BaseTool],
+    source: ProjectSource,
+    tally: ExportTally,
+    total: int,
+) -> ProjectWrite:
     """Create or update the project and its milestones, in plan order.
 
     Stops at the first failure with the provider's error; what was saved stays saved, and the
@@ -74,9 +107,9 @@ async def write_project_and_milestones(
     """
     phases = source.plan.phases
     refs = await _refs(context, source)
-    total = 1 + len(phases)
+    milestone_ids: dict[UUID, str] = {}
     project_ref = refs.get(LocalKind.IDEA, {}).get(source.idea_id)
-    project = await _save(
+    project = await save_item(
         context,
         tools,
         SAVE_PROJECT,
@@ -84,13 +117,14 @@ async def write_project_and_milestones(
         LocalKind.IDEA,
         source.idea_id,
     )
-    await _progress(context, ITEM_PROJECT, source.title, project_ref, 1, total)
-    logger.info("export.project_saved", action=_action(project_ref))
+    tally.record(action_of(project_ref))
+    await publish_progress(context, ITEM_PROJECT, source.title, action_of(project_ref), 1, total)
+    logger.info("export.project_saved", action=action_of(project_ref))
     phase_refs = refs.get(LocalKind.PHASE, {})
     for index, phase in enumerate(phases):
         existing = phase_refs.get(phase.id)
         name = milestone_name(index, phase.name)
-        await _save(
+        saved = await save_item(
             context,
             tools,
             SAVE_MILESTONE,
@@ -98,8 +132,11 @@ async def write_project_and_milestones(
             LocalKind.PHASE,
             phase.id,
         )
-        await _progress(context, ITEM_MILESTONE, name, existing, index + 2, total)
-        logger.info("export.milestone_saved", phase_index=index, action=_action(existing))
+        milestone_ids[phase.id] = saved.external_id
+        tally.record(action_of(existing))
+        await publish_progress(context, ITEM_MILESTONE, name, action_of(existing), index + 2, total)
+        logger.info("export.milestone_saved", phase_index=index, action=action_of(existing))
+    return ProjectWrite(project, milestone_ids)
 
 
 async def _refs(
@@ -121,7 +158,7 @@ async def _refs(
         }
 
 
-async def _save(
+async def save_item(
     context: McpRunContext,
     tools: dict[str, BaseTool],
     tool_name: str,
@@ -130,16 +167,7 @@ async def _save(
     local_id: UUID,
 ) -> SavedItem:
     """Call the write tool, then commit the ref before returning (the next call comes after)."""
-    tool = tools.get(tool_name)
-    if tool is None:
-        raise provider_error(_PROVIDER.value, FailureReason.BAD_RESPONSE)
-    try:
-        saved = _saved_item(str(await tool.ainvoke(arguments)))
-    except Exception as exc:
-        logger.warning(
-            "export.write_failed", item=local_kind.value, reason=failure_reason(exc).value
-        )
-        raise
+    saved = parse_saved_item(await call_tool(tools, tool_name, arguments, local_kind.value))
     async with context.open_session(context.workspace_id) as session:
         await integrations.save_external_ref(
             session,
@@ -153,23 +181,38 @@ async def _save(
     return saved
 
 
-async def _progress(
+async def call_tool(
+    tools: dict[str, BaseTool], tool_name: str, arguments: dict[str, Any], item: str
+) -> str:
+    """Run one write tool and return its text; a missing tool is a provider failure. A failure is
+    logged with its safe reason only (never the arguments)."""
+    tool = tools.get(tool_name)
+    if tool is None:
+        raise provider_error(_PROVIDER.value, FailureReason.BAD_RESPONSE)
+    try:
+        return str(await tool.ainvoke(arguments))
+    except Exception as exc:
+        logger.warning("export.write_failed", item=item, reason=failure_reason(exc).value)
+        raise
+
+
+async def publish_progress(
     context: McpRunContext,
     item: str,
     name: str,
-    existing: ExternalRef | None,
+    action: str,
     done: int,
     total: int,
 ) -> None:
     await publish(
         str(context.run_id),
         RunEventType.EXPORT_PROGRESS,
-        {"item": item, "name": name, "action": _action(existing), "done": done, "total": total},
+        {"item": item, "name": name, "action": action, "done": done, "total": total},
         redis=context.redis,
     )
 
 
-def _action(existing: ExternalRef | None) -> str:
+def action_of(existing: ExternalRef | None) -> str:
     return "update" if existing is not None else "create"
 
 
@@ -212,7 +255,7 @@ def _milestone_args(
     return arguments
 
 
-def _saved_item(text: str) -> SavedItem:
+def parse_saved_item(text: str) -> SavedItem:
     """The id and url in a save tool's answer; an answer with no id is a provider failure."""
     try:
         data: Any = json.loads(text)

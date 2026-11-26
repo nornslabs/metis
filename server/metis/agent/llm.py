@@ -66,6 +66,8 @@ class LLMGateway:
         self._flags = flags or build_flag_provider()
         self._models: dict[str, OpenAICompatibleChat] = {}
         self._embedding_model = settings.llm_embedding_model
+        self._call_timeout = settings.llm_call_timeout_seconds
+        self._long_call_timeout = settings.llm_long_call_timeout_seconds
         self._embedder: Embedder | None = None
         self._embeddings_unavailable = False
 
@@ -105,6 +107,8 @@ class LLMGateway:
             api_key=credentials.api_key,
             model=chat_model,
             purpose=purpose,
+            timeout_seconds=self._call_timeout,
+            long_timeout_seconds=self._long_call_timeout,
             callbacks=[*self._tracing, self._usage_recorder(chat_model)],
             http_client=self._http_client,
         )

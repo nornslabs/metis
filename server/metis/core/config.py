@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     run_lock_heartbeat_seconds: int = Field(
         default=20, ge=1, validation_alias="RUN_LOCK_HEARTBEAT_SECONDS"
     )
+    # Run recovery: a scheduled job re-enqueues runs that lost their lock; a run is retried at
+    # most ``run_recovery_max_attempts`` times, and a run with no progress for
+    # ``run_stall_seconds`` is failed (it must outlast the longest model call).
+    run_recovery_interval_seconds: int = Field(
+        default=30, ge=5, le=59, validation_alias="RUN_RECOVERY_INTERVAL_SECONDS"
+    )
+    run_recovery_max_attempts: int = Field(
+        default=3, ge=1, validation_alias="RUN_RECOVERY_MAX_ATTEMPTS"
+    )
+    run_stall_seconds: int = Field(default=900, ge=300, validation_alias="RUN_STALL_SECONDS")
     # Hard cap on one agent job (Arq's default is 300s, shorter than a research run).
     agent_job_timeout_seconds: int = Field(
         default=1800, ge=60, validation_alias="AGENT_JOB_TIMEOUT_SECONDS"
@@ -126,6 +136,15 @@ class Settings(BaseSettings):
         default=None, validation_alias="GOOGLE_REDIRECT_URI"
     )
 
+    # Chat call timeouts: short calls (interview, research, score, advise) and long-output
+    # calls (spec, plan), which write a whole document in one answer.
+    llm_call_timeout_seconds: float = Field(
+        default=60.0, ge=10, validation_alias="LLM_CALL_TIMEOUT_SECONDS"
+    )
+    llm_long_call_timeout_seconds: float = Field(
+        default=240.0, ge=10, validation_alias="LLM_LONG_CALL_TIMEOUT_SECONDS"
+    )
+
     # Optional LLM prices, model id -> USD per million tokens (JSON). A model without
     # an entry has no cost recorded; there is no built-in price list.
     llm_prices: dict[str, ModelPrice] = Field(default_factory=dict, validation_alias="LLM_PRICES")
@@ -164,6 +183,10 @@ class Settings(BaseSettings):
             raise ValueError("redis_url is required")
         if not self.encryption_master_key:
             raise ValueError("encryption_master_key is required")
+        if self.llm_long_call_timeout_seconds < self.llm_call_timeout_seconds:
+            raise ValueError(
+                "llm_long_call_timeout_seconds must not be below llm_call_timeout_seconds"
+            )
         if self.run_lock_heartbeat_seconds * 2 >= self.run_lock_ttl_seconds:
             raise ValueError(
                 "run_lock_heartbeat_seconds must be under half of run_lock_ttl_seconds"
