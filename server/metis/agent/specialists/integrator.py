@@ -32,6 +32,7 @@ from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 from redis.asyncio import Redis
 
+from metis.adapters.flags import build_flag_provider
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -57,6 +58,7 @@ from metis.core.errors import (
 )
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlags, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
 from metis.modules import ideas, identity, integrations, planning, scoring
@@ -86,8 +88,11 @@ def build_integrator(
     redis: Redis,
     make_client: ClientFactory,
     mcp_http_client: McpHttpClientFactory | None = None,
+    flags: FeatureFlags | None = None,
 ) -> SpecialistNode:
     """The Integrator node for one run."""
+    _flags = flags or build_flag_provider()
+    settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
         workspace_id, idea_id = UUID(state["workspace_id"]), UUID(state["idea_id"])
@@ -106,7 +111,9 @@ def build_integrator(
         async with open_session(workspace_id) as session:
             decided = await integrations.get_export_decision(session, workspace_id, run_id)
         if decided is not None:
-            return await _replay(state, context, ledger, open_session, source, decided)
+            return await _replay(
+                state, context, ledger, open_session, source, decided, flags=_flags
+            )
         tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
         team, chosen = await _team(tools, source.saved_team_id)
         preview = await _preview(tools, source, team)
@@ -125,7 +132,22 @@ def build_integrator(
             await _save_team(open_session, workspace_id, team)
         logger.info("export.decided", approved=approved)
         if approved:
-            await _write(context, ledger, tools, source, preview, previewed)
+            flag_context = FlagContext(
+                workspace_id=workspace_id,
+                environment=settings.app_env,
+                custom_attributes={},
+            )
+            if not await _flags.is_enabled("linear_enabled", flag_context):
+                logger.info("export.skipped_linear_disabled")
+                get_stream_writer()(
+                    {
+                        "type": RunEventType.NOTICE.value,
+                        "code": "export.skipped_linear_disabled",
+                        "text": "Linear export is skipped: the linear_enabled kill switch is off.",
+                    }
+                )
+            else:
+                await _write(context, ledger, tools, source, preview, previewed)
         return await _finish(state, context, ledger, approved)
 
     return node
@@ -138,6 +160,7 @@ async def _replay(
     open_session: SessionOpener,
     source: _Source,
     decided: ExportJob,
+    flags: FeatureFlags | None = None,
 ) -> dict[str, Any]:
     """Finish a run whose decision was already recorded (a re-run after a crash between the
     record and the checkpoint). It asks nothing: the saved team may already have changed, which
@@ -148,8 +171,20 @@ async def _replay(
         await _save_team(open_session, context.workspace_id, preview.team)
     logger.info("export.decision_replayed", approved=approved)
     if approved:
-        tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
-        await _write(context, ledger, tools, source, preview, _stored_plan_version(decided))
+        _flags = flags or build_flag_provider()
+        settings = get_settings()
+        flag_context = FlagContext(
+            workspace_id=context.workspace_id,
+            environment=settings.app_env,
+            custom_attributes={},
+        )
+        if not await _flags.is_enabled("linear_enabled", flag_context):
+            logger.info("export.skipped_linear_disabled")
+        else:
+            tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
+            await _write(
+                context, ledger, tools, source, preview, _stored_plan_version(decided)
+            )
     return await _finish(state, context, ledger, approved)
 
 
