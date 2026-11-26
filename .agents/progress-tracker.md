@@ -19,6 +19,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
 | fix-run-recovery-reaper | fix/run-recovery-reaper | done | SHIP-356: `recover_runs` job every 30 s from the scheduler (maintenance worker), grace window, Redis attempt counter (`run.recovery_exhausted`), stall watchdog (`run.stalled`, cancel flag), migration `0027` (`list_running_runs()` returns `updated_at`); tests not run locally, CI runs them |
+| fix-llm-call-timeout | fix/llm-call-timeout | done | SHIP-355: per-purpose chat timeout (`LLM_CALL_TIMEOUT_SECONDS` 60, `LLM_LONG_CALL_TIMEOUT_SECONDS` 240 for spec/plan), SDK retries off and adapter retries only rate_limited/server_error/unreachable, new `provider.timeout` (504, "Model Timed Out", `UpstreamTimeoutError`); tests not run locally, CI runs them |
 | feat-web-export | feat/web-export | done | SHIP-255: Integrations tab, Plan pane Export menu, team picker and preview dialogs, progress and result (`ExportStatus`), history badge; adds one server read route `GET /v1/exports/summaries` (user decision); all blockers done. |
 | feat-linear-export-issues | feat/linear-export-issues | done | SHIP-254 (35.3 of SHIP-248): issues per task under milestones with estimate, labels, sub-issues, blocked-by links; finish (`succeeded`/`partial`/`failed`, stage `exported`, `ExportFinished`, `export_finished`); migration `0026` adds `partial`; stacked on feat/linear-export-project; tests run by CI |
 | feat-markdown-export | feat/markdown-export | done | SHIP-249: Markdown export route and renderer (`integrations/helpers/plan_markdown.py`, Jinja2), slug helper, import layering change |
@@ -90,6 +91,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 
 ## Next Up (MVP build order)
 
+- `fix-run-recovery-reaper` (periodic run recovery, attempt limit, stall watchdog; SHIP-356, specced, draft).
 - SHIP-252 (`feat-linear-export-preview`, built), then SHIP-253 (35.2 project and milestones: `feat-linear-export-project`, built) and SHIP-254 (35.3 issues and links: `feat-linear-export-issues`, specced, draft; stacked on `feat/linear-export-project`).
 - SHIP-233 (MCP tools in the agent graph: `feat-mcp-graph-tools`, specced, draft) and SHIP-255 (web integrations settings and export flow), both unblocked by SHIP-231 (`feat-mcp-connections`, built).
 - SHIP-250 (web spec versions: `feat-web-spec-versions`, specced, draft; version menu, view, Compare, Restore inside the Spec pane), SHIP-248 (Integrator) and SHIP-255 (export flow).

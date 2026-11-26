@@ -136,6 +136,15 @@ class Settings(BaseSettings):
         default=None, validation_alias="GOOGLE_REDIRECT_URI"
     )
 
+    # Chat call timeouts: short calls (interview, research, score, advise) and long-output
+    # calls (spec, plan), which write a whole document in one answer.
+    llm_call_timeout_seconds: float = Field(
+        default=60.0, ge=10, validation_alias="LLM_CALL_TIMEOUT_SECONDS"
+    )
+    llm_long_call_timeout_seconds: float = Field(
+        default=240.0, ge=10, validation_alias="LLM_LONG_CALL_TIMEOUT_SECONDS"
+    )
+
     # Optional LLM prices, model id -> USD per million tokens (JSON). A model without
     # an entry has no cost recorded; there is no built-in price list.
     llm_prices: dict[str, ModelPrice] = Field(default_factory=dict, validation_alias="LLM_PRICES")
@@ -174,6 +183,10 @@ class Settings(BaseSettings):
             raise ValueError("redis_url is required")
         if not self.encryption_master_key:
             raise ValueError("encryption_master_key is required")
+        if self.llm_long_call_timeout_seconds < self.llm_call_timeout_seconds:
+            raise ValueError(
+                "llm_long_call_timeout_seconds must not be below llm_call_timeout_seconds"
+            )
         if self.run_lock_heartbeat_seconds * 2 >= self.run_lock_ttl_seconds:
             raise ValueError(
                 "run_lock_heartbeat_seconds must be under half of run_lock_ttl_seconds"

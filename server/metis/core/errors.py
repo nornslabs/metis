@@ -64,6 +64,7 @@ class ErrorCode(StrEnum):
     PROVIDER_LLM_NOT_READY = "provider.llm_not_ready"
     PROVIDER_KEY_NOT_FOUND = "provider.key_not_found"
     UPSTREAM_ERROR = "provider.upstream_error"
+    UPSTREAM_TIMEOUT = "provider.timeout"
     BUDGET_EXCEEDED = "provider.budget_exceeded"
 
     # ---------------------------------------------------------------------- crypto
@@ -299,6 +300,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.UPSTREAM_ERROR: ErrorSpec(
         status=502,
         title="Upstream Error",
+        retryable=True,
+    ),
+    ErrorCode.UPSTREAM_TIMEOUT: ErrorSpec(
+        status=504,
+        title="Model Timed Out",
         retryable=True,
     ),
     ErrorCode.BUDGET_EXCEEDED: ErrorSpec(
@@ -730,6 +736,12 @@ class UpstreamError(MetisError):
     """Generic 502 upstream error."""
 
     code: ErrorCode = ErrorCode.UPSTREAM_ERROR
+
+
+class UpstreamTimeoutError(UpstreamError):
+    """The model did not answer within the call timeout (504)."""
+
+    code: ErrorCode = ErrorCode.UPSTREAM_TIMEOUT
 
 
 class BudgetError(MetisError):

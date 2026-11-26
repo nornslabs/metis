@@ -144,6 +144,26 @@ async def test_other_provider_errors_are_raised_as_safe_upstream_errors(
     assert LLM_KEY not in str(caught.value)
 
 
+@pytest.mark.usefixtures("no_retries")
+async def test_an_embedding_timeout_stays_a_plain_upstream_error(
+    engine: AsyncEngine, app_sessions: Sessions, server: FakeLLMServer
+) -> None:
+    workspace_id = await workspace_with_key(engine)
+
+    def stall(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("read timed out", request=request)
+
+    server.responder = stall
+    gw = await _gateway(engine, workspace_id, app_sessions, server)
+
+    with pytest.raises(UpstreamError) as caught:
+        await _embed(gw, app_sessions, "Acme")
+
+    assert type(caught.value) is UpstreamError
+    assert caught.value.code.value == "provider.upstream_error"
+    assert caught.value.meta == {"provider": "llm", "reason": FailureReason.TIMEOUT.value}
+
+
 async def test_a_workspace_without_a_key_cannot_embed(
     engine: AsyncEngine, app_sessions: Sessions, server: FakeLLMServer
 ) -> None:
