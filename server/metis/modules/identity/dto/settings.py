@@ -47,6 +47,7 @@ class WorkspaceSettingsView(FrozenModel):
     max_steps: int
     version: int
     linear_team_id: str | None = None
+    capabilities: dict[str, object] = Field(default_factory=dict)
 
 
 class SettingsResponse(FrozenModel):

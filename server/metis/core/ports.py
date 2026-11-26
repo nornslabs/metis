@@ -78,3 +78,9 @@ class FeatureFlags(Protocol):
     async def is_enabled(self, flag: str, context: FlagContext) -> bool:
         """True when ``flag`` is enabled for ``context``."""
         ...
+
+    async def get_json(
+        self, key: str, context: FlagContext, default: dict[str, object]
+    ) -> dict[str, object]:
+        """JSON config for ``key``, or ``default`` when unset or unparseable."""
+        ...

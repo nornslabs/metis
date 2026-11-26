@@ -7,12 +7,17 @@ owns the transaction. Each function sets the RLS context it needs (``app.user_id
 
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.adapters.flags import build_flag_provider
+from metis.core.config import get_settings
 from metis.core.db import WORKSPACE_SETTING
 from metis.core.errors import ConflictError
+from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlags, FlagContext
 from metis.modules.identity import repo
 from metis.modules.identity.dto import (
     DEFAULT_MAX_STEPS,
@@ -27,18 +32,55 @@ from metis.modules.identity.helpers.permissions import require_owner
 from metis.modules.identity.helpers.views import key_view
 from metis.modules.identity.models import WorkspaceSettingsRow
 
+logger = get_logger(__name__)
 
-async def get_settings_overview(session: AsyncSession, workspace_id: UUID) -> SettingsResponse:
-    """Masked keys and run settings of the workspace."""
+async def get_settings_overview(
+    session: AsyncSession, workspace_id: UUID, flags: FeatureFlags | None = None
+) -> SettingsResponse:
+    """Masked keys and run settings of the workspace.
+
+    Remote config values (capabilities, run_budget_usd, max_steps) override DB values
+    when the flag provider returns a non-default result.
+    """
+    _flags = flags or build_flag_provider()
+    context = FlagContext(
+        workspace_id=workspace_id,
+        environment=get_settings().app_env,
+        custom_attributes={},
+    )
+    capabilities = await _flags.get_json("capabilities", context, {})
+    run_budget_remote = await _flags.get_json("run_budget_usd", context, {})
+    max_steps_remote = await _flags.get_json("max_steps", context, {})
+
     async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
         keys = {
             row.kind: key_view(row)
             for row in await repo.provider_keys.list_for_workspace(session, workspace_id)
         }
         settings = await repo.settings.get(session, workspace_id)
+
+    run_budget_usd = settings.run_budget_usd if settings else DEFAULT_RUN_BUDGET_USD
+    max_steps = settings.max_steps if settings else DEFAULT_MAX_STEPS
+    linear_team_id = settings.linear_team_id if settings else None
+
+    if run_budget_remote:
+        remote_value = run_budget_remote.get("value")
+        if remote_value is not None:
+            run_budget_usd = Decimal(str(remote_value))
+    if max_steps_remote:
+        remote_value = max_steps_remote.get("value")
+        if remote_value is not None:
+            max_steps = int(str(remote_value))
+
     return SettingsResponse(
         keys=ProviderKeys(**keys),
-        settings=_settings_view(settings),
+        settings=WorkspaceSettingsView(
+            run_budget_usd=run_budget_usd,
+            max_steps=max_steps,
+            version=settings.version if settings else 0,
+            linear_team_id=linear_team_id,
+            capabilities=capabilities,
+        ),
     )
 
 
@@ -81,8 +123,15 @@ def _settings_view(row: WorkspaceSettingsRow | None) -> WorkspaceSettingsView:
             run_budget_usd=DEFAULT_RUN_BUDGET_USD,
             max_steps=DEFAULT_MAX_STEPS,
             version=0,
+            capabilities={},
         )
-    return WorkspaceSettingsView.model_validate(row)
+    return WorkspaceSettingsView(
+        run_budget_usd=row.run_budget_usd,
+        max_steps=row.max_steps,
+        version=row.version,
+        linear_team_id=row.linear_team_id,
+        capabilities={},
+    )
 
 
 def _settings_changes(patch: SettingsPatch) -> dict[str, object]:

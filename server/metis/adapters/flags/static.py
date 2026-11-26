@@ -1,12 +1,6 @@
-"""Static feature flags: each flag reads an environment variable ``FF_<FLAG>``.
-
-A flag is on when its variable is set to a truthy value (``1``, ``true``, ``yes``,
-``on``, case-insensitive); anything else -- missing or empty -- is off. Flags never
-change during a run, so a provider instance can be shared across the run's gateway.
-"""
-
 from __future__ import annotations
 
+import json
 import os
 
 from metis.core.ports import FeatureFlags, FlagContext
@@ -36,6 +30,20 @@ class StaticProvider:
         if value in _FALSY:
             return False
         return True
+
+    async def get_json(
+        self, key: str, context: FlagContext, default: dict[str, object]
+    ) -> dict[str, object]:
+        value = os.environ.get(_flag_env_name(key), "").strip()
+        if not value:
+            return default
+        try:
+            parsed = json.loads(value)
+        except json.JSONDecodeError:
+            return default
+        if not isinstance(parsed, dict):
+            return default
+        return parsed
 
 
 def build_flag_provider() -> FeatureFlags:
