@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select, text, tuple_, update
+from sqlalchemy import func, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql.dml import ReturningInsert
@@ -143,10 +143,23 @@ async def change_status(
     return (await session.scalars(stmt)).one_or_none()
 
 
-async def list_running(session: AsyncSession) -> list[tuple[UUID, UUID]]:
-    """``(run_id, workspace_id)`` of every running run, through the ``SECURITY DEFINER``
-    function that reads across workspaces."""
-    result = await session.execute(
-        text("SELECT run_id, workspace_id FROM ideas.list_running_runs()")
+async def touch(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> None:
+    """Set ``updated_at`` to now while the run is ``running`` (no version bump)."""
+    await session.execute(
+        update(WorkflowRunRow)
+        .where(
+            WorkflowRunRow.id == run_id,
+            WorkflowRunRow.workspace_id == workspace_id,
+            WorkflowRunRow.status == "running",
+        )
+        .values(updated_at=func.now())
     )
-    return [(row.run_id, row.workspace_id) for row in result]
+
+
+async def list_running(session: AsyncSession) -> list[tuple[UUID, UUID, datetime]]:
+    """``(run_id, workspace_id, updated_at)`` of every running run, through the
+    ``SECURITY DEFINER`` function that reads across workspaces."""
+    result = await session.execute(
+        text("SELECT run_id, workspace_id, updated_at FROM ideas.list_running_runs()")
+    )
+    return [(row.run_id, row.workspace_id, row.updated_at) for row in result]
