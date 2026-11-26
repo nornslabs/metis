@@ -7,8 +7,8 @@ One Python codebase (`server/metis`), one Docker image, three logical processes 
 | Process     | Entrypoint                 | Job                                                |
 | ----------- | -------------------------- | -------------------------------------------------- |
 | `api`       | `entrypoints/api.py`       | FastAPI REST `/v1`, SSE, auth                      |
-| `worker`    | `entrypoints/worker.py`    | Arq jobs: `run_graph` (`jobs/run_graph.py`), `market_scan`, outbox relay; one process per queue (`AgentWorkerSettings`, `MaintenanceWorkerSettings`) |
-| `scheduler` | `entrypoints/scheduler.py` | Market-watch ticks (15 min), nightly jobs          |
+| `worker`    | `entrypoints/worker.py`    | Arq jobs: `run_graph` (`jobs/run_graph.py`), `recover_runs` (`jobs/recover_runs.py`), `market_scan`, outbox relay; one process per queue (`AgentWorkerSettings`, `MaintenanceWorkerSettings`) |
+| `scheduler` | `entrypoints/scheduler.py` | Outbox relay (5 s), run recovery (30 s), market-watch ticks (15 min), nightly jobs |
 
 ## Configuration
 
@@ -19,6 +19,7 @@ All config via env, loaded into `core/config.py` (pydantic-settings). No hardcod
 | Postgres         | `DATABASE_URL`                                            |
 | Redis            | `REDIS_URL`                                               |
 | Run lock         | `RUN_LOCK_TTL_SECONDS` (60), `RUN_LOCK_HEARTBEAT_SECONDS` (20; must be under half the TTL) |
+| Run recovery     | `RUN_RECOVERY_INTERVAL_SECONDS` (30; 5–59), `RUN_RECOVERY_MAX_ATTEMPTS` (3), `RUN_STALL_SECONDS` (900; ≥ 300, must outlast the longest model call) |
 | Stub specialists | `AGENT_STUB_SPECIALISTS` (false): true makes every specialist a stub (no LLM calls); set only for the web e2e stack, which has no LLM key |
 | Sessions         | `SESSION_COOKIE_NAME` (default `metis_session`), `SESSION_TTL_DAYS` (30), `SESSION_IDLE_DAYS` (7; `1 ≤ idle ≤ ttl`), `COOKIE_DOMAIN` (optional), `COOKIE_SECURE` (optional; unset ⇒ `Secure` unless `APP_ENV=development`, read as `settings.secure_cookies`) |
 | Google sign-in   | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (SecretStr), `GOOGLE_REDIRECT_URI`; all required unless `APP_ENV=development`, where unset ⇒ Google not offered (`settings.google_configured`) |
@@ -232,7 +233,7 @@ One LangGraph `StateGraph` in `agent/graph.py`, compiled with `AsyncPostgresSave
   - **End**: no `last_error` → `succeeded`; `last_error` set (the step limit) → `failed` with that code; any exception → `failed` with its `MetisError` code, else `run.failed`; the stored `{code, message}` message is the catalog title, never the exception text (logged server-side). `asyncio.CancelledError` (worker shutdown) is not caught: the run stays `running` for recovery. The terminal `run_status` starts the stream's 24 h TTL. `cancel:{run_id}` is checked after every step (`updates` chunk): set → `cancelled`, the checkpoint stays; it takes effect at a step boundary.
   - **Stage sync** (`agent/stage_sync.py`): after each top-level `updates` chunk the runner copies every `stage` a node set to `ideas.stage` (`ideas.transition`, own short transaction; a stage the idea already has is not written again, so a node re-run after a crash is safe). When a run starts or resumes, the checkpoint's stage is saved the same way first, which closes the gap where a crash came after a node's checkpoint but before its write. A move the transition table refuses fails the run with `idea.invalid_transition`. Nodes never write `ideas.stage` themselves.
   - **Start gate**: `ideas.start_run` refuses with `LlmNotReadyError` unless the workspace's `llm` key row has `last_test_ok is True` (`identity.key_readiness` → `KeyReadiness`: `ready`, `not_configured`, `not_tested`, `test_failed`). It reads the row only, and runs after the idea and idempotency lookups, so a repeated start with the same key still returns its run.
-  - **Crash recovery** (`agent/recovery.py`, run by `agent_on_startup`): every `running` run whose lock is gone is enqueued as `run_graph` under the job id `{run_id}:recover:{unix seconds}` (the run's first job id is still remembered by Arq and would be dropped); the job continues from the last checkpoint. A failed scan is logged (`run.recovery_failed`) and never stops the worker. Only startup runs it today; the scheduler does not sweep.
+  - **Run recovery** (`agent/recovery.py`, SHIP-356): `recover_stuck_runs` runs at worker start (`agent_on_startup`) and on a schedule (job `recover_runs`, `jobs/recover_runs.py`, maintenance queue; the scheduler enqueues it every `RUN_RECOVERY_INTERVAL_SECONDS` under the id `recover_runs:{window}`). For every `running` run (`ideas.list_running_runs()` returns `run_id, workspace_id, updated_at`, migration `0027`): a held lock and `updated_at` older than `RUN_STALL_SECONDS` → `failed` `run.stalled`, `cancel:{id}` set so the worker stops; a held lock otherwise → left alone; no lock and `updated_at` within the grace window (lock TTL + 10 s) → left alone; no lock otherwise → counted in Redis `run:recoveries:{id}` (1 day TTL): over `RUN_RECOVERY_MAX_ATTEMPTS` → `failed` `run.recovery_exhausted`, else enqueued as `run_graph` under the job id `{run_id}:recover:{unix seconds}` (the run's first job id is still remembered by Arq and would be dropped); the job continues from the last checkpoint. Failures are published as `run_status`. Each step (`updates` chunk) touches the run's `updated_at` (`ideas.touch_run`), which is what the stall check reads. Only a really enqueued recovery job counts towards the limit. A worker that sees `lock_lost` stops and writes nothing; recovery takes over. One bad run is logged (`run.recovery_item_failed`) and never stops the scan; a failed startup scan (`run.recovery_failed`) never stops the worker.
 
 ## API Conventions
 
@@ -252,9 +253,9 @@ One LangGraph `StateGraph` in `agent/graph.py`, compiled with `AsyncPostgresSave
 | ------------- | --------------------------------------------- | ------------------------ |
 | `agent`       | `run_graph(run_id, workspace_id, resume?)`    | one per run (Redis lock) |
 | `watch`       | `run_graph` with `stage=watch`                | keyed `idea_id:date`     |
-| `maintenance` | `outbox_relay`, `distill_guidance`, `cleanup` | single concurrency (`max_jobs=1`), own worker process |
+| `maintenance` | `outbox_relay`, `recover_runs`, `distill_guidance`, `cleanup` | single concurrency (`max_jobs=1`), own worker process |
 
-Enqueue only through `core.jobs.enqueue(job_name, *args, job_id=...)`; a job must be listed in `JOB_QUEUES`. The same `job_id` enqueues once. Job functions use `@logged_job` (binds `job_id`, `run_id`, `workspace_id`). The `watch` queue lands with market-watch. Scheduler is an Arq cron worker whose jobs only enqueue (`outbox_relay` every 5 s, `cleanup` nightly 03:00 UTC).
+Enqueue only through `core.jobs.enqueue(job_name, *args, job_id=...)`; a job must be listed in `JOB_QUEUES`. The same `job_id` enqueues once. Job functions use `@logged_job` (binds `job_id`, `run_id`, `workspace_id`). The `watch` queue lands with market-watch. Scheduler is an Arq cron worker whose jobs only enqueue (`outbox_relay` every 5 s, `recover_runs` every `RUN_RECOVERY_INTERVAL_SECONDS`, `cleanup` nightly 03:00 UTC).
 
 Run events go through `core.events`: `publish(run_id, type, data)` appends to the Redis stream `run:{run_id}` (`MAXLEN ~ 5000`); `read(run_id, after_id, block_ms)` does one `XREAD` and yields `RunEvent{id, run_id, type, data, ts}`. The Redis entry id is the SSE event id (`Last-Event-ID`). Publishing a terminal `run_status` (`succeeded`, `failed`, `cancelled`) sets a 24 h TTL on the stream.
 
@@ -319,6 +320,8 @@ Services raise domain errors from `core/errors.py`; API maps them to HTTP.
 | `InvalidRubricError` (`score.invalid_rubric`) | 400 |
 | `RunEnqueueError` (`run.enqueue_failed`) | 503 |
 | `run.failed` (generic code stored on a run that failed unexpectedly; no exception class) | 500 |
+| `run.recovery_exhausted` (stored by recovery after `RUN_RECOVERY_MAX_ATTEMPTS` re-enqueues; no exception class; retryable) | 500 |
+| `run.stalled` (stored by recovery for a run with no progress for `RUN_STALL_SECONDS`; no exception class; retryable) | 500 |
 | `BudgetExceeded`    | 402  |
 | `UpstreamError` (`provider.upstream_error`) | 502  |
 | `ProviderNotConfiguredError` (`provider.not_configured`; `meta {provider}`, detail "Add your Exa key in Settings."; built with `provider_not_configured(kind)`) | 402 |

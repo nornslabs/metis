@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     run_lock_heartbeat_seconds: int = Field(
         default=20, ge=1, validation_alias="RUN_LOCK_HEARTBEAT_SECONDS"
     )
+    # Run recovery: a scheduled job re-enqueues runs that lost their lock; a run is retried at
+    # most ``run_recovery_max_attempts`` times, and a run with no progress for
+    # ``run_stall_seconds`` is failed (it must outlast the longest model call).
+    run_recovery_interval_seconds: int = Field(
+        default=30, ge=5, le=59, validation_alias="RUN_RECOVERY_INTERVAL_SECONDS"
+    )
+    run_recovery_max_attempts: int = Field(
+        default=3, ge=1, validation_alias="RUN_RECOVERY_MAX_ATTEMPTS"
+    )
+    run_stall_seconds: int = Field(default=900, ge=300, validation_alias="RUN_STALL_SECONDS")
     # Hard cap on one agent job (Arq's default is 300s, shorter than a research run).
     agent_job_timeout_seconds: int = Field(
         default=1800, ge=60, validation_alias="AGENT_JOB_TIMEOUT_SECONDS"

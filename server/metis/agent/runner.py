@@ -206,6 +206,7 @@ async def _stream_graph(
                 continue  # a specialist's inner loop: only its model output is published
             if mode == "updates" and isinstance(chunk, Mapping):
                 await _save_stages(deps, run, chunk)
+                await _record_progress(deps, run)
             interrupt = interrupt or await publisher.handle(mode, chunk)
             if mode == "updates" and await cancel_requested(redis, run.id):
                 return Outcome("cancelled")
@@ -230,6 +231,12 @@ async def _sync_checkpoint_stage(
         return
     async with _scoped(deps, run.workspace_id) as session:
         await save_stage(session, run.workspace_id, run.idea_id, Stage(stage))
+
+
+async def _record_progress(deps: RunnerDeps, run: WorkflowRun) -> None:
+    """Touch the run after each step so recovery sees it is making progress."""
+    async with _scoped(deps, run.workspace_id) as session:
+        await ideas.touch_run(session, run.workspace_id, run.id)
 
 
 async def _save_stages(deps: RunnerDeps, run: WorkflowRun, update: Mapping[str, Any]) -> None:
@@ -316,7 +323,9 @@ async def _settle(
     """Record how the stream ended on the run, then publish it (after the commit)."""
     ws, run_id = run.workspace_id, run.id
     if outcome.kind == "lock_lost":
-        logger.warning("run.stopped_lock_lost")  # another worker owns the run now
+        # This worker no longer owns the run, so it writes nothing: the scheduled recovery job
+        # re-enqueues the run (or leaves it to the worker that took the lock).
+        logger.warning("run.stopped_lock_lost")
         return
     if outcome.kind == "interrupted":
         assert outcome.interrupt is not None

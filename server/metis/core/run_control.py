@@ -13,11 +13,18 @@ from redis.asyncio import Redis
 LOCK_KEY_PREFIX = "lock:run:"
 CANCEL_KEY_PREFIX = "cancel:"
 CANCEL_FLAG_TTL_SECONDS = 24 * 60 * 60
+RECOVERY_KEY_PREFIX = "run:recoveries:"
+RECOVERY_COUNT_TTL_SECONDS = 24 * 60 * 60
 
 
 def lock_key(run_id: UUID | str) -> str:
     """Redis key of the lock held while a worker runs ``run_id``."""
     return f"{LOCK_KEY_PREFIX}{run_id}"
+
+
+def recovery_key(run_id: UUID | str) -> str:
+    """Redis key counting how often recovery re-enqueued ``run_id``."""
+    return f"{RECOVERY_KEY_PREFIX}{run_id}"
 
 
 def cancel_key(run_id: UUID | str) -> str:

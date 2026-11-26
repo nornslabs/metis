@@ -290,12 +290,21 @@ async def mark_cancelled(session: AsyncSession, workspace_id: UUID, run_id: UUID
     return await _move(session, row, RunStatus.CANCELLED, _finished())
 
 
+async def touch_run(session: AsyncSession, workspace_id: UUID, run_id: UUID) -> None:
+    """Record progress on a ``running`` run (``updated_at``), so recovery can tell a run that
+    is working from one that is stuck."""
+    await repo.workflow_runs.touch(session, workspace_id, run_id)
+
+
 async def list_running_runs(session: AsyncSession) -> list[RunRef]:
     """Every run in ``running`` in any workspace; the session needs no workspace set.
 
-    Only crash recovery calls this. It returns ids, never run data."""
+    Only run recovery calls this. It returns ids and ``updated_at``, never run data."""
     pairs = await repo.workflow_runs.list_running(session)
-    return [RunRef(run_id=run_id, workspace_id=workspace_id) for run_id, workspace_id in pairs]
+    return [
+        RunRef(run_id=run_id, workspace_id=workspace_id, updated_at=updated_at)
+        for run_id, workspace_id, updated_at in pairs
+    ]
 
 
 def _view(run: WorkflowRun, stage: str) -> RunView:

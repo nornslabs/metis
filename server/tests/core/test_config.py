@@ -82,6 +82,35 @@ class TestSettingsValidation:
         error_str = str(exc_info.value)
         assert "32" in error_str and ("bytes" in error_str or "byte" in error_str)
 
+    def test_run_recovery_defaults(self) -> None:
+        settings = Settings(
+            database_url="postgresql+asyncpg://test:test@localhost:5432/test",
+            redis_url="redis://localhost:6379/0",
+            encryption_master_key=get_valid_secret(),
+        )
+
+        assert settings.run_recovery_interval_seconds == 30
+        assert settings.run_recovery_max_attempts == 3
+        assert settings.run_stall_seconds == 900
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("run_stall_seconds", 299),
+            ("run_recovery_interval_seconds", 4),
+            ("run_recovery_interval_seconds", 60),
+            ("run_recovery_max_attempts", 0),
+        ],
+    )
+    def test_run_recovery_settings_out_of_range_are_refused(self, field: str, value: int) -> None:
+        with pytest.raises(ValidationError):
+            Settings(
+                database_url="postgresql+asyncpg://test:test@localhost:5432/test",
+                redis_url="redis://localhost:6379/0",
+                encryption_master_key=get_valid_secret(),
+                **{field: value},
+            )
+
     def test_production_requires_log_json(self) -> None:
         """Production environment must have log_json=True."""
         with pytest.raises(ValidationError) as exc_info:
