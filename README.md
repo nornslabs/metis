@@ -136,3 +136,55 @@ cd web
 npm install
 npm run dev
 ```
+
+## Feature Flags & Experimentation (Flagsmith)
+
+Metis uses an async `FeatureFlagProvider` port (`server/metis/core/ports.py`) backed by:
+
+- **`StaticProvider`** (`FEATURE_FLAG_PROVIDER=static`, default): reads `FF_<KEY>` environment variables for local development and CI.
+- **`FlagsmithProvider`** (`FEATURE_FLAG_PROVIDER=flagsmith`): evaluates flags locally from the Flagsmith environment document using a server-side `ser.` key (`FLAGSMITH_ENVIRONMENT_KEY`) with background refresh and analytics enabled.
+
+All `FF_*` environment variables are documented in [`.env.example`](.env.example).
+
+### Runtime Kill Switches
+
+Every external dependency is guarded by a kill switch (defaulting to enabled when unset):
+
+| Flag | `FF_*` env var | Controls |
+| --- | --- | --- |
+| `llm_enabled` | `FF_LLM_ENABLED` | Master switch for all LLM calls |
+| `llm_openai_enabled` | `FF_LLM_OPENAI_ENABLED` | OpenAI endpoint calls |
+| `llm_anthropic_enabled` | `FF_LLM_ANTHROPIC_ENABLED` | Anthropic endpoint calls |
+| `llm_google_enabled` | `FF_LLM_GOOGLE_ENABLED` | Google Gemini endpoint calls |
+| `llm_local_enabled` | `FF_LLM_LOCAL_ENABLED` | Local OpenAI-compatible endpoint calls |
+| `exa_enabled` | `FF_EXA_ENABLED` | Exa web research calls |
+| `sarvam_enabled` | `FF_SARVAM_ENABLED` | Sarvam speech-to-text calls |
+| `linear_enabled` | `FF_LINEAR_ENABLED` | Linear MCP integration |
+| `notion_enabled` | `FF_NOTION_ENABLED` | Notion MCP integration |
+
+### JSON Remote Config
+
+- `model_routing` (`FF_MODEL_ROUTING`): per-purpose model routing map.
+- `rate_limits` (`FF_RATE_LIMITS`): per-tier `requests_per_minute` limits.
+- `capabilities` (`FF_CAPABILITIES`): workspace feature capabilities.
+- `run_budget_usd` (`FF_RUN_BUDGET_USD`): run budget defaults/overrides.
+- `max_steps` (`FF_MAX_STEPS`): max agent steps defaults/overrides.
+
+### Multivariate Experiment (`model_routing_strategy`)
+
+`LLMGateway` reads `model_routing_strategy` once per run (`cost_optimized`, `quality_optimized`, or `balanced`) and resolves `model_routing_<strategy>`. When a planning run succeeds, the runner records the `run_completed_successfully` conversion event.
+
+To run the simulated traffic script (120 runs across all 3 variations):
+
+```bash
+cd server
+
+# CI / local dry run (StaticProvider)
+uv run python scripts/simulate_experiment.py --provider static --runs 120
+
+# Live Flagsmith demo (FlagsmithProvider)
+FEATURE_FLAG_PROVIDER=flagsmith FLAGSMITH_ENVIRONMENT_KEY=ser.your-key \
+  uv run python scripts/simulate_experiment.py --provider flagsmith --runs 120
+```
+
+See [`.agents/skills/flagsmith-manage-experiment.md`](.agents/skills/flagsmith-manage-experiment.md) for the Flagsmith CLI experiment lifecycle skill and [`docs/hackathon-demo.md`](docs/hackathon-demo.md) for the full demo runbook.
