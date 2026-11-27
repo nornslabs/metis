@@ -96,3 +96,18 @@ async def test_close_can_be_awaited_twice() -> None:
 
     await provider.close()
     await provider.close()
+
+
+async def test_experiment_variant_reads_the_env_var_and_defaults_when_unset() -> None:
+    context = FlagContext(environment="test")
+    configured = StaticProvider({"FF_MODEL_ROUTING_STRATEGY": "balanced"})
+    unset = StaticProvider({})
+
+    assert (
+        await configured.get_experiment_variant("model_routing_strategy", context, "") == "balanced"
+    )
+    assert await unset.get_experiment_variant("model_routing_strategy", context, "") == ""
+
+
+async def test_track_event_is_a_no_op_that_never_raises() -> None:
+    await StaticProvider({}).track_event("run_completed_successfully", FlagContext("test"))

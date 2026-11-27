@@ -95,6 +95,18 @@ class FlagsmithProvider:
             return default
         return value if isinstance(value, str) else str(value)
 
+    async def get_experiment_variant(self, key: str, context: FlagContext, default: str) -> str:
+        """The identity's variation; the read is the exposure (analytics are on)."""
+        return await self.get_string(key, context, default)
+
+    async def track_event(self, name: str, context: FlagContext) -> None:
+        """Log the conversion. The server SDK has no custom event API, so nothing is sent."""
+        logger.info(
+            "feature_flags.event_tracked",
+            event=name,
+            workspace_id=None if context.workspace_id is None else str(context.workspace_id),
+        )
+
     async def get_json(self, key: str, context: FlagContext, default: Any) -> Any:
         value = await self._value(key, context)
         if value is None:

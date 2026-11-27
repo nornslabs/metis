@@ -85,6 +85,17 @@ class FeatureFlagProvider(Protocol):
         """The JSON value of ``key`` (any JSON type); ``default`` when absent or invalid."""
         ...
 
+    async def get_experiment_variant(self, key: str, context: FlagContext, default: str) -> str:
+        """The variation of the multivariate flag ``key`` served to the context's identity.
+
+        The read is the experiment exposure. ``default`` when the flag has no usable value.
+        """
+        ...
+
+    async def track_event(self, name: str, context: FlagContext) -> None:
+        """Record the conversion event ``name`` for the context's identity. Never raises."""
+        ...
+
     async def close(self) -> None:
         """Release any client or background task. Safe to call twice."""
         ...

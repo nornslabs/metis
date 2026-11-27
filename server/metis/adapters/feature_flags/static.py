@@ -61,6 +61,13 @@ class StaticProvider:
             self._warn_invalid(key)
             return default
 
+    async def get_experiment_variant(self, key: str, context: FlagContext, default: str) -> str:
+        return await self.get_string(key, context, default)
+
+    async def track_event(self, name: str, context: FlagContext) -> None:
+        """Nothing is sent anywhere: the static provider has no experiment backend."""
+        logger.debug("feature_flags.event_ignored", event=name)
+
     async def close(self) -> None:
         """Nothing to release."""
 
