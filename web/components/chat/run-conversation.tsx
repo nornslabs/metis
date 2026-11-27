@@ -24,6 +24,7 @@ import { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { useRunPrompts } from "@/components/chat/use-run-prompts";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
 import { isKillSwitchRunError, showKillSwitchToast } from "@/lib/keys/readiness";
+import { usePhaseReview } from "@/lib/plan/use-plan-state";
 import { queryKeys } from "@/lib/api/queries/keys";
 import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
@@ -174,6 +175,10 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
     answers,
     otherSeq,
   });
+  const review = usePhaseReview(idea.id);
+  useEffect(() => {
+    if (phaseReview) review.sync(run.id, phaseReview.phases);
+  }, [review, run.id, phaseReview]);
   const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
   const starts = outputStarts(state.steps, idea.stage);
