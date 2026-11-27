@@ -31,7 +31,11 @@ from metis.adapters.llm import OpenAICompatibleChat, build_chat_model, build_emb
 from metis.agent.tracing import tracing_callbacks
 from metis.core.config import get_settings
 from metis.core.db import get_session_maker, set_workspace, transaction
-from metis.core.errors import ProviderNotConfiguredError, UpstreamError, provider_not_configured
+from metis.core.errors import (
+    ProviderNotConfiguredError,
+    UpstreamError,
+    provider_not_configured,
+)
 from metis.core.logging import get_logger
 from metis.core.ports import Embedder, FeatureFlagProvider, FlagContext, LLMProvider
 from metis.helpers.http import FailureReason
@@ -41,6 +45,15 @@ from metis.modules.identity import ProviderCredentials, ProviderKind, get_key_fo
 from metis.modules.research import EMBEDDING_DIMENSIONS
 
 logger = get_logger(__name__)
+
+_DEFAULT_RATE_LIMITS: dict[str, object] = {
+    "default": {"requests_per_minute": 0},
+}
+
+
+def _flag_value(routing: dict[str, object], key: str) -> str | None:
+    value = routing.get(key)
+    return str(value) if value is not None else None
 
 
 class LLMGateway:
@@ -70,6 +83,7 @@ class LLMGateway:
         self._long_call_timeout = settings.llm_long_call_timeout_seconds
         self._embedder: Embedder | None = None
         self._embeddings_unavailable = False
+        self._request_counts: dict[str, int] = {}
 
     async def _require_llm_enabled(self) -> None:
         """Raise ``ProviderNotConfiguredError`` when the ``llm_enabled`` kill switch is off.
@@ -90,25 +104,72 @@ class LLMGateway:
                 meta={"provider": "llm", "reason": "kill_switch"},
             )
 
-    async def chat_model(self, session: AsyncSession, purpose: str) -> LLMProvider:
+    async def chat_model(
+        self, session: AsyncSession, purpose: str, tier: str = "default"
+    ) -> LLMProvider:
         """The run's chat model for ``purpose``.
 
         ``session`` reads the saved key. Raises ``ProviderNotConfiguredError`` when the
         workspace has no LLM key, or when the ``llm_enabled`` kill switch is off.
+        Model selection and per-tier rate limits come from the ``model_routing`` and
+        ``rate_limits`` JSON flags.
         """
         await self._require_llm_enabled()
+
+        context = FlagContext(
+            workspace_id=self._workspace_id,
+            environment=get_settings().app_env,
+            custom_attributes={"tier": tier},
+        )
+        rate_limits = await self._flags.get_json("rate_limits", context, _DEFAULT_RATE_LIMITS)
+        if not isinstance(rate_limits, dict):
+            rate_limits = _DEFAULT_RATE_LIMITS
+        tier_limits = rate_limits.get(tier, rate_limits.get("default", {}))
+        if not isinstance(tier_limits, dict):
+            tier_limits = {}
+        limit = tier_limits.get("requests_per_minute", 0)
+        if not isinstance(limit, int):
+            limit = 0
+        if limit > 0:
+            count = self._request_counts.get(tier, 0) + 1
+            self._request_counts[tier] = count
+            if count > limit:
+                raise ProviderNotConfiguredError(
+                    f"Rate limit exceeded for tier {tier}: {limit} requests per minute.",
+                    meta={"provider": "llm", "reason": "rate_limited", "tier": tier},
+                )
+
         cached = self._models.get(purpose)
         if cached is not None:
             return cached
-        credentials, base_url, chat_model = await self._credentials(session)
+        credentials, base_url, _ = await self._credentials(session)
+        assert credentials.model is not None
+
+        # Default routing uses the workspace's saved model as the fallback.
+        default_routing: dict[str, object] = {
+            "default": credentials.model,
+            "fallback": credentials.model,
+        }
+        routing = await self._flags.get_json("model_routing", context, default_routing)
+        if not isinstance(routing, dict):
+            routing = default_routing
+
+        model_name: str | None = credentials.model
+        for key in (tier, "default", "fallback"):
+            value = _flag_value(routing, key)
+            if value is not None:
+                model_name = value
+                break
+        assert model_name is not None
+
         model = build_chat_model(
             base_url=base_url,
             api_key=credentials.api_key,
-            model=chat_model,
+            model=model_name,
             purpose=purpose,
             timeout_seconds=self._call_timeout,
             long_timeout_seconds=self._long_call_timeout,
-            callbacks=[*self._tracing, self._usage_recorder(chat_model)],
+            callbacks=[*self._tracing, self._usage_recorder(model_name)],
             http_client=self._http_client,
         )
         self._models[purpose] = model
