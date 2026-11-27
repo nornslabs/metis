@@ -17,7 +17,7 @@ import { useCreateIdea } from "@/lib/api/mutations/use-create-idea";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
 import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
-import { llmNotReadyMessage } from "@/lib/keys/readiness";
+import { isKillSwitchError, llmNotReadyMessage, showKillSwitchToast } from "@/lib/keys/readiness";
 import { ideaFormSchema, toNewIdea, type IdeaFormValues } from "@/lib/schemas/idea-form";
 
 const SUGGESTIONS = [
@@ -48,12 +48,16 @@ function useSubmitIdea() {
     } catch (caught) {
       // The idea exists, so go to it anyway (its page offers Start); the page changes under the
       // reader, so the reason goes in a toast.
-      const notReady = llmNotReadyMessage(caught);
-      if (notReady) void queryClient.invalidateQueries({ queryKey: ["settings"] });
-      toast.error("Your idea was saved, but its run did not start.", {
-        description: notReady ?? describeError(caught),
-        ...(notReady && { action: { label: "Open API keys", onClick: () => router.replace(`/ideas/${ideaId}?settings=keys`) } }),
-      });
+      if (isKillSwitchError(caught)) {
+        showKillSwitchToast();
+      } else {
+        const notReady = llmNotReadyMessage(caught);
+        if (notReady) void queryClient.invalidateQueries({ queryKey: ["settings"] });
+        toast.error("Your idea was saved, but its run did not start.", {
+          description: notReady ?? describeError(caught),
+          ...(notReady && { action: { label: "Open API keys", onClick: () => router.replace(`/ideas/${ideaId}?settings=keys`) } }),
+        });
+      }
     }
     router.push(`/ideas/${ideaId}`);
   };

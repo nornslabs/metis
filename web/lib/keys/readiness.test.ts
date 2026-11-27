@@ -2,7 +2,13 @@ import { describe, expect, test } from "vitest";
 
 import { ApiError } from "@/lib/api/errors";
 
-import { keyReadiness, llmBlockMessage, llmNotReadyMessage } from "./readiness";
+import {
+  isKillSwitchError,
+  isKillSwitchRunError,
+  keyReadiness,
+  llmBlockMessage,
+  llmNotReadyMessage,
+} from "./readiness";
 
 const view = (lastTestOk: boolean | null) => ({
   base_url: null,
@@ -63,5 +69,41 @@ describe("llmNotReadyMessage", () => {
   test("returns null for any other error", () => {
     expect(llmNotReadyMessage(problem("run.already_running"))).toBeNull();
     expect(llmNotReadyMessage(new Error("boom"))).toBeNull();
+  });
+});
+
+describe("isKillSwitchError", () => {
+  test("detects provider.not_configured with reason=kill_switch", () => {
+    const err = new ApiError({
+      status: 503,
+      code: "provider.not_configured",
+      title: "Provider Not Configured",
+      meta: { provider: "llm", reason: "kill_switch" },
+    });
+    expect(isKillSwitchError(err)).toBe(true);
+  });
+
+  test("ignores missing-key provider.not_configured and other errors", () => {
+    const missingKey = new ApiError({
+      status: 400,
+      code: "provider.not_configured",
+      title: "Provider Not Configured",
+      meta: { provider: "llm" },
+    });
+    expect(isKillSwitchError(missingKey)).toBe(false);
+    expect(isKillSwitchError(new Error("boom"))).toBe(false);
+  });
+});
+
+describe("isKillSwitchRunError", () => {
+  test("detects kill switch run errors from worker", () => {
+    expect(
+      isKillSwitchRunError({
+        code: "provider.not_configured",
+        message: "LLM calls are disabled: the `llm_enabled` kill switch is off.",
+      }),
+    ).toBe(true);
+    expect(isKillSwitchRunError({ code: "provider.not_configured", message: "No key" })).toBe(false);
+    expect(isKillSwitchRunError(null)).toBe(false);
   });
 });
