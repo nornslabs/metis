@@ -107,9 +107,7 @@ async def load_mcp_tools(
         environment=settings.app_env,
         custom_attributes={},
     )
-    if not await _flags.is_enabled(
-        f"{provider.value}_enabled", flag_context, default=True
-    ):
+    if not await _flags.is_enabled(f"{provider.value}_enabled", flag_context, default=True):
         logger.info(
             "integration.skipped_provider_disabled",
             provider=provider.value,

@@ -301,9 +301,7 @@ def parse_saved_item(text: str) -> SavedItem:
     external_id = entry.get("id") if entry is not None else None
     if not isinstance(external_id, str) or not external_id:
         status = data.get("status") if isinstance(data, dict) else None
-        raw_message = (
-            (data.get("message") or data.get("error")) if isinstance(data, dict) else None
-        )
+        raw_message = (data.get("message") or data.get("error")) if isinstance(data, dict) else None
         logger.warning(
             "export.bad_response",
             is_json=data is not None,
@@ -311,9 +309,7 @@ def parse_saved_item(text: str) -> SavedItem:
             error_message=str(raw_message)[:200] if raw_message else None,
             detail=text[:200] if data is None else sorted(data) if isinstance(data, dict) else None,
         )
-        reason = (
-            FailureReason.UNAUTHORIZED if status in (401, 403) else FailureReason.BAD_RESPONSE
-        )
+        reason = FailureReason.UNAUTHORIZED if status in (401, 403) else FailureReason.BAD_RESPONSE
         raise provider_error(_PROVIDER.value, reason)
     url = entry.get("url") if entry is not None else None
     return SavedItem(external_id, url if isinstance(url, str) and url else None)

@@ -31,6 +31,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.adapters.feature_flags import build_feature_flag_provider
+from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, finished_call_args
@@ -38,6 +39,13 @@ from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.agent.tools.exa import ExaCallBudget, exa_tools_for, open_exa_tools, with_call_cap
+from metis.agent.tools.research_gates import (
+    CallMemory,
+    kb_lookup_for,
+    load_run_knowledge,
+    with_kb_matches,
+    with_research_gate,
+)
 from metis.agent.tools.research_kb import (
     FINISH_RESEARCH,
     MAX_CLARIFICATION_QUESTIONS,
@@ -167,11 +175,20 @@ async def _research(
         credentials = await get_key_for_use(session, scope.workspace_id, ProviderKind.EXA)
         model = await scope.gateway.chat_model(session, PURPOSE)
         seed = await _seed(session, scope)
+        gates = await build_gate_context(scope.gateway, session, redis, scope.run_id)
     async with open_exa_tools(
         credentials.api_key, scope.run_id, redis, make_exa_client
     ) as exa_tools:
-        exa = with_call_cap(
+        capped = with_call_cap(
             exa_tools_for(Specialist.RESEARCHER.value, exa_tools), budget, limit_message=CAP_MESSAGE
+        )
+        exa = with_research_gate(
+            capped,
+            budget=budget,
+            memory=CallMemory(redis, scope.run_id),
+            context=with_kb_matches(gates, kb_lookup_for(scope)),
+            load_knowledge=lambda: load_run_knowledge(scope),
+            limit_message=CAP_MESSAGE,
         )
         loop = build_react_specialist(
             load_specialist_prompt(PROMPT),
@@ -179,6 +196,7 @@ async def _research(
             model,
             step_limit=STEP_LIMIT,
             finish_tools={FINISH_RESEARCH},
+            refusals=(GateRefusal,),
         )
         try:
             result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
