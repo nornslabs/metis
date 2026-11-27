@@ -9,6 +9,7 @@ position. The stream closes after a terminal ``run_status``.
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -78,7 +79,13 @@ async def stream_frames(
             and not await client.exists(events.stream_key(run_id))
         ):
             yield sse.json_frame(
-                "run_status", {"run_id": run_id, "type": "run_status", "data": outcome}
+                "run_status",
+                {
+                    "run_id": run_id,
+                    "type": "run_status",
+                    "data": outcome,
+                    "ts": datetime.now(UTC).isoformat(),
+                },
             )
             return
         while True:

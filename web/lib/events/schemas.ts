@@ -251,7 +251,9 @@ const envelopeSchema = z.object({
   run_id: z.string(),
   type: z.string(),
   data: z.unknown(),
-  ts: z.string(),
+  // Optional: the frame that closes a finished run whose stream is gone may carry no timestamp, and a
+  // dropped frame would leave the source reconnecting forever.
+  ts: z.string().optional(),
 });
 
 /** The note shown when the run waits on a question this page cannot read. */
