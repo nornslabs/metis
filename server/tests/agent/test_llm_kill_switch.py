@@ -11,6 +11,7 @@ tests exercise the real path against Postgres and a fake LLM server, mirroring
 
 from __future__ import annotations
 
+import os
 from uuid import UUID, uuid4
 
 import httpx
@@ -18,7 +19,7 @@ import pytest
 from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from metis.adapters.flags import StaticProvider
+from metis.adapters.feature_flags import StaticProvider
 from metis.agent.llm import LLMGateway
 from metis.core.config import get_settings
 from metis.core.errors import ProviderNotConfiguredError
@@ -48,6 +49,7 @@ def embeddings_reply(count: int = 2, dimensions: int = EMBEDDING_DIMENSIONS) -> 
             "usage": {"prompt_tokens": 5, "total_tokens": 5},
         },
     )
+
 
 HELLO = [HumanMessage("hi")]
 
@@ -80,7 +82,7 @@ def _gw(
         sessions=sessions,
         prices=prices or {},
         http_client=server.client(),
-        flags=StaticProvider(),
+        flags=StaticProvider(os.environ),
     )
 
 
@@ -90,7 +92,7 @@ async def test_llm_enabled_false_blocks_chat_model(
 ) -> None:
     _settings_env(monkeypatch)
     monkeypatch.setenv("FF_LLM_ENABLED", "false")
-    gw = LLMGateway(uuid4(), uuid4(), flags=StaticProvider())
+    gw = LLMGateway(uuid4(), uuid4(), flags=StaticProvider(os.environ))
 
     with pytest.raises(ProviderNotConfiguredError) as caught:
         await gw.chat_model(None, "interview")  # type: ignore[arg-type]
@@ -103,7 +105,7 @@ async def test_llm_enabled_false_blocks_embed(
 ) -> None:
     _settings_env(monkeypatch)
     monkeypatch.setenv("FF_LLM_ENABLED", "false")
-    gw = LLMGateway(uuid4(), uuid4(), flags=StaticProvider())
+    gw = LLMGateway(uuid4(), uuid4(), flags=StaticProvider(os.environ))
 
     with pytest.raises(ProviderNotConfiguredError) as caught:
         await gw.embed(None, ["hello"])  # type: ignore[arg-type]
