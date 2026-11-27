@@ -143,7 +143,7 @@ class LLMGateway:
             environment=settings.app_env,
             custom_attributes={"tier": settings.app_env, "provider": provider_kind.value},
         )
-        if not await self._flags.is_enabled(f"llm_{vendor}_enabled", context):
+        if not await self._flags.is_enabled(f"llm_{vendor}_enabled", context, default=True):
             raise ProviderNotConfiguredError(
                 f"LLM calls are disabled: the ``llm_{vendor}_enabled`` kill switch is off.",
                 meta={"provider": vendor, "reason": "kill_switch"},
