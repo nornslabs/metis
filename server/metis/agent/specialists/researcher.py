@@ -30,6 +30,7 @@ from pydantic import ValidationError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_prompt
 from metis.agent.specialists.base import build_react_specialist, finished_call_args
@@ -46,9 +47,11 @@ from metis.agent.tools.research_kb import (
     open_run_snapshot,
     research_tools,
 )
+from metis.core.config import get_settings
 from metis.core.errors import ErrorCode
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.modules import ideas, research
 from metis.modules.ideas import RunKind, Stage
@@ -78,8 +81,11 @@ def build_researcher(
     open_session: SessionOpener,
     redis: Redis,
     make_exa_client: ClientFactory,
+    flags: FeatureFlagProvider | None = None,
 ) -> SpecialistNode:
     """The Researcher node for one run."""
+    _flags = flags or build_feature_flag_provider(get_settings())
+    settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
         scope = ResearchScope(
@@ -89,6 +95,21 @@ def build_researcher(
             open_session=open_session,
             gateway=gateway,
         )
+        flag_context = FlagContext(
+            workspace_id=scope.workspace_id,
+            environment=settings.app_env,
+            custom_attributes={},
+        )
+        if not await _flags.is_enabled("exa_enabled", flag_context, default=True):
+            logger.info("research.skipped_exa_disabled")
+            get_stream_writer()(
+                {
+                    "type": RunEventType.NOTICE.value,
+                    "code": NOTICE_SKIPPED_NO_EXA,
+                    "text": "Research is skipped: the exa_enabled kill switch is off.",
+                }
+            )
+            return _finish_node(state, {"research_skipped": True})
         if await _exa_key_missing(scope):
             logger.info("research.skipped_no_exa")
             get_stream_writer()(
