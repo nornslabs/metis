@@ -12,12 +12,12 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.adapters.flags import build_flag_provider
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.core.config import get_settings
 from metis.core.db import WORKSPACE_SETTING
 from metis.core.errors import ConflictError
 from metis.core.logging import get_logger
-from metis.core.ports import FeatureFlags, FlagContext
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.modules.identity import repo
 from metis.modules.identity.dto import (
     DEFAULT_MAX_STEPS,
@@ -35,14 +35,14 @@ from metis.modules.identity.models import WorkspaceSettingsRow
 logger = get_logger(__name__)
 
 async def get_settings_overview(
-    session: AsyncSession, workspace_id: UUID, flags: FeatureFlags | None = None
+    session: AsyncSession, workspace_id: UUID, flags: FeatureFlagProvider | None = None
 ) -> SettingsResponse:
     """Masked keys and run settings of the workspace.
 
     Remote config values (capabilities, run_budget_usd, max_steps) override DB values
     when the flag provider returns a non-default result.
     """
-    _flags = flags or build_flag_provider()
+    _flags = flags or build_feature_flag_provider(get_settings())
     context = FlagContext(
         workspace_id=workspace_id,
         environment=get_settings().app_env,
@@ -51,6 +51,12 @@ async def get_settings_overview(
     capabilities = await _flags.get_json("capabilities", context, {})
     run_budget_remote = await _flags.get_json("run_budget_usd", context, {})
     max_steps_remote = await _flags.get_json("max_steps", context, {})
+    if not isinstance(capabilities, dict):
+        capabilities = {}
+    if not isinstance(run_budget_remote, dict):
+        run_budget_remote = {}
+    if not isinstance(max_steps_remote, dict):
+        max_steps_remote = {}
 
     async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
         keys = {

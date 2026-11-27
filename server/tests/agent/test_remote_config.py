@@ -7,6 +7,7 @@ service (capabilities, run_budget_usd, max_steps overrides).
 
 from __future__ import annotations
 
+import os
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -15,7 +16,7 @@ from langchain_core.messages import HumanMessage
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from metis.adapters.flags import StaticProvider
+from metis.adapters.feature_flags import StaticProvider
 from metis.agent.llm import LLMGateway
 from metis.core.config import get_settings
 from metis.core.errors import ProviderNotConfiguredError
@@ -68,22 +69,22 @@ def _flag_context(workspace_id: UUID | None = None, tier: str = "default") -> Fl
         ("rate_limits", None, {}),
         ("capabilities", None, {}),
         ("model_routing", "not json", {}),
-        ("rate_limits", "[1,2,3]", {}),
-        ("capabilities", "123", {}),
+        ("rate_limits", "[1,2,3]", [1, 2, 3]),
+        ("capabilities", "123", 123),
     ],
 )
 async def test_static_provider_get_json(
     monkeypatch: pytest.MonkeyPatch,
     flag: str,
     env_value: str | None,
-    expected: dict[str, object],
+    expected: object,
 ) -> None:
     _settings_env(monkeypatch)
     if env_value is not None:
         monkeypatch.setenv(f"FF_{flag.upper()}", env_value)
     else:
         monkeypatch.delenv(f"FF_{flag.upper()}", raising=False)
-    provider = StaticProvider()
+    provider = StaticProvider(os.environ)
     assert await provider.get_json(flag, _flag_context(), {}) == expected
 
 
@@ -123,7 +124,7 @@ async def test_model_routing_selects_model_for_tier(
         run_id,
         sessions=app_sessions,
         http_client=server.client(),
-        flags=StaticProvider(),
+        flags=StaticProvider(os.environ),
     )
 
     async with app_sessions() as session:
@@ -157,7 +158,7 @@ async def test_rate_limits_enforced_per_tier(
         run_id,
         sessions=app_sessions,
         http_client=server.client(),
-        flags=StaticProvider(),
+        flags=StaticProvider(os.environ),
     )
 
     async with app_sessions() as session:
@@ -196,7 +197,7 @@ async def test_rate_limits_independent_per_tier(
         run_id,
         sessions=app_sessions,
         http_client=server.client(),
-        flags=StaticProvider(),
+        flags=StaticProvider(os.environ),
     )
 
     async with app_sessions() as session:

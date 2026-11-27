@@ -27,7 +27,7 @@ from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
 from langchain_core.outputs import ChatGeneration, LLMResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from metis.adapters.flags import build_flag_provider
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.adapters.llm import OpenAICompatibleChat, build_chat_model, build_embedder
 from metis.agent.tracing import tracing_callbacks
 from metis.core.config import get_settings
@@ -38,7 +38,7 @@ from metis.core.errors import (
     provider_not_configured,
 )
 from metis.core.logging import get_logger
-from metis.core.ports import Embedder, FeatureFlags, FlagContext, LLMProvider
+from metis.core.ports import Embedder, FeatureFlagProvider, FlagContext, LLMProvider
 from metis.helpers.http import FailureReason
 from metis.helpers.pricing import ModelPrice, cost_usd
 from metis.modules.ideas import NewLlmUsage, record_llm_usage
@@ -91,7 +91,7 @@ class LLMGateway:
         sessions: async_sessionmaker[AsyncSession] | None = None,
         prices: Mapping[str, ModelPrice] | None = None,
         http_client: httpx.AsyncClient | None = None,
-        flags: FeatureFlags | None = None,
+        flags: FeatureFlagProvider | None = None,
     ) -> None:
         settings = get_settings()
         self._workspace_id = workspace_id
@@ -100,7 +100,7 @@ class LLMGateway:
         self._prices = settings.llm_prices if prices is None else prices
         self._http_client = http_client
         self._tracing = tracing_callbacks(settings)
-        self._flags = flags or build_flag_provider()
+        self._flags = flags or build_feature_flag_provider(settings)
         self._models: dict[str, OpenAICompatibleChat] = {}
         self._embedding_model = settings.llm_embedding_model
         self._call_timeout = settings.llm_call_timeout_seconds
@@ -119,11 +119,10 @@ class LLMGateway:
         """
         settings = get_settings()
         context = FlagContext(
-            workspace_id=self._workspace_id,
             environment=settings.app_env,
-            custom_attributes={},
+            workspace_id=self._workspace_id,
         )
-        if not await self._flags.is_enabled("llm_enabled", context):
+        if not await self._flags.is_enabled("llm_enabled", context, default=True):
             raise ProviderNotConfiguredError(
                 "LLM calls are disabled: the ``llm_enabled`` kill switch is off.",
                 meta={"provider": "llm", "reason": "kill_switch"},
@@ -170,6 +169,8 @@ class LLMGateway:
         rate_limits = await self._flags.get_json(
             "rate_limits", context, _DEFAULT_RATE_LIMITS
         )
+        if not isinstance(rate_limits, dict):
+            rate_limits = _DEFAULT_RATE_LIMITS
         tier_limits = rate_limits.get(tier, rate_limits.get("default", {}))
         if not isinstance(tier_limits, dict):
             tier_limits = {}
@@ -203,6 +204,8 @@ class LLMGateway:
             "model_routing", context, default_routing
         )
 
+        if not isinstance(routing, dict):
+            routing = default_routing
         model_name: str | None = credentials.model
         for key in (tier, "default", "fallback"):
             value = _flag_value(routing, key)
