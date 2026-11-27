@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.llm import LLMGateway
-from metis.agent.prompts import load_prompt
+from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, finished_call_args
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
@@ -174,7 +174,7 @@ async def _research(
             exa_tools_for(Specialist.RESEARCHER.value, exa_tools), budget, limit_message=CAP_MESSAGE
         )
         loop = build_react_specialist(
-            load_prompt(PROMPT),
+            load_specialist_prompt(PROMPT),
             [*exa, *research_tools(scope)],
             model,
             step_limit=STEP_LIMIT,

@@ -46,6 +46,7 @@ TEMPERATURE_BY_PURPOSE: dict[str, float] = {
     "research": 0.3,
     "score": 0.0,
     "advise": 0.5,
+    "gate": 0.0,
     "spec": 0.2,
     "plan": 0.2,
 }

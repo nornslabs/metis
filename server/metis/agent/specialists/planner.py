@@ -24,7 +24,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.agent.llm import LLMGateway
-from metis.agent.prompts import load_prompt
+from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, invoke_loop
 from metis.agent.specialists.idea_context import idea_seed_parts
 from metis.agent.specialists.stubs import SpecialistNode
@@ -109,7 +109,7 @@ async def _plan(scope: ResearchScope, spec: SpecVersion, mcp: McpRunContext) -> 
         seed = await _seed(session, scope, spec)
     linear_tools = await load_optional_mcp_tools(mcp, PLANNER_POLICY)
     loop = build_react_specialist(
-        load_prompt(PROMPT),
+        load_specialist_prompt(PROMPT),
         [*linear_tools, *planning_tools(scope, ledger, spec.id)],
         model,
         step_limit=STEP_LIMIT,

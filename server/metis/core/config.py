@@ -152,6 +152,12 @@ class Settings(BaseSettings):
         default=240.0, ge=10, validation_alias="LLM_LONG_CALL_TIMEOUT_SECONDS"
     )
 
+    # Most judge calls a run's gates may make (retries count); past it the judge is skipped
+    # and an item that passed its code checks goes through.
+    gate_judge_max_calls_per_run: int = Field(
+        default=20, ge=0, validation_alias="GATE_JUDGE_MAX_CALLS_PER_RUN"
+    )
+
     # Optional LLM prices, model id -> USD per million tokens (JSON). A model without
     # an entry has no cost recorded; there is no built-in price list.
     llm_prices: dict[str, ModelPrice] = Field(default_factory=dict, validation_alias="LLM_PRICES")
