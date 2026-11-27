@@ -52,6 +52,10 @@ _DEFAULT_RATE_LIMITS: dict[str, object] = {
 }
 
 
+ROUTING_STRATEGY_FLAG = "model_routing_strategy"
+ROUTING_STRATEGIES = frozenset({"cost_optimized", "quality_optimized", "balanced"})
+
+
 def _flag_value(routing: dict[str, object], key: str) -> str | None:
     value = routing.get(key)
     return str(value) if value is not None else None
@@ -106,6 +110,8 @@ class LLMGateway:
         self._flags = flags or build_feature_flag_provider(settings)
         self._models: dict[str, OpenAICompatibleChat] = {}
         self._vendor: str | None = None
+        self._strategy_read = False
+        self._strategy: str | None = None
         self._embedding_model = settings.llm_embedding_model
         self._call_timeout = settings.llm_call_timeout_seconds
         self._long_call_timeout = settings.llm_long_call_timeout_seconds
@@ -118,6 +124,39 @@ class LLMGateway:
             workspace_id=self._workspace_id,
             environment=get_settings().app_env,
         )
+
+    async def _routing_strategy(self) -> str | None:
+        """The run's routing strategy, read once per run (that read is the exposure).
+
+        ``None`` when the flag is unset or names an unknown strategy.
+        """
+        if self._strategy_read:
+            return self._strategy
+        self._strategy_read = True
+        try:
+            value = await self._flags.get_experiment_variant(
+                ROUTING_STRATEGY_FLAG, self._flag_context(), ""
+            )
+        except Exception:  # noqa: BLE001  (an experiment outage must not stop a run)
+            logger.warning("feature_flags.experiment_unavailable", key=ROUTING_STRATEGY_FLAG)
+            return None
+        if value in ROUTING_STRATEGIES:
+            self._strategy = value
+        elif value:
+            logger.warning("feature_flags.unknown_variation", key=ROUTING_STRATEGY_FLAG)
+        return self._strategy
+
+    async def _routing(
+        self, context: FlagContext, default_routing: dict[str, object]
+    ) -> dict[str, object]:
+        """The strategy's routing flag, else ``model_routing``, else ``default_routing``."""
+        strategy = await self._routing_strategy()
+        if strategy is not None:
+            chosen = await self._flags.get_json(f"model_routing_{strategy}", context, None)
+            if isinstance(chosen, dict) and chosen:
+                return chosen
+        plain = await self._flags.get_json("model_routing", context, default_routing)
+        return plain if isinstance(plain, dict) else default_routing
 
     async def _require_llm_enabled(self) -> None:
         """Raise ``ProviderNotConfiguredError`` when the ``llm_enabled`` kill switch is off.
@@ -198,9 +237,7 @@ class LLMGateway:
             "default": credentials.model,
             "fallback": credentials.model,
         }
-        routing = await self._flags.get_json("model_routing", context, default_routing)
-        if not isinstance(routing, dict):
-            routing = default_routing
+        routing = await self._routing(context, default_routing)
 
         model_name: str | None = credentials.model
         for key in (tier, "default", "fallback"):

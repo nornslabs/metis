@@ -282,3 +282,31 @@ async def test_invalid_json_warns_once_per_key_even_after_the_throttle_window(
     await provider.get_json("bad", CONTEXT, None)
 
     assert caplog.text.count("feature_flags.invalid_value") <= 1
+
+
+async def test_experiment_variant_returns_the_variation_and_defaults_when_off_or_missing() -> None:
+    client = FakeClient({"s": FakeFlag(True, "balanced"), "off": FakeFlag(False, "balanced")})
+    provider = provider_for(client)
+    context = FlagContext(environment="test", workspace_id=uuid4())
+
+    assert await provider.get_experiment_variant("s", context, "") == "balanced"
+    assert await provider.get_experiment_variant("off", context, "") == ""
+    assert await provider.get_experiment_variant("missing", context, "") == ""
+    assert client.identity_calls[0][0] == str(context.workspace_id)
+
+
+async def test_track_event_never_raises_and_logs_no_values() -> None:
+    provider = provider_for(FakeClient({}))
+
+    await provider.track_event("run_completed_successfully", CONTEXT)
+
+
+async def test_experiment_variant_is_read_for_the_workspace_identity() -> None:
+    client = FakeClient({"s": FakeFlag(True, "balanced")})
+    workspace_id = uuid4()
+
+    await provider_for(client).get_experiment_variant(
+        "s", FlagContext(environment="test", workspace_id=workspace_id), ""
+    )
+
+    assert [call[0] for call in client.identity_calls] == [str(workspace_id)]
