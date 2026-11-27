@@ -132,6 +132,7 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/metis
           APP_DB_PASSWORD: metis_app
           REDIS_URL: redis://localhost:6379/0
+          TEST_REDIS_URL: redis://localhost:6379/0
 
   server:
     runs-on: ubuntu-latest
