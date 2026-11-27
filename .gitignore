@@ -23,7 +23,6 @@ out/
 Agents.md
 skills-lock.json
 .agents/prds/
-.agents/skills/
 .agents/specs/
 .agents/progress-tracker.md
 docs/agents/
