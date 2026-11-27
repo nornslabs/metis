@@ -55,6 +55,7 @@ from metis.modules.ideas.dto.spec import (
     SpecVersionSummary,
 )
 from metis.modules.ideas.dto.workflow_runs import (
+    MAX_PROJECT_NAME_LENGTH,
     AdviceDecision,
     AdviceResume,
     ExportApprovalResume,
@@ -94,6 +95,7 @@ __all__ = [
     "SpecVersionList",
     "SpecVersionSummary",
     "MAX_INTERVIEW_QUESTIONS",
+    "MAX_PROJECT_NAME_LENGTH",
     "SKIP_ANSWER",
     "STOP_ANSWERS",
     "TOPIC_MEANING",

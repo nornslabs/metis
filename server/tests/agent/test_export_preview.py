@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from metis.agent.tools.export_preview import ExportTeam, build_export_preview
+from metis.agent.tools.export_preview import ExportTeam, build_export_preview, with_project_name
 from metis.modules.planning import CriticalPath, Phase, Plan, PlanStatus, Task
 
 TEAM = ExportTeam(id="team-1", name="Product")
@@ -129,3 +129,29 @@ def test_the_summary_line_names_the_team_and_the_counts() -> None:
     assert preview.summary_line() == (
         'Create project "Pocket CRM" in team Product: 1 milestones, 1 issues, 0 blocked-by links'
     )
+
+
+def test_the_project_name_is_the_first_suggestion_and_never_over_linears_limit() -> None:
+    title = "An AI assistant that helps small restaurant owners plan their weekly menus and orders"
+    preview = _preview(_plan([[_task(0)]]), idea_title=title, spec_text="# Menu Pilot")
+
+    assert preview.project.name == preview.project.suggestions[0]
+    assert all(len(name) <= 80 for name in preview.project.suggestions)
+    assert "Menu Pilot" in preview.project.suggestions
+
+
+def test_a_saved_project_name_is_kept_for_a_re_export() -> None:
+    preview = _preview(_plan([[_task(0)]]), saved_project_name="Menu Pilot", project_exists=True)
+
+    assert preview.project.name == "Menu Pilot"
+    assert preview.project.action == "update"
+
+
+def test_the_approved_name_replaces_the_shown_one_and_keeps_the_suggestions() -> None:
+    preview = _preview(_plan([[_task(0)]]))
+
+    approved = with_project_name(preview, "My own name")
+
+    assert approved.project.name == "My own name"
+    assert approved.project.suggestions == preview.project.suggestions
+    assert preview.project.name != "My own name"

@@ -108,15 +108,23 @@ async def owner_of(engine: AsyncEngine, run: QueuedRun) -> UUID:
 
 
 async def approval(
-    engine: AsyncEngine, run: QueuedRun, *, approved: bool, plan_version: int = 1
+    engine: AsyncEngine,
+    run: QueuedRun,
+    *,
+    approved: bool,
+    plan_version: int = 1,
+    project_name: str | None = None,
 ) -> dict[str, Any]:
     """The resume value the API sends for an export approval: it stamps ``decided_by`` and the
     plan version the preview showed (a fresh plan is version 1)."""
-    return {
+    value: dict[str, Any] = {
         "approved": approved,
         "decided_by": str(await owner_of(engine, run)),
         "plan_version": plan_version,
     }
+    if project_name is not None:
+        value["project_name"] = project_name
+    return value
 
 
 async def bump_plan_version(engine: AsyncEngine, run: QueuedRun) -> None:

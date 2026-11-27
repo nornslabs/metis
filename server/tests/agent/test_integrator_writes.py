@@ -93,6 +93,15 @@ async def _idea_title(engine: AsyncEngine, run: QueuedRun) -> str:
     return str(value)
 
 
+async def _saved_project_name(engine: AsyncEngine, run: QueuedRun) -> str | None:
+    async with engine.connect() as conn:
+        value = await conn.scalar(
+            text("SELECT project_name FROM ideas.ideas WHERE id = :id"),
+            {"id": await idea_of(engine, run)},
+        )
+    return None if value is None else str(value)
+
+
 def _creates(linear: FakeLinear, tool: str) -> int:
     """How many ``tool`` calls were creates (no Linear id in the arguments)."""
     return sum(1 for name, args in linear.tool_calls if name == tool and not args["id"])
@@ -116,6 +125,67 @@ async def test_the_first_export_creates_the_project_and_one_milestone_per_phase(
     assert {m["project"] for m in milestones} == {"project-1"}
     assert "Do Foundations." in milestones[0]["description"]
     assert "Foundations done." in milestones[0]["description"]
+
+
+async def test_the_approved_project_name_is_used_in_linear_and_saved_on_the_idea(
+    engine: AsyncEngine,
+    ctx: dict[str, Any],
+    app_sessions: Any,
+    linear: FakeLinear,
+) -> None:
+    run = await export_run(engine, app_sessions)
+    await connect_workspace(engine, app_sessions, run.workspace_id, linear)
+    await run_job(ctx, run)
+    await run_job(ctx, run, resume={"team_id": "team-2"})
+
+    await run_job(
+        ctx, run, resume=await approval(engine, run, approved=True, project_name="Menu Pilot")
+    )
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    [project] = linear.projects.values()
+    assert project["name"] == "Menu Pilot"
+    assert await _saved_project_name(engine, run) == "Menu Pilot"
+    [job] = await export_jobs(engine, run)
+    assert job["summary"]["project"]["name"] == "Menu Pilot"
+
+
+async def test_an_approval_with_no_name_uses_the_suggested_one_within_linears_limit(
+    engine: AsyncEngine, ctx: dict[str, Any], app_sessions: Any, linear: FakeLinear
+) -> None:
+    run = await export_run(engine, app_sessions)
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE ideas.ideas SET title = :t WHERE id = :id"),
+            {"t": "A very long idea title " * 8, "id": await idea_of(engine, run)},
+        )
+    await connect_workspace(engine, app_sessions, run.workspace_id, linear)
+    await run_job(ctx, run)
+    await run_job(ctx, run, resume={"team_id": "team-2"})
+
+    await run_job(ctx, run, resume=await approval(engine, run, approved=True))
+
+    [project] = linear.projects.values()
+    assert 0 < len(project["name"]) <= 80
+    assert await _saved_project_name(engine, run) == project["name"]
+
+
+async def test_a_declined_export_saves_no_project_name(
+    engine: AsyncEngine, ctx: dict[str, Any], app_sessions: Any, linear: FakeLinear
+) -> None:
+    run = await export_run(engine, app_sessions)
+    await connect_workspace(engine, app_sessions, run.workspace_id, linear)
+    await run_job(ctx, run)
+    await run_job(ctx, run, resume={"team_id": "team-2"})
+
+    await run_job(
+        ctx,
+        run,
+        resume=await approval(engine, run, approved=False, project_name="Menu Pilot"),
+    )
+
+    assert await _saved_project_name(engine, run) is None
+    assert not linear.projects
 
 
 async def test_the_first_export_saves_a_ref_for_the_idea_and_every_phase(
@@ -179,7 +249,7 @@ async def test_running_the_export_again_updates_and_never_duplicates(
     assert len(await export_jobs(engine, run)) == 1
 
 
-async def test_a_renamed_idea_and_an_edited_phase_reach_linear_on_the_next_run(
+async def test_an_edited_phase_reaches_linear_but_the_approved_project_name_stays(
     engine: AsyncEngine,
     ctx: dict[str, Any],
     app_sessions: Any,
@@ -204,7 +274,9 @@ async def test_a_renamed_idea_and_an_edited_phase_reach_linear_on_the_next_run(
 
     await _retry(engine, app_sessions, redis, linear, run, monkeypatch)
 
-    assert linear.projects["project-1"]["name"] == "Renamed idea"
+    # The user approved the project name; renaming the idea does not rename the project.
+    assert linear.projects["project-1"]["name"] == await _saved_project_name(engine, run)
+    assert linear.projects["project-1"]["name"] != "Renamed idea"
     assert linear.milestones["milestone-1"]["name"] == "Phase 1 — Basics"
     assert len(linear.milestones) == 3
 

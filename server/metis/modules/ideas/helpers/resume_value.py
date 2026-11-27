@@ -71,7 +71,7 @@ def _team(value: ResumeValue, pending: dict[str, Any]) -> dict[str, Any]:
 
 def _export_approval(value: ResumeValue) -> dict[str, Any]:
     if isinstance(value, ExportApprovalResume):
-        return value.model_dump(mode="json")
+        return value.model_dump(mode="json", exclude_none=True)
     raise _invalid("An export approval needs {approved: true|false}")
 
 
