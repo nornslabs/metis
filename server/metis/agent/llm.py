@@ -26,13 +26,14 @@ from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
 from langchain_core.outputs import ChatGeneration, LLMResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.adapters.llm import OpenAICompatibleChat, build_chat_model, build_embedder
 from metis.agent.tracing import tracing_callbacks
 from metis.core.config import get_settings
 from metis.core.db import get_session_maker, set_workspace, transaction
-from metis.core.errors import UpstreamError, provider_not_configured
+from metis.core.errors import ProviderNotConfiguredError, UpstreamError, provider_not_configured
 from metis.core.logging import get_logger
-from metis.core.ports import Embedder, LLMProvider
+from metis.core.ports import Embedder, FeatureFlagProvider, FlagContext, LLMProvider
 from metis.helpers.http import FailureReason
 from metis.helpers.pricing import ModelPrice, cost_usd
 from metis.modules.ideas import NewLlmUsage, record_llm_usage
@@ -53,6 +54,7 @@ class LLMGateway:
         sessions: async_sessionmaker[AsyncSession] | None = None,
         prices: Mapping[str, ModelPrice] | None = None,
         http_client: httpx.AsyncClient | None = None,
+        flags: FeatureFlagProvider | None = None,
     ) -> None:
         settings = get_settings()
         self._workspace_id = workspace_id
@@ -61,6 +63,7 @@ class LLMGateway:
         self._prices = settings.llm_prices if prices is None else prices
         self._http_client = http_client
         self._tracing = tracing_callbacks(settings)
+        self._flags = flags or build_feature_flag_provider(settings)
         self._models: dict[str, OpenAICompatibleChat] = {}
         self._embedding_model = settings.llm_embedding_model
         self._call_timeout = settings.llm_call_timeout_seconds
@@ -68,12 +71,32 @@ class LLMGateway:
         self._embedder: Embedder | None = None
         self._embeddings_unavailable = False
 
+    async def _require_llm_enabled(self) -> None:
+        """Raise ``ProviderNotConfiguredError`` when the ``llm_enabled`` kill switch is off.
+
+        The ``FlagContext`` carries the run's workspace, the deployment environment and any
+        custom attributes (a workspace tier, once one is stored on the workspace). The flag
+        itself is decided by the configured provider, so this gateway never reads flags
+        directly.
+        """
+        settings = get_settings()
+        context = FlagContext(
+            environment=settings.app_env,
+            workspace_id=self._workspace_id,
+        )
+        if not await self._flags.is_enabled("llm_enabled", context, default=True):
+            raise ProviderNotConfiguredError(
+                "LLM calls are disabled: the ``llm_enabled`` kill switch is off.",
+                meta={"provider": "llm", "reason": "kill_switch"},
+            )
+
     async def chat_model(self, session: AsyncSession, purpose: str) -> LLMProvider:
         """The run's chat model for ``purpose``.
 
         ``session`` reads the saved key. Raises ``ProviderNotConfiguredError`` when the
-        workspace has no LLM key.
+        workspace has no LLM key, or when the ``llm_enabled`` kill switch is off.
         """
+        await self._require_llm_enabled()
         cached = self._models.get(purpose)
         if cached is not None:
             return cached
@@ -100,6 +123,7 @@ class LLMGateway:
         """
         if not texts:
             return []
+        await self._require_llm_enabled()
         if self._embeddings_unavailable:
             return None
         embedder = await self._get_embedder(session)
