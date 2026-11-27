@@ -30,7 +30,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import McpHttpClientFactory
 from redis.asyncio import Redis
 
-from metis.adapters.flags import build_flag_provider
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.tools.mcp_policy import ApprovalLedger, McpToolPolicy, McpWriteRefused
 from metis.agent.tools.research_kb import SessionOpener
 from metis.core.config import get_settings
@@ -100,14 +100,16 @@ async def load_mcp_tools(
     Raises ``IntegrationNotConnectedError`` / ``IntegrationExpiredError`` (naming the provider)
     when there is no usable connection, and ``UpstreamError`` when the provider fails.
     """
-    _flags = build_flag_provider()
+    _flags = build_feature_flag_provider(get_settings())
     settings = get_settings()
     flag_context = FlagContext(
         workspace_id=context.workspace_id,
         environment=settings.app_env,
         custom_attributes={},
     )
-    if not await _flags.is_enabled(f"{provider.value}_enabled", flag_context):
+    if not await _flags.is_enabled(
+        f"{provider.value}_enabled", flag_context, default=True
+    ):
         logger.info(
             "integration.skipped_provider_disabled",
             provider=provider.value,

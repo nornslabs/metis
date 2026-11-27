@@ -36,7 +36,7 @@ from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 from redis.asyncio import Redis
 
-from metis.adapters.flags import build_flag_provider
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -69,7 +69,7 @@ from metis.core.errors import (
 )
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
-from metis.core.ports import FeatureFlags, FlagContext
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
 from metis.modules import ideas, identity, integrations, planning, scoring
@@ -98,10 +98,10 @@ def build_integrator(
     redis: Redis,
     make_client: ClientFactory,
     mcp_http_client: McpHttpClientFactory | None = None,
-    flags: FeatureFlags | None = None,
+    flags: FeatureFlagProvider | None = None,
 ) -> SpecialistNode:
     """The Integrator node for one run."""
-    _flags = flags or build_flag_provider()
+    _flags = flags or build_feature_flag_provider(get_settings())
     settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
@@ -148,7 +148,7 @@ def build_integrator(
                 environment=settings.app_env,
                 custom_attributes={},
             )
-            if not await _flags.is_enabled("linear_enabled", flag_context):
+            if not await _flags.is_enabled("linear_enabled", flag_context, default=True):
                 logger.info("export.skipped_linear_disabled")
                 get_stream_writer()(
                     {
@@ -171,7 +171,7 @@ async def _replay(
     open_session: SessionOpener,
     source: _Source,
     decided: ExportJob,
-    flags: FeatureFlags | None = None,
+    flags: FeatureFlagProvider | None = None,
 ) -> dict[str, Any]:
     """Finish a run whose decision was already recorded (a re-run after a crash between the
     record and the checkpoint). It asks nothing: the saved team may already have changed, which
@@ -189,14 +189,14 @@ async def _replay(
     elif decided.status is ExportStatus.FAILED:
         raise UpstreamError("The Linear export did not complete")
     elif approved:
-        _flags = flags or build_flag_provider()
+        _flags = flags or build_feature_flag_provider(get_settings())
         settings = get_settings()
         flag_context = FlagContext(
             workspace_id=context.workspace_id,
             environment=settings.app_env,
             custom_attributes={},
         )
-        if not await _flags.is_enabled("linear_enabled", flag_context):
+        if not await _flags.is_enabled("linear_enabled", flag_context, default=True):
             logger.info("export.skipped_linear_disabled")
         else:
             tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
