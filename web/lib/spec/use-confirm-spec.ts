@@ -17,5 +17,9 @@ export function confirmBlockedReason(state: SpecEditorState): string | null {
 /** What the Confirm button does for this state; shared by the pane footer and the chat prompt. */
 export function useConfirmSpec(editor: SpecEditor, state: SpecEditorState) {
   const [open, setOpen] = useState(false);
-  return { open, setOpen, blockedReason: confirmBlockedReason(state), confirm: () => void editor.confirm() };
+  const confirm = () => {
+    setOpen(false);
+    void editor.confirm();
+  };
+  return { open, setOpen, blockedReason: confirmBlockedReason(state), confirm };
 }
