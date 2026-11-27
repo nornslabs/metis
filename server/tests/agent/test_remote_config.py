@@ -75,7 +75,7 @@ async def test_static_provider_get_json(
     monkeypatch: pytest.MonkeyPatch,
     flag: str,
     env_value: str | None,
-    expected: dict[str, object],
+    expected: object,
 ) -> None:
     _settings_env(monkeypatch)
     if env_value is not None:
