@@ -28,6 +28,9 @@ class AppSettings:
     DEFAULT_FLAGSMITH_API_URL = "https://edge.api.flagsmith.com/api/v1/"
 
 
+# Flagsmith local evaluation needs a server-side environment key.
+SERVER_KEY_PREFIX = "ser."
+
 _GOOGLE_FIELDS = ("google_client_id", "google_client_secret", "google_redirect_uri")
 # Plain-string secrets masked by ``Settings.__repr__``; ``SecretStr`` fields mask themselves.
 SECRET_FIELDS = frozenset({"encryption_master_key"})
@@ -46,6 +49,8 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
         frozen=True,
+        # A validation error must never echo the raw inputs (they hold secrets).
+        hide_input_in_errors=True,
     )
 
     # App settings
@@ -212,6 +217,15 @@ class Settings(BaseSettings):
         """Flagsmith needs its environment key; its API URL must be https."""
         if self.feature_flag_provider == "flagsmith" and self.flagsmith_environment_key is None:
             raise ValueError("flagsmith_environment_key is required when using flagsmith")
+        key = self.flagsmith_environment_key
+        if (
+            self.feature_flag_provider == "flagsmith"
+            and key is not None
+            and not key.get_secret_value().startswith(SERVER_KEY_PREFIX)
+        ):
+            raise ValueError(
+                f"flagsmith_environment_key must be a server-side key ({SERVER_KEY_PREFIX}…)"
+            )
         url = urlparse(self.flagsmith_api_url)
         local_http = url.scheme == "http" and url.hostname in ("localhost", "127.0.0.1", "::1")
         if url.scheme != "https" and not (local_http and self.is_development):

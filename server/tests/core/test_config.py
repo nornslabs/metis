@@ -133,6 +133,14 @@ class TestSettingsValidation:
         with pytest.raises(ValidationError, match="flagsmith_environment_key"):
             self._flag_settings(feature_flag_provider="flagsmith")
 
+    def test_a_client_side_flagsmith_key_is_refused_without_printing_it(self) -> None:
+        with pytest.raises(ValidationError, match="server-side") as error:
+            self._flag_settings(
+                feature_flag_provider="flagsmith", flagsmith_environment_key="client-secret"
+            )
+
+        assert "client-secret" not in str(error.value)
+
     def test_an_unknown_feature_flag_provider_is_refused(self) -> None:
         with pytest.raises(ValidationError):
             self._flag_settings(feature_flag_provider="launchdarkly")
