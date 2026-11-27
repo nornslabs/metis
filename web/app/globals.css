@@ -296,10 +296,10 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0;
-  --frame: min(1280px, 100% - 160px);
+  --frame: min(1560px, 100% - 64px);
   --col: 760px;
-  --hist-w: 264px;
-  --panel-w: clamp(360px, 36vw, 500px);
+  --hist-w: 256px;
+  --panel-w: clamp(340px, 32vw, 460px);
   --overlay-w: min(320px, 88%);
   --header-h: 44px;
   --footer-h: 32px;
