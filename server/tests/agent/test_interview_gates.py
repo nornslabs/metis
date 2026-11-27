@@ -10,6 +10,7 @@ import pytest
 
 from metis.agent.gate import GateContext
 from metis.agent.tools.interview_gates import (
+    OUTPUT_INSTRUCTION,
     IdeaTexts,
     ReviewOutcome,
     review_question,
@@ -25,6 +26,18 @@ IDEA = IdeaTexts(
 )
 GOOD = "Which of your reminders would a late-paying client dread the most?"
 OPTIONS = [OptionArgs(label="Email"), OptionArgs(label="Text message")]
+
+
+class OutputRejecter(FakeJudge):
+    """Passes every input review and rejects every output review with ``reason``."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(None)
+        self._reason = reason
+
+    async def verdict(self, instruction: str, item: str) -> str | None:
+        self.calls += 1
+        return self._reason if instruction == OUTPUT_INSTRUCTION else None
 
 
 def _context(judge: FakeJudge | None) -> tuple[GateContext, Recorder]:
@@ -81,7 +94,7 @@ async def test_an_answer_quoted_from_an_earlier_answer_counts() -> None:
 
 
 async def test_the_third_rejection_skips_the_question() -> None:
-    context, _ = _context(FakeJudge(None, "Too generic."))
+    context, _ = _context(OutputRejecter("Too generic."))
     outcomes: list[ReviewOutcome] = []
 
     for _ in range(3):
@@ -134,7 +147,7 @@ def test_a_quote_counts_only_when_it_is_in_the_idea_or_an_answer(
 
 
 async def test_rewording_a_rejected_question_does_not_restart_the_retry_count() -> None:
-    context, _ = _context(FakeJudge(None, "Too generic."))
+    context, _ = _context(OutputRejecter("Too generic."))
     wordings = ["What is the pain?", "What hurts most?", "Where is the problem?"]
     outcomes = [(await review_question(context, IDEA, w)).outcome for w in wordings]
 
@@ -142,7 +155,7 @@ async def test_rewording_a_rejected_question_does_not_restart_the_retry_count() 
 
 
 async def test_a_settled_question_leaves_the_next_one_a_fresh_retry_count() -> None:
-    context, _ = _context(FakeJudge(None, "Too generic."))
+    context, _ = _context(OutputRejecter("Too generic."))
     for wording in ("What is the pain?", "What hurts most?", "Where is the problem?"):
         await review_question(context, IDEA, wording)  # the third is skipped
 

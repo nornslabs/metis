@@ -208,8 +208,8 @@ async def _stream_graph(
         ):
             if lock.lost:
                 return Outcome("lock_lost")
-            if namespace and mode != "messages":
-                continue  # a specialist's inner loop: only its model output is published
+            if namespace and not _published_from_inner_loop(mode, chunk):
+                continue
             if mode == "updates" and isinstance(chunk, Mapping):
                 await _save_stages(deps, run, chunk)
                 await _record_progress(deps, run)
@@ -220,6 +220,17 @@ async def _stream_graph(
             return Outcome("interrupted", interrupt=interrupt)
         final = (await graph.aget_state(config)).values
         return Outcome("done", last_error=final.get("last_error"))
+
+
+def _published_from_inner_loop(mode: str, chunk: Any) -> bool:
+    """A specialist's inner tool loop publishes its model output and its gate decisions only."""
+    if mode == "messages":
+        return True
+    return (
+        mode == "custom"
+        and isinstance(chunk, Mapping)
+        and chunk.get("type") == RunEventType.GATE.value
+    )
 
 
 async def _sync_checkpoint_stage(

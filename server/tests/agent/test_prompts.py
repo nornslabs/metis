@@ -52,7 +52,8 @@ def test_the_interviewer_prompt_offers_options_and_the_older_version_is_kept() -
     latest = load_prompt("interviewer")
 
     assert "`options`" in latest
-    assert latest == load_prompt("interviewer", 3)
+    assert latest == load_prompt("interviewer", 4)
+    assert "`options`" in load_prompt("interviewer", 3)
     assert "`options`" not in load_prompt("interviewer", 2)
 
 
