@@ -5,7 +5,7 @@ Tests that ``LLMGateway`` checks provider-specific flags
 ``llm_local_enabled``) after the master ``llm_enabled`` switch, using the
 provider determined from the workspace's saved credential base URL.
 
-``FF_LLM_ENABLED`` and ``FF_LLM_<VENDOR>_EDGE`` drive the
+``FF_LLM_ENABLED`` and ``FF_LLM_<VENDOR>_ENABLED`` drive the
 :class:`StaticProvider`, so flipping them between ``true``/``false`` flips
 the kill switches without touching code.
 """
@@ -20,9 +20,10 @@ from langchain_core.messages import HumanMessage
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from metis.adapters.feature_flags import StaticProvider
-from metis.agent.llm import LLMGateway
+from metis.agent.llm import LLMGateway, _vendor_from_base_url
 from metis.core.config import get_settings
 from metis.core.errors import ProviderNotConfiguredError
+from metis.core.ports import FlagContext
 from metis.modules import auth, identity
 from metis.modules.identity import MemberRole, Membership, ProviderKind
 from metis.modules.identity.service.provider_keys import set_key
@@ -134,9 +135,7 @@ async def test_provider_flag_false_blocks_only_that_provider(
     monkeypatch.setenv(flag_env, flag_value)
     get_settings.cache_clear()
 
-    workspace_id = await workspace_with_key_and_base_url(
-        engine, sub=vendor, base_url=base_url
-    )
+    workspace_id = await workspace_with_key_and_base_url(engine, sub=vendor, base_url=base_url)
     run_id = await make_run(engine, workspace_id)
     gw = _gw(engine, workspace_id, app_sessions, server, run_id)
 
@@ -232,3 +231,88 @@ async def test_unknown_vendor_is_allowed_by_default(
         model = await gw.chat_model(session, "interview")
     reply = await model.ainvoke(HELLO)
     assert reply.content == "hello"
+
+
+# -------------------------------------------------- unset provider flag defaults to on
+async def test_unset_provider_flag_allows_call(
+    monkeypatch: pytest.MonkeyPatch,
+    engine: AsyncEngine,
+    app_sessions: async_sessionmaker[AsyncSession],
+    server: FakeLLMServer,
+) -> None:
+    """Master on and no ``FF_LLM_OPENAI_ENABLED`` at all: the call is allowed."""
+    _settings_env(monkeypatch)
+    monkeypatch.setenv("FF_LLM_ENABLED", "true")
+    monkeypatch.delenv("FF_LLM_OPENAI_ENABLED", raising=False)
+
+    workspace_id = await workspace_with_key_and_base_url(
+        engine, sub="openai", base_url="https://api.openai.com/v1"
+    )
+    run_id = await make_run(engine, workspace_id)
+    gw = _gw(engine, workspace_id, app_sessions, server, run_id)
+
+    async with app_sessions() as session:
+        model = await gw.chat_model(session, "interview")
+    assert (await model.ainvoke(HELLO)).content == "hello"
+
+
+# -------------------------------------------------- a live gateway re-checks the flag
+async def test_flag_flipped_after_model_built_blocks_next_call(
+    monkeypatch: pytest.MonkeyPatch,
+    engine: AsyncEngine,
+    app_sessions: async_sessionmaker[AsyncSession],
+    server: FakeLLMServer,
+) -> None:
+    """The cached model must not outlive the kill switch."""
+    _settings_env(monkeypatch)
+    monkeypatch.setenv("FF_LLM_ENABLED", "true")
+    monkeypatch.setenv("FF_LLM_OPENAI_ENABLED", "true")
+
+    workspace_id = await workspace_with_key_and_base_url(
+        engine, sub="openai", base_url="https://api.openai.com/v1"
+    )
+    run_id = await make_run(engine, workspace_id)
+    gw = LLMGateway(
+        workspace_id,
+        run_id,
+        sessions=app_sessions,
+        http_client=server.client(),
+        flags=_LiveEnvFlags(),
+    )
+    async with app_sessions() as session:
+        await gw.chat_model(session, "interview")
+        monkeypatch.setenv("FF_LLM_OPENAI_ENABLED", "false")
+        with pytest.raises(ProviderNotConfiguredError) as caught:
+            await gw.chat_model(session, "interview")
+    assert caught.value.meta == {"provider": "openai", "reason": "kill_switch"}
+
+
+class _LiveEnvFlags(StaticProvider):
+    """A ``StaticProvider`` that re-reads the process env on every call."""
+
+    def __init__(self) -> None:
+        super().__init__(os.environ)
+
+    async def is_enabled(self, key: str, context: FlagContext, default: bool = False) -> bool:
+        return await StaticProvider(os.environ).is_enabled(key, context, default)
+
+
+# -------------------------------------------------- base URL to vendor mapping
+@pytest.mark.parametrize(
+    ("base_url", "vendor"),
+    [
+        ("https://api.openai.com/v1", "openai"),
+        ("https://api.anthropic.com", "anthropic"),
+        ("https://generativelanguage.googleapis.com/v1", "google"),
+        ("http://localhost:11434", "local"),
+        ("http://[::1]:11434", "local"),
+        ("https://openai.attacker.example/v1", None),
+        ("https://my-resource.openai.azure.com", None),
+        ("https://api.example.com/v1", None),
+        ("http://[::1", None),
+        ("", None),
+        (None, None),
+    ],
+)
+def test_vendor_from_base_url(base_url: str | None, vendor: str | None) -> None:
+    assert _vendor_from_base_url(base_url) == vendor

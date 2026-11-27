@@ -57,27 +57,30 @@ def _flag_value(routing: dict[str, object], key: str) -> str | None:
     return str(value) if value is not None else None
 
 
-def _vendor_from_base_url(base_url: str | None) -> str:
-    """Map a base URL to a vendor name for provider-specific kill switches.
+_VENDOR_HOSTS: dict[str, tuple[str, ...]] = {
+    "openai": ("api.openai.com",),
+    "anthropic": ("api.anthropic.com",),
+    "google": ("generativelanguage.googleapis.com",),
+    "local": ("localhost", "127.0.0.1", "::1", "host.docker.internal"),
+}
 
-    Verifies the actual credential endpoint before mapping the broad
-    ``ProviderKind.LLM`` category to a vendor-specific flag name.
+
+def _vendor_from_base_url(base_url: str | None) -> str | None:
+    """The vendor whose kill switch governs ``base_url``, or ``None`` for an unknown host.
+
+    Matches the exact credential host, not a substring, so a look-alike such as
+    ``openai.example.com`` is not mistaken for OpenAI.
     """
     if not base_url:
-        return "default"
+        return None
     try:
         hostname = (urlsplit(base_url).hostname or "").lower()
-    except Exception:  # noqa: BLE001  (defensive parse; fall back to default)
-        return "default"
-    if "openai" in hostname:
-        return "openai"
-    if "anthropic" in hostname:
-        return "anthropic"
-    if "google" in hostname or "generativelanguage" in hostname:
-        return "google"
-    if hostname in {"localhost", "127.0.0.1", "::1", "host.docker.internal"}:
-        return "local"
-    return "default"
+    except ValueError:
+        return None
+    for vendor, hosts in _VENDOR_HOSTS.items():
+        if hostname in hosts:
+            return vendor
+    return None
 
 
 class LLMGateway:
@@ -102,6 +105,7 @@ class LLMGateway:
         self._tracing = tracing_callbacks(settings)
         self._flags = flags or build_feature_flag_provider(settings)
         self._models: dict[str, OpenAICompatibleChat] = {}
+        self._vendor: str | None = None
         self._embedding_model = settings.llm_embedding_model
         self._call_timeout = settings.llm_call_timeout_seconds
         self._long_call_timeout = settings.llm_long_call_timeout_seconds
@@ -109,43 +113,35 @@ class LLMGateway:
         self._embeddings_unavailable = False
         self._request_counts: dict[str, int] = {}
 
+    def _flag_context(self) -> FlagContext:
+        return FlagContext(
+            workspace_id=self._workspace_id,
+            environment=get_settings().app_env,
+        )
+
     async def _require_llm_enabled(self) -> None:
         """Raise ``ProviderNotConfiguredError`` when the ``llm_enabled`` kill switch is off.
 
-        The ``FlagContext`` carries the run's workspace, the deployment environment and any
-        custom attributes (a workspace tier, once one is stored on the workspace). The flag
-        itself is decided by the configured provider, so this gateway never reads flags
-        directly.
+        The ``FlagContext`` carries the run's workspace and the deployment environment.
+        The flag itself is decided by the configured provider, so this gateway never
+        reads flags directly.
         """
-        settings = get_settings()
-        context = FlagContext(
-            environment=settings.app_env,
-            workspace_id=self._workspace_id,
-        )
-        if not await self._flags.is_enabled("llm_enabled", context, default=True):
+        if not await self._flags.is_enabled("llm_enabled", self._flag_context(), default=True):
             raise ProviderNotConfiguredError(
                 "LLM calls are disabled: the ``llm_enabled`` kill switch is off.",
                 meta={"provider": "llm", "reason": "kill_switch"},
             )
 
-    async def _require_provider_enabled(
-        self, provider_kind: ProviderKind, vendor: str
-    ) -> None:
-        """Raise ``ProviderNotConfiguredError`` when a provider-specific kill switch is off.
+    async def _require_provider_enabled(self, vendor: str) -> None:
+        """Raise ``ProviderNotConfiguredError`` when ``llm_{vendor}_enabled`` is off.
 
-        Checks ``llm_{vendor}_enabled`` (e.g. ``llm_openai_enabled``) after the master
-        ``llm_enabled`` switch has already passed. Raises ``ProviderNotConfiguredError``
-        naming the disabled vendor so callers know which provider is blocked.
+        Runs after the master ``llm_enabled`` switch. An unset flag counts as on, like the
+        master switch. The error names the disabled vendor.
         """
-        settings = get_settings()
-        context = FlagContext(
-            workspace_id=self._workspace_id,
-            environment=settings.app_env,
-            custom_attributes={"tier": settings.app_env, "provider": provider_kind.value},
-        )
-        if not await self._flags.is_enabled(f"llm_{vendor}_enabled", context, default=True):
+        flag = f"llm_{vendor}_enabled"
+        if not await self._flags.is_enabled(flag, self._flag_context(), default=True):
             raise ProviderNotConfiguredError(
-                f"LLM calls are disabled: the ``llm_{vendor}_enabled`` kill switch is off.",
+                f"LLM calls are disabled: the `{flag}` kill switch is off.",
                 meta={"provider": vendor, "reason": "kill_switch"},
             )
 
@@ -186,12 +182,16 @@ class LLMGateway:
 
         cached = self._models.get(purpose)
         if cached is not None:
+            # A flag flipped mid-run must still stop a gateway that already built its model.
+            if self._vendor is not None:
+                await self._require_provider_enabled(self._vendor)
             return cached
-        credentials, base_url, _, provider_kind = await self._credentials(session)
+        credentials, base_url, _, _ = await self._credentials(session)
         assert credentials.model is not None
 
-        vendor = _vendor_from_base_url(base_url)
-        await self._require_provider_enabled(provider_kind, vendor)
+        self._vendor = _vendor_from_base_url(base_url)
+        if self._vendor is not None:
+            await self._require_provider_enabled(self._vendor)
 
         # Default routing uses the workspace's saved model as the fallback.
         default_routing: dict[str, object] = {
