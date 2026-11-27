@@ -9,6 +9,7 @@ rule) and the tests read the whole body. Idle and live cases publish from a back
 from __future__ import annotations
 
 import asyncio
+import json
 from typing import Any
 from uuid import uuid4
 
@@ -298,6 +299,8 @@ async def test_a_finished_run_with_no_stream_sends_one_status_frame_without_an_i
     assert got[0]["event"] == "run_status"
     assert "id" not in got[0]
     assert '"status":"succeeded"' in got[0]["data"].replace(" ", "")
+    # The web client validates the envelope; without `ts` it drops the frame and reconnects forever.
+    assert set(json.loads(got[0]["data"])) == {"run_id", "type", "data", "ts"}
 
 
 async def test_resuming_at_the_terminal_event_of_a_finished_run_closes_with_no_events(
