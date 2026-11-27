@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from metis.adapters.feature_flags import close_feature_flag_providers
 from metis.agent.checkpoint import setup_checkpointer
 from metis.agent.recovery import recover_stuck_runs
 from metis.core.config import get_settings
@@ -51,6 +52,7 @@ async def agent_on_startup(ctx: dict[str, Any]) -> None:
 
 async def on_shutdown(ctx: dict[str, Any]) -> None:
     """Close the DB engine; Arq closes its own Redis pool."""
+    await close_feature_flag_providers()
     await ctx["engine"].dispose()
     logger.info("worker.stopped")
 

@@ -26,6 +26,7 @@ dependencies = [
   "psycopg[binary,pool]>=3.3.8",
   "pgvector>=0.5.1",
   "jinja2>=3.1.6",
+  "flagsmith>=6.3.0",
 ]
 
 [dependency-groups]
@@ -80,6 +81,14 @@ source_modules = [
 # Direct imports only: modules reach the adapter through its own package on purpose.
 allow_indirect_imports = true
 forbidden_modules = ["langchain_openai", "openai"]
+
+[[tool.importlinter.contracts]]
+name = "only the feature flag adapter imports the Flagsmith SDK"
+type = "forbidden"
+source_modules = ["metis"]
+allow_indirect_imports = true
+forbidden_modules = ["flagsmith"]
+ignore_imports = ["metis.adapters.feature_flags.flagsmith -> flagsmith"]
 
 [[tool.importlinter.contracts]]
 name = "auth imports no other domain module"
@@ -263,3 +272,4 @@ allow_indirect_imports = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+markers = ["integration: talks to a real external service; skipped when its credentials are unset"]

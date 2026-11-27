@@ -18,6 +18,7 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from metis.adapters.feature_flags import close_feature_flag_providers
 from metis.core.config import Settings, get_settings
 from metis.core.error_handlers import register_error_handlers
 from metis.core.logging import configure_logging
@@ -80,7 +81,10 @@ def _load_settings() -> Settings:
 @asynccontextmanager
 async def _lifespan(_app: FastAPI) -> AsyncGenerator[None]:
     yield
-    await close_redis()
+    try:
+        await close_feature_flag_providers()
+    finally:
+        await close_redis()
 
 
 def _add_middleware(app: FastAPI, settings: Settings) -> None:
