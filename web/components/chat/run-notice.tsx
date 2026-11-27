@@ -14,11 +14,15 @@ interface RunErrorRowProps {
 /** A failed run: the reason inline, with the code for support, and Retry. */
 export function RunErrorRow({ error, action }: RunErrorRowProps) {
   const killSwitch = isKillSwitchRunError(error);
+  const upstreamHint =
+    error.code === "provider.upstream_error"
+      ? " Check your connected provider or integration (e.g. Linear/LLM) in Settings and retry."
+      : "";
   return (
     <div role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 border border-destructive/40 px-2.5 py-1.5">
       <CircleAlert size={14} aria-hidden="true" className="text-destructive" />
       <span className="text-body">
-        {killSwitch ? `${KILL_SWITCH_TITLE}. ${KILL_SWITCH_DESCRIPTION}` : error.message}
+        {killSwitch ? `${KILL_SWITCH_TITLE}. ${KILL_SWITCH_DESCRIPTION}` : `${error.message}${upstreamHint}`}
       </span>
       {!killSwitch ? <code className="font-mono text-meta text-muted-foreground">{error.code}</code> : null}
       {action ? <span className="ml-auto">{action}</span> : null}
