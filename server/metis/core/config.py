@@ -6,7 +6,8 @@ variables (optionally via a ``.env`` file) and validated by pydantic-settings.
 
 from base64 import urlsafe_b64decode
 from functools import lru_cache
-from typing import Annotated, Any, Self
+from typing import Annotated, Any, Literal, Self
+from urllib.parse import urlparse
 
 from pydantic import BeforeValidator, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,7 +25,11 @@ class AppSettings:
     DEFAULT_SESSION_TTL_DAYS = 30
     DEFAULT_SESSION_IDLE_DAYS = 7
     VERSION = "0.1.0"
+    DEFAULT_FLAGSMITH_API_URL = "https://edge.api.flagsmith.com/api/v1/"
 
+
+# Flagsmith local evaluation needs a server-side environment key.
+SERVER_KEY_PREFIX = "ser."
 
 _GOOGLE_FIELDS = ("google_client_id", "google_client_secret", "google_redirect_uri")
 # Plain-string secrets masked by ``Settings.__repr__``; ``SecretStr`` fields mask themselves.
@@ -44,6 +49,8 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
         frozen=True,
+        # A validation error must never echo the raw inputs (they hold secrets).
+        hide_input_in_errors=True,
     )
 
     # App settings
@@ -154,6 +161,17 @@ class Settings(BaseSettings):
         default="text-embedding-3-small", min_length=1, validation_alias="LLM_EMBEDDING_MODEL"
     )
 
+    # Feature flags: ``static`` reads ``FF_*`` env vars; ``flagsmith`` needs its environment key.
+    feature_flag_provider: Literal["static", "flagsmith"] = Field(
+        default="static", validation_alias="FEATURE_FLAG_PROVIDER"
+    )
+    flagsmith_environment_key: Annotated[SecretStr | None, BeforeValidator(strip_to_none)] = Field(
+        default=None, validation_alias="FLAGSMITH_ENVIRONMENT_KEY"
+    )
+    flagsmith_api_url: str = Field(
+        default=AppSettings.DEFAULT_FLAGSMITH_API_URL, validation_alias="FLAGSMITH_API_URL"
+    )
+
     # Observability settings (optional)
     sentry_dsn: str | None = Field(default=None, validation_alias="SENTRY_DSN")
     otel_exporter_otlp_endpoint: str | None = Field(
@@ -192,6 +210,26 @@ class Settings(BaseSettings):
                 "run_lock_heartbeat_seconds must be under half of run_lock_ttl_seconds"
             )
 
+        return self
+
+    @model_validator(mode="after")
+    def validate_feature_flags(self) -> Self:
+        """Flagsmith needs its environment key; its API URL must be https."""
+        if self.feature_flag_provider == "flagsmith" and self.flagsmith_environment_key is None:
+            raise ValueError("flagsmith_environment_key is required when using flagsmith")
+        key = self.flagsmith_environment_key
+        if (
+            self.feature_flag_provider == "flagsmith"
+            and key is not None
+            and not key.get_secret_value().startswith(SERVER_KEY_PREFIX)
+        ):
+            raise ValueError(
+                f"flagsmith_environment_key must be a server-side key ({SERVER_KEY_PREFIX}…)"
+            )
+        url = urlparse(self.flagsmith_api_url)
+        local_http = url.scheme == "http" and url.hostname in ("localhost", "127.0.0.1", "::1")
+        if url.scheme != "https" and not (local_http and self.is_development):
+            raise ValueError("flagsmith_api_url must be https (http://localhost in development)")
         return self
 
     @model_validator(mode="after")

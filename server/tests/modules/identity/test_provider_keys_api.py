@@ -174,6 +174,7 @@ async def test_new_workspace_has_no_keys_and_default_settings(
         "max_steps": 50,
         "version": 0,
         "linear_team_id": None,
+        "capabilities": {},
     }
 
 
@@ -493,6 +494,7 @@ async def test_first_patch_creates_settings_from_version_zero(
         "max_steps": 80,
         "version": 1,
         "linear_team_id": None,
+        "capabilities": {},
     }
     assert (await get_settings_body(client, token))["settings"] == response.json()
 
@@ -513,6 +515,7 @@ async def test_patch_with_current_version_updates_and_bumps_version(
         "max_steps": 80,
         "version": 2,
         "linear_team_id": None,
+        "capabilities": {},
     }
 
 
@@ -569,6 +572,7 @@ async def test_settings_bounds_are_inclusive(
         "max_steps": 200,
         "version": 1,
         "linear_team_id": None,
+        "capabilities": {},
     }
 
 

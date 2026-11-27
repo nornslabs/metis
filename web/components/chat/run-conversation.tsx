@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 
 import { Composer } from "@/components/chat/composer";
@@ -23,6 +23,8 @@ import { UserBubble } from "@/components/chat/user-bubble";
 import { useAnswerActions } from "@/components/chat/use-answer-actions";
 import { useRunPrompts } from "@/components/chat/use-run-prompts";
 import { useRefreshIdea, useStartRunAction, useStopRunAction } from "@/components/chat/use-run-actions";
+import { isKillSwitchRunError, showKillSwitchToast } from "@/lib/keys/readiness";
+import { usePhaseReview } from "@/lib/plan/use-plan-state";
 import { queryKeys } from "@/lib/api/queries/keys";
 import { useSTTTranscription } from "@/lib/stt/use-stt-transcription";
 import { useKeyGate } from "@/lib/api/queries/use-key-gate";
@@ -155,6 +157,13 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
   const [otherSeq, setOtherSeq] = useState<number | null>(null);
 
   const streamLost = stream === "failed";
+  const toastedKillSwitchRun = useRef<string | null>(null);
+  useEffect(() => {
+    if (state.status === "failed" && isKillSwitchRunError(state.error) && toastedKillSwitchRun.current !== run.id) {
+      toastedKillSwitchRun.current = run.id;
+      showKillSwitchToast();
+    }
+  }, [run.id, state.status, state.error]);
   const active = isActiveStatus(state.status) && !streamLost;
   const canContinue = isTerminalStatus(state.status);
   const canSubmitPrompt = canContinue && !starting;
@@ -166,6 +175,10 @@ export function RunConversation({ idea, run, history, outputsRunId }: RunConvers
     answers,
     otherSeq,
   });
+  const review = usePhaseReview(idea.id);
+  useEffect(() => {
+    if (phaseReview) review.sync(run.id, phaseReview.phases);
+  }, [review, run.id, phaseReview]);
   const suggestions = useSuggestions(idea.id, advice !== null);
   const canAnswer = question !== null && !answers.pending;
   const starts = outputStarts(state.steps, idea.stage);

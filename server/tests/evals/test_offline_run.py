@@ -102,20 +102,26 @@ async def test_the_throwaway_workspaces_are_gone_after_the_run(
     cases: tuple[Case, ...],
     engine: AsyncEngine,  # noqa: F811
 ) -> None:
+    tables = (
+        "identity.workspaces",
+        "ideas.ideas",
+        "scoring.score_runs",
+        "auth.users",
+        "core.outbox",
+    )
+    async with engine.connect() as conn:
+        before = [
+            await conn.scalar(text(f"SELECT count(*) FROM {table}"))
+            for table in tables
+        ]
+
     await _evaluate(harness, cases[:3], repeat=2)
 
     async with engine.connect() as conn:
-        left = [
-            await conn.scalar(text(f"SELECT count(*) FROM {table}"))
-            for table in (
-                "identity.workspaces",
-                "ideas.ideas",
-                "scoring.score_runs",
-                "auth.users",
-                "core.outbox",
-            )
+        after = [
+            await conn.scalar(text(f"SELECT count(*) FROM {table}")) for table in tables
         ]
-    assert left == [0, 0, 0, 0, 0]
+    assert after == before
 
 
 async def test_the_run_records_the_tokens_the_model_used(
