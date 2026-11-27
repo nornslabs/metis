@@ -157,7 +157,8 @@ async def test_an_sdk_error_gives_the_default_and_never_raises() -> None:
 async def test_cancellation_is_not_swallowed() -> None:
     client = FakeClient({"f": FakeFlag()})
     client.delay = 0.2
-    task = asyncio.create_task(provider_for(client).is_enabled("f", CONTEXT))
+    context = FlagContext(environment="test", workspace_id=uuid4())
+    task = asyncio.create_task(provider_for(client).is_enabled("f", context))
     await asyncio.sleep(0.05)
 
     task.cancel()
@@ -233,7 +234,9 @@ async def test_a_slow_client_does_not_block_the_event_loop() -> None:
             ticks.append(1)
             await asyncio.sleep(0.02)
 
-    await asyncio.gather(provider.is_enabled("f", CONTEXT), ticker())
+    context = FlagContext(environment="test", workspace_id=uuid4())
+
+    await asyncio.gather(provider.is_enabled("f", context), ticker())
 
     assert len(ticks) == 5
     assert threading.current_thread() is threading.main_thread()

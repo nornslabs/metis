@@ -49,6 +49,8 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
         frozen=True,
+        # A validation error must never echo the raw inputs (they hold secrets).
+        hide_input_in_errors=True,
     )
 
     # App settings
