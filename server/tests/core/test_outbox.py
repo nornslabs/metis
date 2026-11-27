@@ -42,25 +42,33 @@ OVER_ONE_BATCH = RELAY_BATCH_SIZE + 50
 
 Sessionmaker = async_sessionmaker[AsyncSession]
 
+_outbox_skip_reason: str | None = None
+_outbox_checked = False
+
 
 @pytest_asyncio.fixture
 async def sessionmaker() -> AsyncIterator[Sessionmaker]:
+    global _outbox_checked, _outbox_skip_reason
+    if _outbox_checked and _outbox_skip_reason is not None:
+        pytest.skip(_outbox_skip_reason)
     engine = create_async_engine(DATABASE_URL)
-    try:
-        async with engine.connect() as conn:
-            exists = await conn.scalar(text("SELECT to_regclass('core.outbox') IS NOT NULL"))
-    except Exception:  # noqa: BLE001
+    if not _outbox_checked:
+        try:
+            async with engine.connect() as conn:
+                exists = await conn.scalar(text("SELECT to_regclass('core.outbox') IS NOT NULL"))
+        except Exception:  # noqa: BLE001
+            _outbox_skip_reason = "Postgres not reachable"
+        else:
+            if not exists:
+                _outbox_skip_reason = "core.outbox missing; run `alembic upgrade head`"
+        _outbox_checked = True
+    if _outbox_skip_reason is not None:
         await engine.dispose()
-        pytest.skip("Postgres not reachable")
-    if not exists:
-        await engine.dispose()
-        pytest.skip("core.outbox missing; run `alembic upgrade head`")
+        pytest.skip(_outbox_skip_reason)
 
     async with engine.begin() as conn:
         await conn.execute(text("TRUNCATE core.outbox"))
     yield async_sessionmaker(engine, expire_on_commit=False)
-    async with engine.begin() as conn:
-        await conn.execute(text("TRUNCATE core.outbox"))
     await engine.dispose()
 
 

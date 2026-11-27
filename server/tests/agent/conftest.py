@@ -31,9 +31,15 @@ def no_retries(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("metis.adapters.llm.chat.MAX_RETRIES", 0)
 
 
+_checkpointer_ready = False
+
+
 @pytest_asyncio.fixture
 async def checkpointer(engine: AsyncEngine) -> AsyncIterator[AsyncPostgresSaver]:  # noqa: F811
     """A Postgres checkpointer connected as ``metis_app``, like the worker's."""
-    await setup_checkpointer(APP_DATABASE_URL)
+    global _checkpointer_ready
+    if not _checkpointer_ready:
+        await setup_checkpointer(APP_DATABASE_URL)
+        _checkpointer_ready = True
     async with open_checkpointer(APP_DATABASE_URL) as saver:
         yield saver

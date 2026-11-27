@@ -59,29 +59,39 @@ _MIGRATED = (
 )
 _TRUNCATE = TRUNCATE_USERS
 
+_db_skip_reason: str | None = None
+_db_ready = False
+
 
 @pytest_asyncio.fixture
 async def engine() -> AsyncIterator[AsyncEngine]:
     """A migrated database with empty identity tables and the test role."""
+    global _db_ready, _db_skip_reason
+    if _db_ready and _db_skip_reason is not None:
+        pytest.skip(_db_skip_reason)
     engine = create_async_engine(DATABASE_URL)
-    try:
-        async with engine.connect() as conn:
-            migrated = await conn.scalar(text(_MIGRATED))
-    except Exception:  # noqa: BLE001
-        await engine.dispose()
-        pytest.skip("Postgres not reachable")
-    if not migrated:
-        await engine.dispose()
-        pytest.skip("auth/identity tables missing; run `alembic upgrade head`")
+    if not _db_ready:
+        try:
+            async with engine.connect() as conn:
+                migrated = await conn.scalar(text(_MIGRATED))
+        except Exception:  # noqa: BLE001
+            _db_skip_reason = "Postgres not reachable"
+        else:
+            if not migrated:
+                _db_skip_reason = "auth/identity tables missing; run `alembic upgrade head`"
+        if _db_skip_reason is not None:
+            _db_ready = True
+            await engine.dispose()
+            pytest.skip(_db_skip_reason)
+        async with engine.begin() as conn:
+            await conn.execute(text(_CREATE_TEST_ROLE))
+            for grant in _GRANTS:
+                await conn.execute(text(grant))
+        _db_ready = True
 
     async with engine.begin() as conn:
-        await conn.execute(text(_CREATE_TEST_ROLE))
-        for grant in _GRANTS:
-            await conn.execute(text(grant))
         await conn.execute(text(_TRUNCATE))
     yield engine
-    async with engine.begin() as conn:
-        await conn.execute(text(_TRUNCATE))
     await engine.dispose()
 
 
