@@ -12,6 +12,11 @@ from collections.abc import Collection
 from typing import Literal
 from uuid import UUID
 
+from metis.agent.tools.export_project import (
+    MAX_PROJECT_NAME_CHARS,
+    cut_at_word,
+    suggest_project_names,
+)
 from metis.helpers.dto import FrozenModel
 from metis.modules.planning import Plan, Task
 
@@ -26,8 +31,12 @@ class ExportTeam(FrozenModel):
 
 
 class PreviewProject(FrozenModel):
+    """``name`` is the name the project gets (the saved one, else the first suggestion);
+    ``suggestions`` are the names the user can pick instead (empty in older records)."""
+
     name: str
     action: Action
+    suggestions: tuple[str, ...] = ()
 
 
 class PreviewMilestone(FrozenModel):
@@ -85,6 +94,8 @@ def build_export_preview(
     *,
     team: ExportTeam,
     idea_title: str,
+    saved_project_name: str | None = None,
+    spec_text: str = "",
     plan: Plan,
     project_exists: bool,
     phase_refs: Collection[UUID],
@@ -93,6 +104,9 @@ def build_export_preview(
 ) -> ExportPreview:
     """The preview for ``plan``. ``phase_refs`` and ``task_refs`` are the local ids that
     already have a Linear item; ``linear_labels`` is ``None`` when it could not be read."""
+    suggestions = suggest_project_names(
+        saved=saved_project_name, idea_title=idea_title, spec_text=spec_text
+    )
     milestones = tuple(
         PreviewMilestone(name=phase.name, action=_action(phase.id in phase_refs))
         for phase in plan.phases
@@ -103,7 +117,11 @@ def build_export_preview(
     return ExportPreview(
         team=team,
         plan_version=plan.version,
-        project=PreviewProject(name=idea_title, action=_action(project_exists)),
+        project=PreviewProject(
+            name=suggestions[0] if suggestions else cut_at_word(idea_title, MAX_PROJECT_NAME_CHARS),
+            action=_action(project_exists),
+            suggestions=suggestions,
+        ),
         milestones=PreviewMilestones(
             total=len(milestones),
             create=len(milestones) - updated_milestones,
@@ -116,6 +134,11 @@ def build_export_preview(
         blocked_by_links=sum(len(task.blocked_by) for task in tasks),
         labels=_labels(tasks, linear_labels),
     )
+
+
+def with_project_name(preview: ExportPreview, name: str) -> ExportPreview:
+    """``preview`` with the name the user approved (the suggestions stay as shown)."""
+    return preview.model_copy(update={"project": preview.project.model_copy(update={"name": name})})
 
 
 def _action(exists: bool) -> Action:

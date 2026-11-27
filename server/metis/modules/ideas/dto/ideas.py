@@ -123,6 +123,7 @@ class Idea(FrozenModel):
     version: int
     created_at: datetime
     updated_at: datetime
+    project_name: str | None = None
 
 
 class IdeaPage(FrozenModel):

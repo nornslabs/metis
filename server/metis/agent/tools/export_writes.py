@@ -19,11 +19,12 @@ from uuid import UUID
 from langchain_core.tools import BaseTool
 
 from metis.agent.tools.export_project import (
+    MAX_PROJECT_NAME_CHARS,
     ProjectScore,
+    cut,
     milestone_description,
     milestone_name,
     project_description,
-    project_name,
 )
 from metis.agent.tools.mcp import McpRunContext
 from metis.core.events import RunEventType, publish
@@ -254,7 +255,7 @@ def action_of(existing: ExternalRef | None) -> str:
 
 def _project_args(source: ProjectSource, existing: ExternalRef | None) -> dict[str, Any]:
     arguments: dict[str, Any] = {
-        "name": project_name(source.title),
+        "name": cut(source.title, MAX_PROJECT_NAME_CHARS),
         "description": project_description(
             url=source.url,
             spec_text=source.spec_text,

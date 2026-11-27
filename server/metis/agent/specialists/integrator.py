@@ -48,7 +48,12 @@ from metis.agent.tools.export_linear import (
     read_label_names,
     read_teams,
 )
-from metis.agent.tools.export_preview import ExportPreview, ExportTeam, build_export_preview
+from metis.agent.tools.export_preview import (
+    ExportPreview,
+    ExportTeam,
+    build_export_preview,
+    with_project_name,
+)
 from metis.agent.tools.export_project import ProjectScore, idea_url
 from metis.agent.tools.export_writes import (
     ExportTally,
@@ -73,7 +78,7 @@ from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
 from metis.modules import ideas, identity, integrations, planning, scoring
-from metis.modules.ideas import Stage
+from metis.modules.ideas import MAX_PROJECT_NAME_LENGTH, Stage
 from metis.modules.integrations import (
     FINISHED_STATUSES,
     ExportJob,
@@ -134,7 +139,10 @@ def build_integrator(
             links=preview.blocked_by_links,
         )
         answer = interrupt({"type": EXPORT_APPROVAL, "preview": preview.model_dump(mode="json")})
-        approved, decided_by, previewed = _decision(answer)
+        approved, decided_by, previewed, chosen_name = _decision(answer)
+        if approved:
+            preview = with_project_name(preview, chosen_name or preview.project.name)
+            await _save_project_name(open_session, workspace_id, source, preview.project.name)
         await _record(
             open_session, workspace_id, run_id, source, preview, approved, decided_by, previewed
         )
@@ -180,6 +188,8 @@ async def _replay(
     approved = decided.status in _WRITING_STATUSES | FINISHED_STATUSES
     if preview.team.id != source.saved_team_id:
         await _save_team(open_session, context.workspace_id, preview.team)
+    if approved:
+        await _save_project_name(open_session, context.workspace_id, source, preview.project.name)
     logger.info("export.decision_replayed", approved=approved)
     result: dict[str, Any] | None = None
     if decided.status is ExportStatus.SUCCEEDED:
@@ -221,6 +231,7 @@ class _Source:
         title: str,
         plan: Plan,
         saved_team_id: str | None,
+        project_name: str | None,
         project_ref: bool,
         phase_refs: frozenset[UUID],
         task_refs: frozenset[UUID],
@@ -231,6 +242,7 @@ class _Source:
         self.title = title
         self.plan = plan
         self.saved_team_id = saved_team_id
+        self.project_name = project_name
         self.project_ref = project_ref
         self.phase_refs = phase_refs
         self.task_refs = task_refs
@@ -268,6 +280,7 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
         idea.title,
         plan,
         saved.linear_team_id,
+        idea.project_name,
         idea_id in project,
         frozenset(phases),
         frozenset(task_refs),
@@ -299,6 +312,8 @@ async def _preview(tools: dict[str, BaseTool], source: _Source, team: ExportTeam
     return build_export_preview(
         team=team,
         idea_title=source.title,
+        saved_project_name=source.project_name,
+        spec_text=source.spec_text,
         plan=source.plan,
         project_exists=source.project_ref,
         phase_refs=source.phase_refs,
@@ -337,6 +352,17 @@ async def _record(
             decided_at=utcnow(),
             summary=summary,
         )
+
+
+async def _save_project_name(
+    open_session: SessionOpener, workspace_id: UUID, source: _Source, name: str
+) -> None:
+    """Keep the approved name on the idea, so a re-export suggests and reuses it."""
+    if source.project_name == name:
+        return
+    async with open_session(workspace_id) as session:
+        await ideas.set_project_name(session, workspace_id, source.idea_id, name)
+    logger.info("export.project_name_saved", length=len(name))
 
 
 async def _save_team(open_session: SessionOpener, workspace_id: UUID, team: ExportTeam) -> None:
@@ -421,7 +447,7 @@ async def _write_everything(
         tools,
         ProjectSource(
             idea_id=source.idea_id,
-            title=source.title,
+            title=preview.project.name,
             url=url,
             spec_text=source.spec_text,
             score=source.score,
@@ -529,16 +555,29 @@ def _stored_plan_version(job: ExportJob) -> int | None:
     return version if isinstance(version, int) and not isinstance(version, bool) else None
 
 
-def _decision(answer: object) -> tuple[bool, UUID, int | None]:
-    """``(approved, decided_by, plan_version)`` from the resume value. The API stamps
-    ``decided_by`` and the plan version the preview showed (``None`` when it names none)."""
+def _decision(answer: object) -> tuple[bool, UUID, int | None, str | None]:
+    """``(approved, decided_by, plan_version, project_name)`` from the resume value. The API
+    stamps ``decided_by`` and the plan version the preview showed (``None`` when it names none);
+    ``project_name`` is the name the user chose (``None``: keep the suggested one)."""
     if not isinstance(answer, dict) or not isinstance(answer.get("approved"), bool):
         raise ValueError("The export approval answer must be {approved: bool}")
     if "decided_by" not in answer:
         raise ValueError("The export approval answer names no user (the resume route adds one)")
     version = answer.get("plan_version")
     previewed = version if isinstance(version, int) and not isinstance(version, bool) else None
-    return answer["approved"], UUID(str(answer["decided_by"])), previewed
+    return answer["approved"], UUID(str(answer["decided_by"])), previewed, _chosen_name(answer)
+
+
+def _chosen_name(answer: dict[str, Any]) -> str | None:
+    """The project name in the resume value, trimmed; ``None`` when none was sent. The resume
+    route has checked it, but it is checked again: a name Linear would refuse must not get as
+    far as the idea's row or a Linear call."""
+    raw = answer.get("project_name")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not 0 < len(raw.strip()) <= MAX_PROJECT_NAME_LENGTH:
+        raise ValueError(f"The project name must be 1–{MAX_PROJECT_NAME_LENGTH} characters")
+    return raw.strip()
 
 
 def _export_team(team: dict[str, str]) -> ExportTeam:

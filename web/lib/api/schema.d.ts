@@ -1147,6 +1147,8 @@ export interface components {
         ExportApprovalResume: {
             /** Approved */
             approved: boolean;
+            /** Project Name */
+            project_name?: string | null;
         };
         /**
          * ExportFailedItem
@@ -1235,6 +1237,8 @@ export interface components {
              */
             id: string;
             kind: components["schemas"]["IdeaKind"] | null;
+            /** Project Name */
+            project_name?: string | null;
             /** Raw Text */
             raw_text: string;
             stage: components["schemas"]["Stage"];

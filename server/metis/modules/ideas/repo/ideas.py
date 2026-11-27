@@ -163,6 +163,27 @@ async def set_interview_brief(
     return (await session.scalars(stmt)).one_or_none() is not None
 
 
+async def set_project_name(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, name: str
+) -> bool:
+    """Store the approved Linear project name; ``False`` when no such (unarchived) idea.
+
+    ``version`` is not bumped: like the brief, the name is the export's output, and a user's
+    edit of the title or text must not conflict with it.
+    """
+    stmt = (
+        update(IdeaRow)
+        .where(
+            IdeaRow.id == idea_id,
+            IdeaRow.workspace_id == workspace_id,
+            IdeaRow.archived_at.is_(None),
+        )
+        .values(project_name=name)
+        .returning(IdeaRow.id)
+    )
+    return (await session.scalars(stmt)).one_or_none() is not None
+
+
 async def set_current_score(
     session: AsyncSession, workspace_id: UUID, idea_id: UUID, score: int
 ) -> bool:

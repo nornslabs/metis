@@ -931,6 +931,48 @@ async def test_an_export_approval_is_stamped_with_the_user_who_answered(
     }
 
 
+async def test_an_export_approval_carries_the_chosen_project_name_trimmed(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, EXPORT_APPROVAL)
+    queue.clear()
+
+    response = await _resume(
+        client, ada, run_id, {"approved": True, "project_name": "  Menu Pilot "}
+    )
+
+    assert response.status_code == 202, response.text
+    assert queue[0]["resume"]["project_name"] == "Menu Pilot"
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 81])
+async def test_an_export_approval_refuses_a_blank_or_over_80_character_project_name(
+    client: httpx.AsyncClient,
+    engine: AsyncEngine,
+    queue: list[dict[str, Any]],
+    name: str,
+) -> None:
+    ada, run_id = await _waiting(client, engine, EXPORT_APPROVAL)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"approved": True, "project_name": name})
+
+    assert response.status_code == 422
+    assert queue == []
+
+
+async def test_a_declined_export_ignores_a_project_name_that_would_be_refused(
+    client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
+) -> None:
+    ada, run_id = await _waiting(client, engine, EXPORT_APPROVAL)
+    queue.clear()
+
+    response = await _resume(client, ada, run_id, {"approved": False, "project_name": "x" * 200})
+
+    assert response.status_code == 202, response.text
+    assert "project_name" not in queue[0]["resume"]
+
+
 async def test_an_export_approval_carries_no_plan_version_when_the_preview_names_none(
     client: httpx.AsyncClient, engine: AsyncEngine, queue: list[dict[str, Any]]
 ) -> None:

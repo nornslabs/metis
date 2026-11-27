@@ -201,6 +201,17 @@ async def set_current_score(
         raise IdeaNotFoundError("Idea not found")
 
 
+async def set_project_name(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, name: str
+) -> None:
+    """Record the Linear project name the user approved (1–80 characters, already checked).
+
+    Does not bump ``version``. Unknown or archived idea → ``IdeaNotFoundError``.
+    """
+    if not await repo.ideas.set_project_name(session, workspace_id, idea_id, name):
+        raise IdeaNotFoundError("Idea not found")
+
+
 async def _get_row(session: AsyncSession, workspace_id: UUID, idea_id: UUID) -> IdeaRow:
     row = await repo.ideas.get(session, workspace_id, idea_id)
     if row is None:
