@@ -69,7 +69,12 @@ export function OutputPanel({ children }: { children?: ReactNode }) {
     >
       <div className="flex h-full w-(--panel-w) flex-col border-x max-guides:w-full max-guides:border-x-0">
         <div className="flex h-9.5 shrink-0 items-stretch justify-between border-b">
-          <div role="tablist" aria-label="Output panes" onKeyDown={moveFocus} className="flex overflow-x-auto">
+          <div
+            role="tablist"
+            aria-label="Output panes"
+            onKeyDown={moveFocus}
+            className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          >
             {OUTPUT_PANES.map((name) => {
               const selected = pane === name;
               return (

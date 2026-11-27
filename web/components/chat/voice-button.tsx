@@ -104,35 +104,37 @@ export function VoiceButton({ onBlob, options, disabled = false, showAudioLevel 
             onClick={recording ? handleStop : handleStart}
             disabled={!recording && error !== null}
             aria-label={recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}
-            className="size-6.5"
+            className={recording ? "size-6.5 animate-pulse ring-2 ring-destructive/40" : "size-6.5"}
           >
             {recording ? <MicOff size={14} strokeWidth={2.5} /> : <Mic size={14} strokeWidth={2.5} />}
           </Button>
         } />
         <TooltipContent>{recording ? VOICE_STRINGS.stopRecording : VOICE_STRINGS.startRecording}</TooltipContent>
       </Tooltip>
-      {showAudioLevel && recording && audioLevel > 0 ? (
-        <AudioLevelMeter level={audioLevel} />
-      ) : null}
+      {showAudioLevel && recording ? <AudioLevelMeter level={audioLevel} /> : null}
     </>
   );
 }
 
 /** Audio level meter: animated bars that reflect real mic input volume via AnalyserNode. */
 export function AudioLevelMeter({ level }: { level: number }) {
-  const bars = Array.from({ length: 5 }, (_, i) => i);
-  const height = Math.min(level * 100, 1);
+  const weights = [0.45, 0.75, 1, 0.75, 0.45] as const;
+  const normalized = Math.min(Math.max(level * 4, 0), 1);
   return (
-    <div className="flex items-end gap-1 h-4">
-      {bars.map((i) => (
-        <div
-          key={i}
-          className={`w-1.5 bg-primary rounded-sm transition-all duration-100 ${
-            height > i / 5 ? "bg-primary" : "bg-muted"
-          }`}
-          style={{ height: `${Math.max(height * 20, 20)}%` }}
-        />
-      ))}
+    <div className="flex h-4 items-center gap-0.5" aria-hidden="true">
+      {weights.map((weight, i) => {
+        const barPct = Math.round(25 + normalized * 75 * weight);
+        return (
+          <div
+            key={i}
+            className="w-1 rounded-sm bg-destructive animate-pulse transition-all duration-100"
+            style={{
+              height: `${barPct}%`,
+              animationDelay: `${i * 120}ms`,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }
