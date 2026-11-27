@@ -27,7 +27,7 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.agent.llm import LLMGateway
-from metis.agent.prompts import load_prompt
+from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, invoke_loop
 from metis.agent.specialists.stubs import ADVISED_MARKER, SpecialistNode
 from metis.agent.state import MetisState
@@ -168,7 +168,7 @@ async def _score(
 async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> bool:
     """Run the loop; ``False`` when it hit its step limit."""
     loop = build_react_specialist(
-        load_prompt(PROMPT),
+        load_specialist_prompt(PROMPT),
         tools,
         model,
         step_limit=STEP_LIMIT,

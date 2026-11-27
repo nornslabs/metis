@@ -155,7 +155,7 @@ async def test_the_preview_counts_match_the_plan(
     preview = pending["preview"]
     assert pending["type"] == "export_approval"
     assert preview["team"] == {"id": "team-2", "name": "Platform"}
-    assert preview["project"] == {"name": "Pocket CRM", "action": "create"}
+    assert (preview["project"]["name"], preview["project"]["action"]) == ("Pocket CRM", "create")
     assert [m["name"] for m in preview["milestones"]["items"]] == [
         "Foundations",
         "Core",

@@ -23,7 +23,7 @@ from langgraph.types import interrupt
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.agent.llm import LLMGateway
-from metis.agent.prompts import load_prompt
+from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, invoke_loop
 from metis.agent.specialists.idea_context import idea_seed_parts
 from metis.agent.specialists.stubs import SpecialistNode
@@ -80,7 +80,7 @@ async def _draft(scope: ResearchScope) -> SpecVersion | str:
         model = await scope.gateway.chat_model(session, PURPOSE)
         seed = await _seed(session, scope)
     loop = build_react_specialist(
-        load_prompt(PROMPT),
+        load_specialist_prompt(PROMPT),
         spec_tools(scope, ledger),
         model,
         step_limit=STEP_LIMIT,
