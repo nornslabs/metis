@@ -181,6 +181,37 @@ async def save_item(
     return saved
 
 
+_ARG_ALIASES: dict[str, tuple[str, ...]] = {
+    "team": ("teamId",),
+    "project": ("projectId",),
+    "projectMilestone": ("milestone", "milestoneId", "projectMilestoneId"),
+    "parentId": ("parent",),
+    "labels": ("labelIds",),
+    "addTeams": ("teams", "teamIds"),
+}
+
+
+def _adapt_args(arguments: dict[str, Any], schema: Any) -> dict[str, Any]:
+    """Map Linear argument names to what the loaded MCP tool's JSON schema declares."""
+    if not isinstance(schema, dict):
+        return arguments
+    props = schema.get("properties")
+    if not isinstance(props, dict) or not props:
+        return arguments
+    strict = schema.get("additionalProperties") is False
+    adapted: dict[str, Any] = {}
+    for key, value in arguments.items():
+        if key in props:
+            adapted[key] = value
+            continue
+        alias = next((alt for alt in _ARG_ALIASES.get(key, ()) if alt in props), None)
+        if alias is not None:
+            adapted[alias] = value
+        elif not strict:
+            adapted[key] = value
+    return adapted
+
+
 async def call_tool(
     tools: dict[str, BaseTool], tool_name: str, arguments: dict[str, Any], item: str
 ) -> str:
@@ -189,8 +220,9 @@ async def call_tool(
     tool = tools.get(tool_name)
     if tool is None:
         raise provider_error(_PROVIDER.value, FailureReason.BAD_RESPONSE)
+    payload = _adapt_args(arguments, tool.args_schema)
     try:
-        return str(await tool.ainvoke(arguments))
+        return str(await tool.ainvoke(payload))
     except Exception as exc:
         logger.warning("export.write_failed", item=item, reason=failure_reason(exc).value)
         raise
@@ -255,6 +287,9 @@ def _milestone_args(
     return arguments
 
 
+_ENTITY_KEYS = ("project", "milestone", "projectMilestone", "issue", "label", "issueLabel")
+
+
 def parse_saved_item(text: str) -> SavedItem:
     """The id and url in a save tool's answer; an answer with no id is a provider failure."""
     try:
@@ -264,20 +299,27 @@ def parse_saved_item(text: str) -> SavedItem:
     entry = _entry(data)
     external_id = entry.get("id") if entry is not None else None
     if not isinstance(external_id, str) or not external_id:
+        logger.warning(
+            "export.bad_response",
+            is_json=data is not None,
+            detail=text[:200] if data is None else sorted(data) if isinstance(data, dict) else None,
+        )
         raise provider_error(_PROVIDER.value, FailureReason.BAD_RESPONSE)
     url = entry.get("url") if entry is not None else None
     return SavedItem(external_id, url if isinstance(url, str) and url else None)
 
 
 def _entry(data: Any) -> dict[str, Any] | None:
-    """The object holding ``id``: the answer itself, or the one nested under ``project`` or
-    ``milestone``."""
+    """The object holding ``id``: the answer itself, or the one nested under a Linear entity key."""
     if not isinstance(data, dict):
         return None
-    if "id" in data:
+    if isinstance(data.get("id"), str) and data["id"]:
         return data
-    for key in (ITEM_PROJECT, ITEM_MILESTONE):
+    for key in _ENTITY_KEYS:
         nested = data.get(key)
-        if isinstance(nested, dict):
+        if isinstance(nested, dict) and isinstance(nested.get("id"), str) and nested["id"]:
             return nested
+    for value in data.values():
+        if isinstance(value, dict) and isinstance(value.get("id"), str) and value["id"]:
+            return value
     return None

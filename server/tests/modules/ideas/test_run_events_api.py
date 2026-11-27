@@ -20,9 +20,11 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from metis.core import events, jobs
+from metis.core.config import get_settings
 from metis.core.events import RunEventType
 from metis.modules.ideas.controller import run_events
 from tests.helpers.auth import assert_problem, auth, sign_in
+from tests.modules.conftest import REDIS_URL
 
 STATUS = RunEventType.RUN_STATUS
 TOKEN = RunEventType.TOKEN
@@ -35,6 +37,9 @@ def _no_queue(monkeypatch: pytest.MonkeyPatch) -> None:
         return None
 
     monkeypatch.setattr(jobs, "enqueue", noop)
+    # stream_frames opens its own Redis client from settings; align it with the test redis fixture.
+    test_settings = get_settings().model_copy(update={"redis_url": REDIS_URL})
+    monkeypatch.setattr(run_events, "get_settings", lambda: test_settings)
 
 
 async def _new_run(client: httpx.AsyncClient, caller: Caller, title: str = "Pocket CRM") -> str:

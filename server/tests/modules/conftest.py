@@ -31,36 +31,45 @@ from tests.helpers.auth import APP_ROLE, DATABASE_URL, TRUNCATE_USERS
 
 REDIS_URL = os.environ.get("TEST_REDIS_URL", "redis://localhost:6379/15")
 
+_db_skip_reason: str | None = None
+_db_checked = False
+
 
 @pytest_asyncio.fixture
 async def engine() -> AsyncIterator[AsyncEngine]:
+    global _db_checked, _db_skip_reason
+    if _db_checked and _db_skip_reason is not None:
+        pytest.skip(_db_skip_reason)
     engine = create_async_engine(DATABASE_URL, poolclass=NullPool)
-    try:
-        async with engine.connect() as conn:
-            ready = await conn.scalar(
-                text(
-                    "SELECT to_regclass('identity.members') IS NOT NULL "
-                    "AND to_regclass('auth.users') IS NOT NULL "
-                    "AND to_regclass('auth.sessions') IS NOT NULL "
-                    "AND to_regclass('ideas.ideas') IS NOT NULL "
-                    "AND to_regclass('ideas.llm_usage') IS NOT NULL "
-                    "AND EXISTS (SELECT FROM pg_roles WHERE rolname = :role)"
-                ),
-                {"role": APP_ROLE},
-            )
-    except Exception:  # noqa: BLE001
+    if not _db_checked:
+        try:
+            async with engine.connect() as conn:
+                ready = await conn.scalar(
+                    text(
+                        "SELECT to_regclass('identity.members') IS NOT NULL "
+                        "AND to_regclass('auth.users') IS NOT NULL "
+                        "AND to_regclass('auth.sessions') IS NOT NULL "
+                        "AND to_regclass('ideas.ideas') IS NOT NULL "
+                        "AND to_regclass('ideas.llm_usage') IS NOT NULL "
+                        "AND EXISTS (SELECT FROM pg_roles WHERE rolname = :role)"
+                    ),
+                    {"role": APP_ROLE},
+                )
+        except Exception:  # noqa: BLE001
+            _db_skip_reason = "Postgres not reachable"
+        else:
+            if not ready:
+                _db_skip_reason = (
+                    "auth/identity/ideas tables or metis_app role missing; "
+                    "run `alembic upgrade head`"
+                )
+        _db_checked = True
+    if _db_skip_reason is not None:
         await engine.dispose()
-        pytest.skip("Postgres not reachable")
-    if not ready:
-        await engine.dispose()
-        pytest.skip(
-            "auth/identity/ideas tables or metis_app role missing; run `alembic upgrade head`"
-        )
+        pytest.skip(_db_skip_reason)
     async with engine.begin() as conn:
         await conn.execute(text(TRUNCATE_USERS))
     yield engine
-    async with engine.begin() as conn:
-        await conn.execute(text(TRUNCATE_USERS))
     await engine.dispose()
 
 
@@ -77,17 +86,27 @@ async def app_sessions(engine: AsyncEngine) -> AsyncIterator[async_sessionmaker[
     await app_engine.dispose()
 
 
+_redis_skip_reason: str | None = None
+_redis_checked = False
+
+
 @pytest_asyncio.fixture
 async def redis() -> AsyncIterator[Redis]:
+    global _redis_checked, _redis_skip_reason
+    if _redis_checked and _redis_skip_reason is not None:
+        pytest.skip(_redis_skip_reason)
     client: Redis = Redis.from_url(REDIS_URL)
-    try:
-        await client.ping()
-    except Exception:  # noqa: BLE001
+    if not _redis_checked:
+        try:
+            await client.ping()
+        except Exception:  # noqa: BLE001
+            _redis_skip_reason = "Redis not reachable"
+        _redis_checked = True
+    if _redis_skip_reason is not None:
         await client.aclose()
-        pytest.skip("Redis not reachable")
+        pytest.skip(_redis_skip_reason)
     await client.flushdb()
     yield client
-    await client.flushdb()
     await client.aclose()
 
 
