@@ -36,6 +36,7 @@ from langgraph.types import Command, StreamMode
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.checkpoint import open_checkpointer
 from metis.agent.graph import CompiledGraph, build_graph
 from metis.agent.llm import LLMGateway
@@ -57,6 +58,7 @@ from metis.core.db import get_session_maker, set_workspace
 from metis.core.errors import ERROR_CATALOG, ErrorCode, MetisError
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.core.run_control import cancel_requested
 from metis.helpers.http import ClientFactory, provider_http_factory
 from metis.modules import ideas, identity
@@ -68,6 +70,8 @@ from metis.modules.ideas.helpers.run_transitions import TERMINAL_STATUSES
 # The stream includes subgraphs: LangGraph only streams the model output of a specialist's
 # own tool-calling loop (a subgraph) when asked to.
 STREAM_MODES: list[StreamMode] = ["updates", "messages", "custom", "tasks"]
+
+CONVERSION_EVENT = "run_completed_successfully"
 
 logger = get_logger(__name__)
 
@@ -90,6 +94,7 @@ class RunnerDeps:
     exa_http_client: ClientFactory | None = None
     oauth_http_client: ClientFactory | None = None
     mcp_http_client: McpHttpClientFactory | None = None
+    flags: FeatureFlagProvider | None = None
 
 
 def default_deps() -> RunnerDeps:
@@ -175,6 +180,7 @@ async def _stream(
         run.id,
         sessions=deps.sessions,
         http_client=deps.llm_http_client() if deps.llm_http_client else None,
+        flags=deps.flags,
     )
     try:
         return await _stream_graph(deps, redis, publisher, lock, run, resume, gateway)
@@ -343,7 +349,20 @@ async def _settle(
         async with _scoped(deps, ws) as session:
             await ideas.mark_succeeded(session, ws, run_id)
         await publisher.status(RunStatus.SUCCEEDED.value)
+        await _record_conversion(deps, ws)
     logger.info("run.settled", outcome=outcome.kind)
+
+
+async def _record_conversion(deps: RunnerDeps, workspace_id: UUID) -> None:
+    """Record the experiment conversion for a succeeded run; a failure never changes the run."""
+    try:
+        flags = deps.flags or build_feature_flag_provider(get_settings())
+        await flags.track_event(
+            CONVERSION_EVENT,
+            FlagContext(workspace_id=workspace_id, environment=get_settings().app_env),
+        )
+    except Exception:  # noqa: BLE001  (tracking must never fail a run)
+        logger.warning("run.conversion_failed", exc_info=True)
 
 
 async def _fail(
