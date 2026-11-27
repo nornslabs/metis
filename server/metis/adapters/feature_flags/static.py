@@ -66,7 +66,7 @@ class StaticProvider:
 
     async def track_event(self, name: str, context: FlagContext) -> None:
         """Nothing is sent anywhere: the static provider has no experiment backend."""
-        logger.debug("feature_flags.event_ignored", event=name)
+        logger.debug("feature_flags.event_ignored", event_name=name)
 
     async def close(self) -> None:
         """Nothing to release."""
