@@ -160,16 +160,13 @@ def coverage_of(turns: Sequence[InterviewTurn], run_id: UUID) -> InterviewCovera
     )
 
 
-def question_progress(coverage: InterviewCoverage, topic: InterviewTopic) -> tuple[int, int]:
-    """``(index, total)`` for the question just opened on ``topic``.
+def question_progress(coverage: InterviewCoverage) -> tuple[int, int]:
+    """``(index, total)`` for the question just opened.
 
-    ``index`` counts the run's asked questions, this one included. ``total`` is an estimate: the
-    questions asked plus the checklist topics still to ask about (not this one, not skipped),
-    capped at ``MAX_INTERVIEW_QUESTIONS``. It never falls below ``index``.
+    ``index`` counts the run's asked questions, this one included. Questions are free-form, so
+    there is no estimate of how many remain: ``total`` is always ``MAX_INTERVIEW_QUESTIONS``.
     """
-    remaining = [t for t in coverage.missing if t is not topic and t not in coverage.skipped]
-    index = coverage.questions_asked
-    return index, min(MAX_INTERVIEW_QUESTIONS, max(index, index + len(remaining)))
+    return coverage.questions_asked, MAX_INTERVIEW_QUESTIONS
 
 
 def end_reason(coverage: InterviewCoverage) -> InterviewEnd:

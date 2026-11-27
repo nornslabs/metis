@@ -89,6 +89,11 @@ jobs:
         working-directory: server
         run: uv run python -m evals.run_scoring --recorded --min-pass-rate 0.7
 
+      # The Interviewer's gates over the frozen questions, with recorded judge verdicts.
+      - name: Recorded gate run
+        working-directory: server
+        run: uv run python -m evals.run_gates --recorded --min-pass-rate 1
+
   scoring:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -143,10 +148,23 @@ jobs:
           EVAL_LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
           EVAL_LLM_MODEL: ${{ inputs.model }}
 
+      - name: Gate evals
+        working-directory: server
+        run: >-
+          uv run python -m evals.run_gates
+          --min-pass-rate "${{ inputs.min_pass_rate }}"
+          --json gate-results.json
+        env:
+          EVAL_LLM_BASE_URL: ${{ secrets.EVAL_LLM_BASE_URL }}
+          EVAL_LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+          EVAL_LLM_MODEL: ${{ inputs.model }}
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scoring-eval-results
-          path: server/results.json
+          path: |
+            server/results.json
+            server/gate-results.json
           if-no-files-found: ignore

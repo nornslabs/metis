@@ -120,3 +120,21 @@ the expected failures there. The offline run passes 11 of 14 cases (79%) on purp
 - `scoring` (manual, Actions > Evals > Run workflow): the real model. Needs the repository
   secrets `EVAL_LLM_BASE_URL` and `EVAL_LLM_API_KEY`; the model name is a run input. It fails
   under the minimum pass rate and uploads `results.json`.
+
+## Gate evals
+
+A second, smaller set checks the Interviewer's gates (SHIP-416): `evals/gates/cases.jsonl` freezes
+14 candidate questions on three ideas. A *good* question must pass, a *generic* one ("What is the
+pain?") and a *duplicate* of an earlier question must be rejected, and an *inferable* question
+(its answer is in the idea text or an earlier answer) must be skipped with the quoted source.
+No database or Redis is needed, only the server's env (the settings load).
+
+```bash
+cd server
+uv run python -m evals.run_gates --recorded            # offline replay of gates/recorded.jsonl
+EVAL_LLM_BASE_URL=... EVAL_LLM_API_KEY=... EVAL_LLM_MODEL=... uv run python -m evals.run_gates
+```
+
+Options: `--cases ID ...`, `--repeat N` (default 2; a case passes when every run matches),
+`--min-pass-rate X` (default 0.9), `--json FILE`, `--recorded [FILE]`. Exit codes as for scoring.
+CI runs the recorded replay on pull requests and the real model from the manual workflow.

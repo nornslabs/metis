@@ -24,6 +24,8 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.agent.gate import GateContext, GateRefusal
+from metis.agent.tools.interview_gates import IdeaTexts, ReviewOutcome, review_question
 from metis.agent.tools.question_options import OptionArgs, check_options, question_payload
 from metis.core.errors import QuestionAlreadyOpenError
 from metis.modules import ideas
@@ -33,6 +35,7 @@ from metis.modules.ideas import (
     InterviewFindings,
     InterviewTopic,
     QuestionRefusal,
+    TurnSource,
 )
 
 ASK_USER = "ask_user"
@@ -48,6 +51,15 @@ CAP_REACHED = (
 )
 USER_ENDED = (
     f"The user ended the interview; this question was not asked. Call {FINISH_INTERVIEW} now."
+)
+SKIPPED = (
+    "This question was not asked. Pick a different open assumption, or call "
+    f"{FINISH_INTERVIEW} if none is worth asking."
+)
+ALREADY_ANSWERED = (
+    "The idea or an earlier answer already answers this, so the {topic} topic was recorded and "
+    f"the question was not asked. Pick a different open assumption, or call {FINISH_INTERVIEW} "
+    "if none is worth asking."
 )
 ONE_AT_A_TIME = "Another question is still waiting for its answer. Ask one question at a time."
 NOTED = "Noted."
@@ -95,12 +107,12 @@ class RecallArgs(BaseModel):
     pass
 
 
-def interview_tools(scope: InterviewScope) -> list[BaseTool]:
-    """The Interviewer's allow-list, bound to one run."""
-    return [_ask_user(scope), _save_turn(scope), _recall(scope), _finish()]
+def interview_tools(scope: InterviewScope, gates: GateContext) -> list[BaseTool]:
+    """The Interviewer's allow-list, bound to one run; ``gates`` reviews every question."""
+    return [_ask_user(scope, gates), _save_turn(scope), _recall(scope), _finish()]
 
 
-def _ask_user(scope: InterviewScope) -> BaseTool:
+def _ask_user(scope: InterviewScope, gates: GateContext) -> BaseTool:
     async def ask_user(
         question: str,
         topic: InterviewTopic,
@@ -112,6 +124,10 @@ def _ask_user(scope: InterviewScope) -> BaseTool:
         if proposed and (problem := check_options(proposed, multi=multi)):
             return problem
         async with scope.session() as session:
+            if message := await _review(
+                session, scope, gates, question, topic, proposed, multi=multi
+            ):
+                return message
             try:
                 turn = await ideas.open_question(
                     session, scope.workspace_id, scope.idea_id, scope.run_id, topic, question
@@ -125,7 +141,7 @@ def _ask_user(scope: InterviewScope) -> BaseTool:
             )
         if turn.answer is not None:
             return turn.answer
-        index, total = ideas.question_progress(coverage, topic)
+        index, total = ideas.question_progress(coverage)
         payload = question_payload(
             question,
             proposed,
@@ -143,11 +159,58 @@ def _ask_user(scope: InterviewScope) -> BaseTool:
         coroutine=ask_user,
         name=ASK_USER,
         description=(
-            "Ask the user one short question about one topic and wait for the answer. "
-            "Offer options when a few distinct answers are likely."
+            "Ask the user one short question about this idea and wait for the answer. Tag it "
+            "with the brief field it informs, or other. Offer options when a few distinct "
+            "answers are likely. A question that is generic, already answered or a repeat is "
+            "refused."
         ),
         args_schema=AskUserArgs,
     )
+
+
+async def _review(
+    session: AsyncSession,
+    scope: InterviewScope,
+    gates: GateContext,
+    question: str,
+    topic: InterviewTopic,
+    options: list[OptionArgs],
+    *,
+    multi: bool,
+) -> str | None:
+    """A message for the model when the gates stop the question, ``None`` to go on and ask it.
+
+    The node re-runs this tool from its start when the run resumes, so the run's last asked
+    question is not reviewed again when it comes back with the same text: the first review
+    stands. When the cap is reached or the user ended the interview, the question goes on to
+    ``open_question`` unreviewed, which refuses it: no judge call and no turn are spent on it.
+    """
+    idea = await ideas.get_idea(session, scope.workspace_id, scope.idea_id)
+    turns = await ideas.list_turns(session, scope.workspace_id, scope.idea_id)
+    if _is_rerun(turns, scope.run_id, question):
+        return None
+    coverage = await ideas.interview_coverage(
+        session, scope.workspace_id, scope.idea_id, scope.run_id
+    )
+    if coverage.user_ended or coverage.questions_left == 0:
+        return None
+    texts = IdeaTexts(idea.title, idea.raw_text, [(t.question, t.answer) for t in turns])
+    review = await review_question(gates, texts, question, options, multi=multi)
+    if review.outcome is ReviewOutcome.ASK:
+        return None
+    if review.outcome is ReviewOutcome.REVISE:
+        raise GateRefusal(review.text)
+    if review.outcome is ReviewOutcome.ANSWERED:
+        await ideas.save_interview_turn(
+            session, scope.workspace_id, scope.idea_id, scope.run_id, topic, question, review.text
+        )
+        return ALREADY_ANSWERED.format(topic=topic.value)
+    return SKIPPED
+
+
+def _is_rerun(turns: list[ideas.InterviewTurn], run_id: UUID, question: str) -> bool:
+    asked = [t for t in turns if t.run_id == run_id and t.source is TurnSource.ASKED]
+    return bool(asked) and asked[-1].question == question
 
 
 def _save_turn(scope: InterviewScope) -> BaseTool:
