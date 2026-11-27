@@ -19,6 +19,7 @@ Agents update this file when they start a PRD, when they finish it, and whenever
 
 | PRD | Branch | Status | Notes       |
 | --- | ------ | ------ | ----------- |
+| chore-quiet-docker-logs | chore/quiet-docker-logs | done | SHIP-389: quiet Docker logs: library loggers pinned to WARNING, `/v1/health` access line dropped, arq idle health line filtered; tests run by CI |
 | feat-flagsmith-agent-skill | feat/flagsmith-agent-skill | in progress | SHIP-363: agent skill for the Flagsmith experiment workflow (inventory → flag → experiment → deploy → monitor → human review → rollout → cleanup); markdown only; blocked by SHIP-362 (done); blocks SHIP-365 |
 | feat-model-routing-experimentation | feat/model-routing-experimentation | done | SHIP-362: `model_routing_strategy` experiment: port `get_experiment_variant` + `track_event`, strategy routing flags, one exposure per run, conversion on `succeeded`; stacked on feat/flagsmith-provider; tests run by CI |
 | feat-flagsmith-provider | feat/flagsmith-provider | done | SHIP-361: `FlagsmithProvider` (local evaluation, lazy client, shared via factory cache), shutdown close, import-linter contract |
@@ -132,6 +133,7 @@ Status values: `draft`, `in progress`, `blocked`, `done`.
 ## Decisions
 
 | Date       | Decision                                                                | Why                                                                       |
+| 2026-11-27 | SHIP-389: arq's idle health line is dropped by a filter on `arq.worker` (all three arq processes), not `log_health_check=False` | arq 0.28.0 has no such option (`Worker` ignores unknown settings keys); found in code review; the goal and acceptance criteria are unchanged | code review finding |
 | 2026-11-27 | SHIP-363: skill uses the real Flagsmith CLI + `flagsmith api` (issue's commands do not exist); undocumented calls are marked unverified until checked on a real environment; demo seeds conversion events | The issue's commands would fail on first run; unverified endpoints must not be written as fact; SHIP-362 cannot send events | user decisions, all recommended |
 | 2026-11-27 | SHIP-362 specced (draft): port gets `get_experiment_variant` + `track_event`; routing per strategy in three JSON flags shaped like `model_routing`; one exposure per run on first `chat_model`, identity = workspace id | User chose the recommended option for all three | user decisions |
 | 2026-11-27 | SHIP-361: `enable_analytics` only (no `track()`); factory caches one shared Flagsmith provider per key and URL, closed at shutdown; cloud integration test opt-in via `FLAGSMITH_TEST_ENVIRONMENT_KEY` | User chose the recommended option for all three | user decisions |
