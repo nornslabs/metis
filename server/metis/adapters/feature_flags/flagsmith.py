@@ -103,7 +103,7 @@ class FlagsmithProvider:
         """Log the conversion. The server SDK has no custom event API, so nothing is sent."""
         logger.info(
             "feature_flags.event_tracked",
-            event=name,
+            event_name=name,
             workspace_id=None if context.workspace_id is None else str(context.workspace_id),
         )
 
