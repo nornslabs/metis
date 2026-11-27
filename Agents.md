@@ -20,6 +20,7 @@ Metis is built incrementally with a spec-driven workflow. Context files define w
 │   │   ├── code-standards.md    # coding rules for Python, LangGraph, TypeScript, data, tests
 │   │   └── ai-workflow-rules.md # AI workflow rules and conventions
 │   ├── prds/                  # one file per unit of work (see PRDs)
+│   ├── skills/                # reusable agent skills (e.g. flagsmith-manage-experiment.md)
 │   └── progress-tracker.md    # done / in progress / open questions
 ├── compose.yaml               # local stack: postgres, redis, api, worker, scheduler, web
 ├── docker/                    # docker init scripts (e.g. init.sql)
