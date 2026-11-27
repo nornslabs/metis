@@ -62,8 +62,27 @@ def _redact_secrets(_: Any, logger: Any, event_dict: dict[str, Any]) -> dict[str
 
 
 ACCESS_LOGGER = "uvicorn.access"
+ARQ_WORKER_LOGGER = "arq.worker"
 # uvicorn's access record args: (client, method, path with query, http version, status).
 _ACCESS_PATH_ARG = 2
+_HEALTH_PATH = "/v1/health"
+# arq's idle line (``recording health: j_complete=0 ...``) has no switch in arq 0.28.
+_ARQ_IDLE_HEALTH_PREFIX = "recording health"
+
+# Library loggers pinned to WARNING whatever LOG_LEVEL is: they log every SQL
+# statement or outbound request at INFO and bury the app's own events.
+_QUIET_LOGGERS = ("httpcore", "httpx", "sqlalchemy")
+_QUIET_LEVEL = logging.WARNING
+
+
+def _access_path(record: logging.LogRecord) -> str | None:
+    """The request path (with query) of a uvicorn access record, or None."""
+    args = record.args
+    if isinstance(args, tuple) and len(args) > _ACCESS_PATH_ARG:
+        path = args[_ACCESS_PATH_ARG]
+        if isinstance(path, str):
+            return path
+    return None
 
 
 class StripQueryFilter(logging.Filter):
@@ -74,13 +93,27 @@ class StripQueryFilter(logging.Filter):
     """
 
     def filter(self, record: logging.LogRecord) -> bool:
-        args = record.args
-        if isinstance(args, tuple) and len(args) > _ACCESS_PATH_ARG:
-            path = args[_ACCESS_PATH_ARG]
-            if isinstance(path, str) and "?" in path:
-                stripped = path.split("?", 1)[0]
-                record.args = (*args[:_ACCESS_PATH_ARG], stripped, *args[_ACCESS_PATH_ARG + 1 :])
+        path = _access_path(record)
+        if path is not None and "?" in path:
+            args = cast(tuple[Any, ...], record.args)
+            stripped = path.split("?", 1)[0]
+            record.args = (*args[:_ACCESS_PATH_ARG], stripped, *args[_ACCESS_PATH_ARG + 1 :])
         return True
+
+
+class HealthCheckAccessFilter(logging.Filter):
+    """Drop uvicorn access lines for the healthcheck; compose polls it every 10 s."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        path = _access_path(record)
+        return path is None or path.split("?", 1)[0] != _HEALTH_PATH
+
+
+class ArqIdleHealthFilter(logging.Filter):
+    """Drop arq's periodic idle health line; job start, end and failure lines stay."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not record.getMessage().startswith(_ARQ_IDLE_HEALTH_PREFIX)
 
 
 def configure_logging(settings: Settings) -> None:
@@ -133,12 +166,13 @@ def configure_logging(settings: Settings) -> None:
 
     # Configure standard library logging to use structlog
     # Route uvicorn, sqlalchemy, arq, httpx through structlog
-    system_loggers = ["uvicorn", ACCESS_LOGGER, "sqlalchemy", "arq", "httpx"]
+    system_loggers = ["uvicorn", ACCESS_LOGGER, "arq", *_QUIET_LOGGERS]
+    configured_level = getattr(logging, settings.log_level.upper(), logging.INFO)
 
     for name in system_loggers:
         log = logging.getLogger(name)
         log.handlers.clear()
-        log.setLevel(getattr(logging, settings.log_level.upper(), logging.INFO))
+        log.setLevel(_QUIET_LEVEL if name in _QUIET_LOGGERS else configured_level)
 
         # Create a handler that uses structlog formatting
         handler = logging.StreamHandler(sys.stderr)
@@ -149,6 +183,11 @@ def configure_logging(settings: Settings) -> None:
     access = logging.getLogger(ACCESS_LOGGER)
     if not any(isinstance(f, StripQueryFilter) for f in access.filters):
         access.addFilter(StripQueryFilter())
+    if not any(isinstance(f, HealthCheckAccessFilter) for f in access.filters):
+        access.addFilter(HealthCheckAccessFilter())
+    arq_worker = logging.getLogger(ARQ_WORKER_LOGGER)
+    if not any(isinstance(f, ArqIdleHealthFilter) for f in arq_worker.filters):
+        arq_worker.addFilter(ArqIdleHealthFilter())
 
 
 def get_logger(name: str) -> BoundLogger:
