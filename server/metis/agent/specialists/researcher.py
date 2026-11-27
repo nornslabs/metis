@@ -30,7 +30,7 @@ from pydantic import ValidationError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from metis.adapters.flags import build_flag_provider
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_prompt
 from metis.agent.specialists.base import build_react_specialist, finished_call_args
@@ -51,7 +51,7 @@ from metis.core.config import get_settings
 from metis.core.errors import ErrorCode
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
-from metis.core.ports import FeatureFlags, FlagContext
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.modules import ideas, research
 from metis.modules.ideas import RunKind, Stage
@@ -81,10 +81,10 @@ def build_researcher(
     open_session: SessionOpener,
     redis: Redis,
     make_exa_client: ClientFactory,
-    flags: FeatureFlags | None = None,
+    flags: FeatureFlagProvider | None = None,
 ) -> SpecialistNode:
     """The Researcher node for one run."""
-    _flags = flags or build_flag_provider()
+    _flags = flags or build_feature_flag_provider(get_settings())
     settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
@@ -100,7 +100,7 @@ def build_researcher(
             environment=settings.app_env,
             custom_attributes={},
         )
-        if not await _flags.is_enabled("exa_enabled", flag_context):
+        if not await _flags.is_enabled("exa_enabled", flag_context, default=True):
             logger.info("research.skipped_exa_disabled")
             get_stream_writer()(
                 {

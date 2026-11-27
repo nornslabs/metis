@@ -11,6 +11,7 @@ Enabled tests exercise the real path against Postgres and a fake server, mirrori
 
 from __future__ import annotations
 
+import os
 from uuid import UUID, uuid4
 
 import pytest
@@ -20,7 +21,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 
-from metis.adapters.flags import StaticProvider
+from metis.adapters.feature_flags import StaticProvider
 from metis.agent.tools.mcp import McpRunContext, load_mcp_tools
 from metis.agent.tools.mcp_policy import McpToolPolicy
 from metis.core.config import get_settings
@@ -85,8 +86,8 @@ async def test_static_provider_all_five_flags(
     _settings_env(monkeypatch)
     if env_value is not None:
         monkeypatch.setenv(f"FF_{flag.upper()}", env_value)
-    provider = StaticProvider()
-    assert await provider.is_enabled(flag, _flag_context()) is expected
+    provider = StaticProvider(os.environ)
+    assert await provider.is_enabled(flag, _flag_context(), default=True) is expected
 
 
 # ------------------------------------------------------------------ Sarvam STT disabled (no DB)
@@ -105,7 +106,7 @@ async def test_transcribe_audio_sarvam_disabled_raises(
             uuid4(),
             b"audio",
             "audio/webm",
-            flags=StaticProvider(),
+            flags=StaticProvider(os.environ),
         )
 
     assert caught.value.meta == {"provider": "stt", "reason": "kill_switch"}
@@ -153,7 +154,7 @@ async def test_load_mcp_tools_linear_disabled_returns_empty(
 async def test_exa_enabled_false_blocks(monkeypatch: pytest.MonkeyPatch) -> None:
     _settings_env(monkeypatch)
     monkeypatch.setenv("FF_EXA_ENABLED", "false")
-    provider = StaticProvider()
+    provider = StaticProvider(os.environ)
     assert not await provider.is_enabled("exa_enabled", _flag_context())
 
 
@@ -203,7 +204,7 @@ async def test_all_five_kill_switches_work_independently(
     async with app_sessions() as session:
         with pytest.raises(ProviderNotConfiguredError):
             await transcribe_audio(
-                session, workspace_id, b"audio", "audio/webm", flags=StaticProvider()
+                session, workspace_id, b"audio", "audio/webm", flags=StaticProvider(os.environ)
             )
 
     monkeypatch.setenv("FF_SARVAM_ENABLED", "true")
@@ -213,7 +214,7 @@ async def test_all_five_kill_switches_work_independently(
     # the key check fails.
     async with app_sessions() as session:
         result = await transcribe_audio(
-            session, workspace_id, b"audio", "audio/webm", flags=StaticProvider()
+            session, workspace_id, b"audio", "audio/webm", flags=StaticProvider(os.environ)
         )
     from metis.modules.stt.dto import STTErrorResponse
 
@@ -233,7 +234,7 @@ async def test_all_five_kill_switches_work_independently(
 
     monkeypatch.setenv("FF_LINEAR_ENABLED", "true")
     get_settings.cache_clear()
-    assert await StaticProvider().is_enabled(
+    assert await StaticProvider(os.environ).is_enabled(
         "linear_enabled", _flag_context(workspace_id)
     ) is True
 
@@ -249,7 +250,7 @@ async def test_all_five_kill_switches_work_independently(
 
     monkeypatch.setenv("FF_NOTION_ENABLED", "true")
     get_settings.cache_clear()
-    assert await StaticProvider().is_enabled(
+    assert await StaticProvider(os.environ).is_enabled(
         "notion_enabled", _flag_context(workspace_id)
     ) is True
 
