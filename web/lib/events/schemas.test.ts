@@ -9,6 +9,11 @@ function frame(type: string, data: unknown): string {
 }
 
 describe("parseRunEvent", () => {
+  test("reads a terminal run_status frame that carries no ts", () => {
+    const raw = JSON.stringify({ run_id: RUN_ID, type: "run_status", data: { status: "succeeded" } });
+    expect(parseRunEvent("run_status", raw)).toEqual({ type: "run_status", status: "succeeded" });
+  });
+
   test("reads a node_started frame", () => {
     expect(parseRunEvent("node_started", frame("node_started", { node: "interviewer" }))).toEqual({
       type: "node_started",
