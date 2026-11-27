@@ -28,3 +28,5 @@ skills-lock.json
 docs/agents/
 .scratch/
 research
+.agents/skills
+docs/story.md
