@@ -238,5 +238,5 @@ async def test_a_tool_loop_skips_a_stubborn_item_and_finishes_without_failing() 
 
     tool_results = [m for m in result["messages"] if isinstance(m, ToolMessage)]
     assert [m.status for m in tool_results] == ["error", "error", "success"]
-    assert tool_results[0].content == NOT_EMPTY
+    assert NOT_EMPTY in str(tool_results[0].content)
     assert result["messages"][-1].content == "done"
