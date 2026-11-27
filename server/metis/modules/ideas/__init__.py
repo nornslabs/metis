@@ -42,6 +42,7 @@ from metis.modules.ideas.dto import (
     SpecVersionSummary,
     Stage,
     TeamChoice,
+    TurnSource,
     WorkflowRun,
 )
 from metis.modules.ideas.helpers.spec_markdown import render_markdown as render_spec_markdown
@@ -112,6 +113,7 @@ __all__ = [
     "TeamChoice",
     "PhaseReviewResume",
     "QuestionRefusal",
+    "TurnSource",
     "RunKind",
     "RunRef",
     "RunStarted",

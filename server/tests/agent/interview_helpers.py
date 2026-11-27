@@ -58,11 +58,17 @@ class ScriptedLLM:
     script: list[Reply] = field(default_factory=list)
     bodies: list[dict[str, Any]] = field(default_factory=list)
     embeddings: bool = False
+    judge_verdicts: list[str] = field(default_factory=list)
+    judge_bodies: list[dict[str, Any]] = field(default_factory=list)
     embedding_inputs: list[int] = field(default_factory=list)
     _ids: Iterator[int] = field(default_factory=count)
 
     def add(self, *replies: Reply) -> None:
         self.script.extend(replies)
+
+    def judge(self, *verdicts: str) -> None:
+        """The gate judge's next replies (``PASS`` or ``REJECT: ...``); ``PASS`` after the last."""
+        self.judge_verdicts.extend(verdicts)
 
     def client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(transport=httpx.MockTransport(self._handle))
@@ -79,10 +85,21 @@ class ScriptedLLM:
         body = json.loads(request.content)
         if request.url.path.endswith("/embeddings"):
             return self._embeddings(body)
+        if _is_judge_call(body):
+            return self._judge_reply(body)
         self.bodies.append(body)
         if not self.script:
             return httpx.Response(500, json={"error": {"message": "script exhausted"}})
         reply = self.script.pop(0)
+        if body.get("stream"):
+            return self._stream(reply)
+        return httpx.Response(200, json=self._completion(reply))
+
+    def _judge_reply(self, body: dict[str, Any]) -> httpx.Response:
+        """The gate judge is a separate script: it never consumes the specialist's replies."""
+        self.judge_bodies.append(body)
+        verdict = self.judge_verdicts.pop(0) if self.judge_verdicts else "PASS"
+        reply = Reply(text=verdict)
         if body.get("stream"):
             return self._stream(reply)
         return httpx.Response(200, json=self._completion(reply))
@@ -157,3 +174,12 @@ def _chunk(choices: list[dict[str, Any]], usage: dict[str, int] | None = None) -
     if usage is not None:
         chunk["usage"] = usage
     return chunk
+
+
+JUDGE_MARKER = "You are a quality judge"
+
+
+def _is_judge_call(body: dict[str, Any]) -> bool:
+    messages = body.get("messages") or []
+    first = messages[0].get("content") if messages else None
+    return isinstance(first, str) and first.startswith(JUDGE_MARKER)

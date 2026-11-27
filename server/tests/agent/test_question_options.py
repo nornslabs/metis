@@ -64,21 +64,13 @@ def _coverage(missing: list[InterviewTopic], skipped: list[InterviewTopic], aske
     )
 
 
-def test_total_counts_the_topics_still_to_ask_about() -> None:
-    coverage = _coverage(TOPICS, [], asked=1)
+def test_progress_counts_asked_questions_against_the_cap() -> None:
+    coverage = _coverage(TOPICS, [], asked=3)
 
-    assert question_progress(coverage, InterviewTopic.PROBLEM) == (1, 5)
-
-
-def test_total_leaves_out_skipped_topics_and_never_drops_below_the_index() -> None:
-    coverage = _coverage(
-        [InterviewTopic.PAYMENT, InterviewTopic.FEASIBILITY], [InterviewTopic.PAYMENT], asked=3
-    )
-
-    assert question_progress(coverage, InterviewTopic.FEASIBILITY) == (3, 3)
+    assert question_progress(coverage) == (3, 8)
 
 
-def test_total_is_capped_at_the_question_limit() -> None:
-    coverage = _coverage(TOPICS, [], asked=7)
+def test_total_stays_at_the_cap_whatever_is_covered() -> None:
+    coverage = _coverage([InterviewTopic.PAYMENT], [InterviewTopic.PAYMENT], asked=1)
 
-    assert question_progress(coverage, InterviewTopic.OTHER) == (7, 8)
+    assert question_progress(coverage) == (1, 8)

@@ -260,7 +260,7 @@ def _specialists(
     """The real specialists (none with ``AGENT_STUB_SPECIALISTS``), then ``deps`` overrides."""
     real: dict[Specialist, SpecialistNode] = {}
     if not get_settings().agent_stub_specialists:
-        real[Specialist.INTERVIEWER] = build_interviewer(gateway, partial(_scoped, deps))
+        real[Specialist.INTERVIEWER] = build_interviewer(gateway, partial(_scoped, deps), redis)
         real[Specialist.RESEARCHER] = build_researcher(
             gateway,
             partial(_scoped, deps),

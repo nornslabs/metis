@@ -4,7 +4,8 @@ With ``clarification`` questions in state (sent by the Researcher) it asks the f
 nothing else, with no model call, then leaves the rest for its next visit (see
 ``_clarify``). At ``intake`` it only moves the run to ``interviewing`` (no model call). At
 ``interviewing`` it runs a tool-calling loop (``build_react_specialist``) over the
-interviewer prompt, the four interview tools and the run's ``interview`` chat model,
+interviewer prompt, the four interview tools (``ask_user`` reviews each question with the input
+and output gates, see ``tools/interview_gates.py``) and the run's ``interview`` chat model,
 seeded with the idea's title and text; ``finish_interview`` ends the loop. The loop pauses
 on ``ask_user``; the node re-runs
 from its start on resume and the subgraph continues from its checkpoint, so the node does
@@ -24,7 +25,9 @@ from langgraph.config import get_stream_writer
 from langgraph.errors import GraphRecursionError
 from langgraph.types import interrupt
 from pydantic import ValidationError
+from redis.asyncio import Redis
 
+from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, finished_call_args
@@ -53,8 +56,13 @@ STEP_LIMIT = 40
 logger = get_logger(__name__)
 
 
-def build_interviewer(gateway: LLMGateway, open_session: SessionOpener) -> SpecialistNode:
-    """The Interviewer node for one run: ``gateway`` gives its model, ``open_session`` its DB."""
+def build_interviewer(
+    gateway: LLMGateway, open_session: SessionOpener, redis: Redis
+) -> SpecialistNode:
+    """The Interviewer node for one run: ``gateway`` gives its model, ``open_session`` its DB.
+
+    ``redis`` counts the gate judge's calls for the run (see ``metis.agent.gate``).
+    """
 
     async def node(state: MetisState) -> dict[str, Any]:
         if state.get("clarification"):
@@ -70,7 +78,7 @@ def build_interviewer(gateway: LLMGateway, open_session: SessionOpener) -> Speci
             open_session=open_session,
         )
         try:
-            messages = await _interview(gateway, scope)
+            messages = await _interview(gateway, scope, redis)
         except GraphRecursionError:
             logger.warning("interview.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
@@ -155,16 +163,18 @@ async def _continue_chat(
     return _finish_node(state, {"continuation_done": True})
 
 
-async def _interview(gateway: LLMGateway, scope: InterviewScope) -> list[AnyMessage]:
+async def _interview(gateway: LLMGateway, scope: InterviewScope, redis: Redis) -> list[AnyMessage]:
     async with scope.session() as session:
         idea = await ideas.get_idea(session, scope.workspace_id, scope.idea_id)
         model = await gateway.chat_model(session, PURPOSE)
+        gates = await build_gate_context(gateway, session, redis, scope.run_id)
     loop = build_react_specialist(
         load_specialist_prompt(PROMPT),
-        interview_tools(scope),
+        interview_tools(scope, gates),
         model,
         step_limit=STEP_LIMIT,
         finish_tools={FINISH_INTERVIEW},
+        refusals=(GateRefusal,),
     )
     seed = HumanMessage(content=f"Idea title: {idea.title}\n\nIdea text:\n{idea.raw_text}")
     result = await loop.ainvoke({"messages": [seed]})

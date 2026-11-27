@@ -161,7 +161,7 @@ async def test_the_interview_asks_adapts_and_hands_over_to_research(
     assert statuses(events)[-1] == "succeeded"
     tool_calls = [e.data for e in events if e.type is RunEventType.TOOL_CALL]
     assert {"node": "interviewer", "name": "ask_user"} in tool_calls
-    assert len(await usage_rows(engine, run.workspace_id)) == llm.calls
+    assert len(await usage_rows(engine, run.workspace_id)) == llm.calls + len(llm.judge_bodies)
 
 
 async def test_a_resume_never_saves_a_question_twice(
@@ -361,7 +361,7 @@ async def test_a_question_with_options_pauses_with_ids_and_progress(
             ],
             "allow_free_text": False,
             "index": 1,
-            "total": 5,
+            "total": 8,
         }
     ]
     assert (await run_row(engine, run)).status == "awaiting_user"
@@ -378,11 +378,11 @@ async def test_a_question_without_options_is_free_text_with_progress(
 
     [first, second] = await _interrupts(redis, run)
     assert (first["options"], first["multi"], first["allow_free_text"]) == ([], False, True)
-    assert (first["index"], first["total"]) == (1, 5)
-    assert (second["index"], second["total"]) == (2, 5)
+    assert (first["index"], first["total"]) == (1, 8)
+    assert (second["index"], second["total"]) == (2, 8)
 
 
-async def test_progress_total_drops_when_an_answer_covers_other_topics(
+async def test_progress_total_stays_at_the_cap_when_an_answer_covers_other_topics(
     redis: Redis, engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
 ) -> None:
     run = await keyed_run(engine)
@@ -391,7 +391,7 @@ async def test_progress_total_drops_when_an_answer_covers_other_topics(
     await run_job(ctx, run)
 
     [payload] = await _interrupts(redis, run)
-    assert (payload["index"], payload["total"]) == (1, 4)
+    assert (payload["index"], payload["total"]) == (1, 8)
 
 
 @pytest.mark.parametrize(
