@@ -69,6 +69,8 @@ async def sessionmaker() -> AsyncIterator[Sessionmaker]:
     async with engine.begin() as conn:
         await conn.execute(text("TRUNCATE core.outbox"))
     yield async_sessionmaker(engine, expire_on_commit=False)
+    async with engine.begin() as conn:
+        await conn.execute(text("TRUNCATE core.outbox"))
     await engine.dispose()
 
 
