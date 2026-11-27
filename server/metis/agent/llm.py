@@ -166,9 +166,7 @@ class LLMGateway:
             environment=get_settings().app_env,
             custom_attributes={"tier": tier},
         )
-        rate_limits = await self._flags.get_json(
-            "rate_limits", context, _DEFAULT_RATE_LIMITS
-        )
+        rate_limits = await self._flags.get_json("rate_limits", context, _DEFAULT_RATE_LIMITS)
         if not isinstance(rate_limits, dict):
             rate_limits = _DEFAULT_RATE_LIMITS
         tier_limits = rate_limits.get(tier, rate_limits.get("default", {}))
@@ -200,12 +198,10 @@ class LLMGateway:
             "default": credentials.model,
             "fallback": credentials.model,
         }
-        routing = await self._flags.get_json(
-            "model_routing", context, default_routing
-        )
-
+        routing = await self._flags.get_json("model_routing", context, default_routing)
         if not isinstance(routing, dict):
             routing = default_routing
+
         model_name: str | None = credentials.model
         for key in (tier, "default", "fallback"):
             value = _flag_value(routing, key)

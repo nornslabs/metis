@@ -34,6 +34,12 @@ from metis.modules.identity.models import WorkspaceSettingsRow
 
 logger = get_logger(__name__)
 
+
+def _as_dict(value: object) -> dict[str, object]:
+    """A remote JSON config value as an object; anything else counts as unset."""
+    return value if isinstance(value, dict) else {}
+
+
 async def get_settings_overview(
     session: AsyncSession, workspace_id: UUID, flags: FeatureFlagProvider | None = None
 ) -> SettingsResponse:
@@ -48,15 +54,9 @@ async def get_settings_overview(
         environment=get_settings().app_env,
         custom_attributes={},
     )
-    capabilities = await _flags.get_json("capabilities", context, {})
-    run_budget_remote = await _flags.get_json("run_budget_usd", context, {})
-    max_steps_remote = await _flags.get_json("max_steps", context, {})
-    if not isinstance(capabilities, dict):
-        capabilities = {}
-    if not isinstance(run_budget_remote, dict):
-        run_budget_remote = {}
-    if not isinstance(max_steps_remote, dict):
-        max_steps_remote = {}
+    capabilities = _as_dict(await _flags.get_json("capabilities", context, {}))
+    run_budget_remote = _as_dict(await _flags.get_json("run_budget_usd", context, {}))
+    max_steps_remote = _as_dict(await _flags.get_json("max_steps", context, {}))
 
     async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
         keys = {

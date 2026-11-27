@@ -36,6 +36,7 @@ from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 from redis.asyncio import Redis
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -68,6 +69,7 @@ from metis.core.errors import (
 )
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
 from metis.modules import ideas, identity, integrations, planning, scoring
@@ -96,8 +98,11 @@ def build_integrator(
     redis: Redis,
     make_client: ClientFactory,
     mcp_http_client: McpHttpClientFactory | None = None,
+    flags: FeatureFlagProvider | None = None,
 ) -> SpecialistNode:
     """The Integrator node for one run."""
+    _flags = flags or build_feature_flag_provider(get_settings())
+    settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
         workspace_id, idea_id = UUID(state["workspace_id"]), UUID(state["idea_id"])
@@ -116,7 +121,9 @@ def build_integrator(
         async with open_session(workspace_id) as session:
             decided = await integrations.get_export_decision(session, workspace_id, run_id)
         if decided is not None:
-            return await _replay(state, context, ledger, open_session, source, decided)
+            return await _replay(
+                state, context, ledger, open_session, source, decided, flags=_flags
+            )
         tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
         team, chosen = await _team(tools, source.saved_team_id)
         preview = await _preview(tools, source, team)
@@ -134,9 +141,24 @@ def build_integrator(
         if chosen:
             await _save_team(open_session, workspace_id, team)
         logger.info("export.decided", approved=approved)
-        result = (
-            await _write(context, ledger, tools, source, preview, previewed) if approved else None
-        )
+        result: dict[str, Any] | None = None
+        if approved:
+            flag_context = FlagContext(
+                workspace_id=workspace_id,
+                environment=settings.app_env,
+                custom_attributes={},
+            )
+            if not await _flags.is_enabled("linear_enabled", flag_context, default=True):
+                logger.info("export.skipped_linear_disabled")
+                get_stream_writer()(
+                    {
+                        "type": RunEventType.NOTICE.value,
+                        "code": "export.skipped_linear_disabled",
+                        "text": "Linear export is skipped: the linear_enabled kill switch is off.",
+                    }
+                )
+            else:
+                result = await _write(context, ledger, tools, source, preview, previewed)
         return await _finish(state, context, approved, result)
 
     return node
@@ -149,6 +171,7 @@ async def _replay(
     open_session: SessionOpener,
     source: _Source,
     decided: ExportJob,
+    flags: FeatureFlagProvider | None = None,
 ) -> dict[str, Any]:
     """Finish a run whose decision was already recorded (a re-run after a crash between the
     record and the checkpoint). It asks nothing: the saved team may already have changed, which
@@ -161,14 +184,32 @@ async def _replay(
     result: dict[str, Any] | None = None
     if decided.status is ExportStatus.SUCCEEDED:
         result = decided.result
-    elif decided.status in (ExportStatus.PARTIAL, ExportStatus.FAILED):
+    elif decided.status is ExportStatus.PARTIAL:
         raise _partial_error(decided.result)
+    elif decided.status is ExportStatus.FAILED:
+        raise UpstreamError("The Linear export did not complete")
     elif approved:
-        tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
-        result = await _write(
-            context, ledger, tools, source, preview, _stored_plan_version(decided)
+        _flags = flags or build_feature_flag_provider(get_settings())
+        settings = get_settings()
+        flag_context = FlagContext(
+            workspace_id=context.workspace_id,
+            environment=settings.app_env,
+            custom_attributes={},
         )
-    return await _finish(state, context, approved, result)
+        if not await _flags.is_enabled("linear_enabled", flag_context, default=True):
+            logger.info("export.skipped_linear_disabled")
+        else:
+            tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
+            result = await _write(
+                context, ledger, tools, source, preview, _stored_plan_version(decided)
+            )
+    return await _finish(
+        state,
+        context,
+        approved,
+        result,
+        publish_finished=decided.status is not ExportStatus.SUCCEEDED,
+    )
 
 
 class _Source:
@@ -456,7 +497,12 @@ def _partial_error(result: dict[str, Any]) -> ExportPartialError:
 
 
 async def _finish(
-    state: MetisState, context: McpRunContext, approved: bool, result: dict[str, Any] | None
+    state: MetisState,
+    context: McpRunContext,
+    approved: bool,
+    result: dict[str, Any] | None,
+    *,
+    publish_finished: bool = True,
 ) -> dict[str, Any]:
     update: dict[str, Any] = {
         "export_state": STATE_APPROVED if approved else STATE_DECLINED,
@@ -465,12 +511,13 @@ async def _finish(
     if approved and result is not None:
         update["stage"] = Stage.EXPORTED
         update["pending_approval"] = None
-        await publish(
-            str(context.run_id),
-            RunEventType.EXPORT_FINISHED,
-            {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
-            redis=context.redis,
-        )
+        if publish_finished:
+            await publish(
+                str(context.run_id),
+                RunEventType.EXPORT_FINISHED,
+                {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
+                redis=context.redis,
+            )
     get_stream_writer()(
         {"type": RunEventType.NODE_FINISHED.value, "node": Specialist.INTEGRATOR.value}
     )

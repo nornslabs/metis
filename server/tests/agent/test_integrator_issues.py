@@ -311,8 +311,12 @@ async def test_running_a_finished_export_again_writes_nothing_and_no_second_even
 
     assert update["export_state"] == "approved"
     assert update["pending_approval"] is None
+    assert update["stage"] == "exported"
     assert len(linear.tool_calls) == calls
     assert await outbox_count(engine, run, "ExportFinished") == 1
+    assert len(
+        [e for e in await events_of(redis, run) if e.type is RunEventType.EXPORT_FINISHED]
+    ) == 1
     assert [j["status"] for j in await export_jobs(engine, run)] == ["succeeded"]
 
 

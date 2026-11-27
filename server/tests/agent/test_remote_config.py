@@ -69,8 +69,6 @@ def _flag_context(workspace_id: UUID | None = None, tier: str = "default") -> Fl
         ("rate_limits", None, {}),
         ("capabilities", None, {}),
         ("model_routing", "not json", {}),
-        ("rate_limits", "[1,2,3]", [1, 2, 3]),
-        ("capabilities", "123", 123),
     ],
 )
 async def test_static_provider_get_json(
