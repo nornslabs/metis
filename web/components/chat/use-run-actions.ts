@@ -4,7 +4,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ApiError, describeError } from "@/lib/api/errors";
-import { llmNotReadyMessage } from "@/lib/keys/readiness";
+import {
+  isKillSwitchError,
+  KILL_SWITCH_DESCRIPTION,
+  llmNotReadyMessage,
+  showKillSwitchToast,
+} from "@/lib/keys/readiness";
 import { useCancelRun } from "@/lib/api/mutations/use-cancel-run";
 import { newIdempotencyKey, useStartRun } from "@/lib/api/mutations/use-start-run";
 import { queryKeys } from "@/lib/api/queries/keys";
@@ -37,6 +42,12 @@ export function useStartRunAction(ideaId: string) {
       {
         onSuccess: () => void refresh(),
         onError: (error) => {
+          if (isKillSwitchError(error)) {
+            showKillSwitchToast();
+            setError(KILL_SWITCH_DESCRIPTION);
+            onRejected?.();
+            return;
+          }
           const alreadyRunning = error instanceof ApiError && error.code === ALREADY_RUNNING;
           const notReady = llmNotReadyMessage(error);
           setError(alreadyRunning ? ALREADY_RUNNING_MESSAGE : (notReady ?? describeError(error)));
