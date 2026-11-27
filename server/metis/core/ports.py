@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from typing import Protocol
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+from uuid import UUID
 
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.runnables import RunnableConfig
@@ -55,4 +56,46 @@ class Embedder(Protocol):
 
     async def aclose(self) -> None:
         """Release the HTTP client."""
+        ...
+
+
+@dataclass(frozen=True)
+class FlagContext:
+    """Who a flag is read for, so a provider can target by workspace, user or attribute."""
+
+    environment: str
+    workspace_id: UUID | None = None
+    user_id: UUID | None = None
+    custom_attributes: Mapping[str, str | int | float | bool] = field(default_factory=dict)
+
+
+class FeatureFlagProvider(Protocol):
+    """Async feature flags and remote config. Reads never raise: a flag that is missing,
+    malformed or unreachable gives the caller's ``default``."""
+
+    async def is_enabled(self, key: str, context: FlagContext, default: bool = False) -> bool:
+        """Whether the boolean flag ``key`` is on; ``default`` when it has no usable value."""
+        ...
+
+    async def get_string(self, key: str, context: FlagContext, default: str) -> str:
+        """The string value of ``key``; ``default`` when it has none."""
+        ...
+
+    async def get_json(self, key: str, context: FlagContext, default: Any) -> Any:
+        """The JSON value of ``key`` (any JSON type); ``default`` when absent or invalid."""
+        ...
+
+    async def get_experiment_variant(self, key: str, context: FlagContext, default: str) -> str:
+        """The variation of the multivariate flag ``key`` served to the context's identity.
+
+        The read is the experiment exposure. ``default`` when the flag has no usable value.
+        """
+        ...
+
+    async def track_event(self, name: str, context: FlagContext) -> None:
+        """Record the conversion event ``name`` for the context's identity. Never raises."""
+        ...
+
+    async def close(self) -> None:
+        """Release any client or background task. Safe to call twice."""
         ...

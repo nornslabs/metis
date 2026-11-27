@@ -275,8 +275,9 @@ def _issue_args(
         "project": source.project_id,
         "title": issue_title(task.title),
         "description": issue_description(task.description, source.idea_url),
-        "estimate": task.estimate,
     }
+    if task.estimate is not None and task.estimate > 0:
+        arguments["estimate"] = task.estimate
     milestone = inputs.milestones.get(task.id)
     if milestone is not None:
         arguments["projectMilestone"] = milestone
