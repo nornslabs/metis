@@ -236,7 +236,7 @@ jobs:
           push: false
           tags: metis-server:test
           cache-from: type=gha,scope=server
-          cache-to: type=gha,scope=server,mode=max
+          cache-to: type=gha,scope=server,mode=max,ignore-error=true
 
       - name: Build web image
         if: github.event_name == 'push' || needs.changes.outputs.web == 'true'
@@ -246,7 +246,7 @@ jobs:
           push: false
           tags: metis-web:test
           cache-from: type=gha,scope=web
-          cache-to: type=gha,scope=web,mode=max
+          cache-to: type=gha,scope=web,mode=max,ignore-error=true
 
   smoke:
     runs-on: ubuntu-latest
