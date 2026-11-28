@@ -27,6 +27,7 @@ from uuid import UUID
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.config import get_stream_writer
+from langgraph.constants import TAG_NOSTREAM
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -94,7 +95,10 @@ class ModelJudge:
             [
                 SystemMessage(content=load_prompt(JUDGE_PROMPT)),
                 HumanMessage(content=f"Criterion:\n{instruction}\n\nItem:\n{item}"),
-            ]
+            ],
+            # Prevent LangGraph's ``messages`` stream mode from forwarding judge tokens
+            # (e.g. "PASS") to the UI.
+            config={"tags": [TAG_NOSTREAM]},
         )
         return _parse_verdict(reply.text)
 
