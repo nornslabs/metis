@@ -21,6 +21,7 @@ from uuid import UUID
 from langchain_core.tools import BaseTool
 
 from metis.agent.tools.export_issue import (
+    design_line,
     issue_description,
     issue_title,
     labels_for,
@@ -74,6 +75,8 @@ class IssueSource:
     project_id: str
     milestone_ids: dict[UUID, str]
     idea_url: str
+    # The Linear HLD document's url; ``None`` when the idea has no HLD (no Design line).
+    hld_url: str | None
     # Progress already published by the project and milestone steps.
     done: int
     total: int
@@ -274,7 +277,11 @@ def _issue_args(
         "team": source.team_id,
         "project": source.project_id,
         "title": issue_title(task.title),
-        "description": issue_description(task.description, source.idea_url),
+        "description": issue_description(
+            task.description,
+            source.idea_url,
+            None if source.hld_url is None else design_line(source.hld_url, task.component),
+        ),
     }
     if task.estimate is not None and task.estimate > 0:
         arguments["estimate"] = task.estimate

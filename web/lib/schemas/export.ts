@@ -5,7 +5,7 @@ export const exportActionSchema = z.enum(["create", "update"]);
 export type ExportAction = z.infer<typeof exportActionSchema>;
 
 /** The kinds of item the export saves, in the order it saves them. */
-export const exportItemSchema = z.enum(["project", "milestone", "issue", "links"]);
+export const exportItemSchema = z.enum(["project", "milestone", "issue", "links", "hld"]);
 export type ExportItem = z.infer<typeof exportItemSchema>;
 
 const countsSchema = z.object({

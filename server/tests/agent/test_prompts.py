@@ -69,7 +69,7 @@ def test_the_planner_prompt_offers_linear_reads_and_the_older_version_is_kept() 
     latest = load_prompt("planner")
 
     assert all(tool in latest for tool in ("list_teams", "list_projects", "list_issues"))
-    assert latest == load_prompt("planner", 4)
+    assert latest == load_prompt("planner", 5)
     assert "list_teams" in load_prompt("planner", 3)
     assert "list_teams" not in load_prompt("planner", 2)
 
@@ -80,6 +80,11 @@ def test_the_planner_prompt_asks_for_issue_briefs_and_the_older_version_is_kept(
     assert all(f"`## {name}`" in latest for name in ("Goal", "Requirements", "Acceptance criteria"))
     assert "Out of scope" in latest and "Agent notes" in latest
     assert "## Goal" not in load_prompt("planner", 3)
+
+
+def test_the_planner_prompt_asks_for_a_component_and_v4_is_kept() -> None:
+    assert "`component`" in load_prompt("planner")
+    assert "`component`" not in load_prompt("planner", 4)
 
 
 def test_the_soul_ships_and_leads_every_specialist_prompt_that_calls_a_model() -> None:

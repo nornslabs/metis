@@ -1112,6 +1112,8 @@ export interface components {
          * @description A task patch made on plan ``version``.
          */
         EditTaskBody: {
+            /** Component */
+            component?: string | null;
             /** Description */
             description?: string | null;
             /** Estimate */
@@ -2157,6 +2159,8 @@ export interface components {
         Task: {
             /** Blocked By */
             blocked_by: string[];
+            /** Component */
+            component?: string | null;
             /** Description */
             description: string;
             /** Estimate */

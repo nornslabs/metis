@@ -9,10 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.errors import PlanNotFoundError
 from metis.core.logging import get_logger
+from metis.modules import ideas
 from metis.modules.planning import repo
-from metis.modules.planning.dto import Plan, TaskPatch
+from metis.modules.planning.dto import InvalidPlanReason, Plan, TaskPatch
 from metis.modules.planning.helpers.layout import move_task
-from metis.modules.planning.helpers.validation import check_estimate
+from metis.modules.planning.helpers.validation import check_estimate, refuse
 from metis.modules.planning.service import layout, plans
 
 logger = get_logger(__name__)
@@ -39,6 +40,10 @@ async def edit_task(
     if patch.estimate is not None:
         check_estimate(task_id, patch.estimate)
     fields = _changed_fields(patch)
+    if patch.component:
+        fields["component"] = await _checked_component(
+            session, workspace_id, row.idea_id, task_id, patch.component
+        )
     if fields:
         await repo.tasks.update_one(session, workspace_id, task_id, fields)
     if patch.phase_id is not None or patch.position is not None:
@@ -59,4 +64,24 @@ def _changed_fields(patch: TaskPatch) -> dict[str, Any]:
         fields["estimate"] = patch.estimate
     if patch.labels is not None:
         fields["labels"] = list(patch.labels)
+    if patch.component == "":
+        fields["component"] = None
     return fields
+
+
+async def _checked_component(
+    session: AsyncSession, workspace_id: UUID, idea_id: UUID, task_id: UUID, component: str
+) -> str:
+    """``component`` spelled as the idea's HLD spells it; a name the HLD does not have (or an
+    idea with no HLD) → ``InvalidPlanError``."""
+    overview = await ideas.get_spec_overview(session, workspace_id, idea_id)
+    names = ideas.component_names(overview.hld.content_md) if overview.hld else ()
+    chosen = ideas.match_component(names, component)
+    if chosen is None:
+        listed = ", ".join(names) if names else "none (the idea has no HLD)"
+        refuse(
+            InvalidPlanReason.UNKNOWN_COMPONENT,
+            f"Component {component!r} is not in the HLD. Components: {listed}.",
+            [task_id],
+        )
+    return chosen

@@ -8,7 +8,14 @@ from uuid import UUID
 from pydantic import Field, model_validator
 
 from metis.helpers.dto import FrozenModel
-from metis.modules.planning.dto._fields import Label, LongText, Name, TaskDescription, TaskTitle
+from metis.modules.planning.dto._fields import (
+    ComponentOrBlank,
+    Label,
+    LongText,
+    Name,
+    TaskDescription,
+    TaskTitle,
+)
 from metis.modules.planning.dto.enums import MAX_LABELS, MAX_PHASE_OPS
 
 
@@ -64,12 +71,21 @@ class TaskPatch(FrozenModel):
     description: TaskDescription | None = None
     estimate: int | None = None
     labels: tuple[Label, ...] | None = Field(default=None, max_length=MAX_LABELS)
+    # An HLD component name; an empty string clears it.
+    component: ComponentOrBlank | None = None
     phase_id: UUID | None = None
     position: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _not_empty(self) -> TaskPatch:
-        fields = (self.title, self.description, self.estimate, self.labels, self.phase_id)
+        fields = (
+            self.title,
+            self.description,
+            self.estimate,
+            self.labels,
+            self.component,
+            self.phase_id,
+        )
         if self.position is None and all(value is None for value in fields):
             raise ValueError("give at least one field to change")
         return self

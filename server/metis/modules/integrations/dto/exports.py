@@ -36,6 +36,7 @@ class LocalKind(StrEnum):
     IDEA = "idea"  # a Linear project
     PHASE = "phase"  # a Linear milestone
     TASK = "task"  # a Linear issue
+    HLD = "hld"  # a Linear document; ``local_id`` is the idea id (one HLD document per idea)
 
 
 class ExternalRef(FrozenModel):

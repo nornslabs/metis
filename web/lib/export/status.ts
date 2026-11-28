@@ -84,7 +84,7 @@ export function progressPercent(progress: ExportProgress): number {
   return Math.min(100, Math.round((progress.done / Math.max(1, progress.total)) * 100));
 }
 
-const ITEM_LABELS = { project: "Project", milestone: "Milestone", issue: "Issue", links: "Links" } as const;
+const ITEM_LABELS = { project: "Project", milestone: "Milestone", issue: "Issue", links: "Links", hld: "Design" } as const;
 
 /** "Issue · Build the API" for the line under the bar. */
 export function progressLine(progress: ExportProgress): string {

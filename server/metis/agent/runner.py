@@ -303,6 +303,7 @@ def _specialists(
             redis,
             deps.oauth_http_client or provider_http_factory(),
             deps.mcp_http_client,
+            gateway=gateway,
         )
     return {**real, **(deps.specialists or {})}
 

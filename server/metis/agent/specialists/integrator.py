@@ -37,6 +37,8 @@ from langgraph.types import interrupt
 from redis.asyncio import Redis
 
 from metis.adapters.feature_flags import build_feature_flag_provider
+from metis.agent.llm import LLMGateway
+from metis.agent.specialists.architect import refresh_stale_hld
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -57,12 +59,15 @@ from metis.agent.tools.export_preview import (
 from metis.agent.tools.export_project import ProjectScore, idea_url
 from metis.agent.tools.export_writes import (
     ExportTally,
+    HldSource,
     ProjectSource,
+    ProjectWrite,
+    write_hld_document,
     write_project_and_milestones,
 )
 from metis.agent.tools.mcp import McpRunContext, load_mcp_tools
 from metis.agent.tools.mcp_policy import INTEGRATOR_POLICY, ApprovalLedger
-from metis.agent.tools.research_kb import SessionOpener
+from metis.agent.tools.research_kb import ResearchScope, SessionOpener
 from metis.core.config import get_settings
 from metis.core.errors import (
     ExportPartialError,
@@ -104,8 +109,10 @@ def build_integrator(
     make_client: ClientFactory,
     mcp_http_client: McpHttpClientFactory | None = None,
     flags: FeatureFlagProvider | None = None,
+    gateway: LLMGateway | None = None,
 ) -> SpecialistNode:
-    """The Integrator node for one run."""
+    """The Integrator node for one run. With a ``gateway`` it can rewrite an out-of-date HLD
+    before the preview."""
     _flags = flags or build_feature_flag_provider(get_settings())
     settings = get_settings()
 
@@ -122,9 +129,13 @@ def build_integrator(
             mcp_http_client=mcp_http_client,
             specialist=Specialist.INTEGRATOR.value,
         )
-        source = await _read_plan(open_session, workspace_id, idea_id)
         async with open_session(workspace_id) as session:
             decided = await integrations.get_export_decision(session, workspace_id, run_id)
+        if decided is None and gateway is not None:
+            await refresh_stale_hld(
+                ResearchScope(workspace_id, idea_id, run_id, open_session, gateway)
+            )
+        source = await _read_plan(open_session, workspace_id, idea_id)
         if decided is not None:
             return await _replay(
                 state, context, ledger, open_session, source, decided, flags=_flags
@@ -237,6 +248,8 @@ class _Source:
         task_refs: frozenset[UUID],
         spec_text: str,
         score: ProjectScore | None,
+        hld: HldSource | None = None,
+        hld_ref: bool = False,
     ) -> None:
         self.idea_id = idea_id
         self.title = title
@@ -248,6 +261,8 @@ class _Source:
         self.task_refs = task_refs
         self.spec_text = spec_text
         self.score = score
+        self.hld = hld
+        self.hld_ref = hld_ref
 
 
 async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: UUID) -> _Source:
@@ -275,6 +290,11 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
             session, workspace_id, provider, LocalKind.TASK, [t.id for t in tasks]
         )
         latest = await scoring.latest_score(session, workspace_id, idea_id)
+        overview = await ideas.get_spec_overview(session, workspace_id, idea_id)
+        hld_refs = await integrations.list_external_refs(
+            session, workspace_id, provider, LocalKind.HLD, [idea_id]
+        )
+    hld = None if overview.hld is None else HldSource(idea_id, overview.hld.content_md)
     return _Source(
         idea_id,
         idea.title,
@@ -286,6 +306,8 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
         frozenset(task_refs),
         spec.content_md,
         None if latest is None else ProjectScore(latest.total, latest.band.value),
+        hld,
+        idea_id in hld_refs,
     )
 
 
@@ -319,6 +341,7 @@ async def _preview(tools: dict[str, BaseTool], source: _Source, team: ExportTeam
         phase_refs=source.phase_refs,
         task_refs=source.task_refs,
         linear_labels=labels,
+        hld_exists=None if source.hld is None else source.hld_ref,
     )
 
 
@@ -441,7 +464,7 @@ async def _write_everything(
     issue step early, if any; anything else that goes wrong is raised."""
     plan = source.plan
     url = idea_url(get_settings().web_base_url, source.idea_id)
-    total = _progress_total(plan)
+    total = _progress_total(plan, has_hld=source.hld is not None)
     written = await write_project_and_milestones(
         context,
         tools,
@@ -458,6 +481,7 @@ async def _write_everything(
         total,
     )
     progress.project_url = written.project.external_url
+    done, hld_url = await _write_hld_step(context, tools, source, preview, written, tally, total)
     return await write_issues_and_links(
         context,
         tools,
@@ -467,18 +491,42 @@ async def _write_everything(
             project_id=written.project.external_id,
             milestone_ids=written.milestone_ids,
             idea_url=url,
-            done=1 + len(plan.phases),
+            hld_url=hld_url,
+            done=done,
             total=total,
         ),
         tally,
     )
 
 
-def _progress_total(plan: Plan) -> int:
-    """Items the progress bar counts: the project, each phase, each task and one links item."""
+async def _write_hld_step(
+    context: McpRunContext,
+    tools: dict[str, BaseTool],
+    source: _Source,
+    preview: ExportPreview,
+    written: ProjectWrite,
+    tally: ExportTally,
+    total: int,
+) -> tuple[int, str | None]:
+    """The HLD's Linear Document, when the idea has an HLD. Returns how many progress items are
+    done and the document's url (``None``: no HLD, or Linear gave no url, so no Design line)."""
+    done = 1 + len(source.plan.phases)
+    if source.hld is None:
+        return done, None
+    document = await write_hld_document(
+        context, tools, source.hld, written.project, preview.project.name, tally, done + 1, total
+    )
+    if document.external_url is None:
+        logger.warning("export.hld_url_missing")
+    return done + 1, document.external_url
+
+
+def _progress_total(plan: Plan, *, has_hld: bool = False) -> int:
+    """Items the progress bar counts: the project, each phase, the HLD document, each task and
+    one links item."""
     tasks = [task for phase in plan.phases for task in phase.tasks]
     has_links = any(task.blocked_by for task in tasks)
-    return 1 + len(plan.phases) + len(tasks) + (1 if has_links else 0)
+    return 1 + len(plan.phases) + (1 if has_hld else 0) + len(tasks) + (1 if has_links else 0)
 
 
 async def _end_job(

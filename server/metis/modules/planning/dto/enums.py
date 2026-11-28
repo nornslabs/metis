@@ -10,6 +10,7 @@ MAX_PHASES = 12
 MAX_TASKS = 200
 MAX_DEPS = 600
 MAX_LABELS = 10
+MAX_COMPONENT_LENGTH = 120
 MAX_PHASE_OPS = 50
 
 
@@ -30,6 +31,7 @@ class InvalidPlanReason(StrEnum):
     UNKNOWN_PHASE = "unknown_phase"
     UNKNOWN_TASK = "unknown_task"
     BAD_ESTIMATE = "bad_estimate"
+    UNKNOWN_COMPONENT = "unknown_component"
     BAD_POSITION = "bad_position"
     BAD_OPERATION = "bad_operation"
     SELF_DEPENDENCY = "self_dependency"

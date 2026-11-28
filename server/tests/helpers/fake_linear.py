@@ -60,6 +60,10 @@ class FakeLinear:
     # What ``save_project`` and ``save_milestone`` created, by Linear id, in creation order.
     projects: dict[str, dict[str, Any]] = field(default_factory=dict)
     milestones: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # What ``save_document`` created, by Linear id.
+    documents: dict[str, dict[str, Any]] = field(default_factory=dict)
+    # ``save_document`` fails (every time) when set.
+    fail_document_save: bool = False
     # What ``save_issue`` created, by Linear id (``blocked_by`` only ever grows, as Linear's does),
     # and the labels ``create_issue_label`` made.
     issues: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -159,6 +163,8 @@ class FakeLinear:
             return self._save_project_tool()
         if name == "save_milestone":
             return self._save_milestone_tool()
+        if name == "save_document":
+            return self._save_document_tool()
         if name == "save_issue":
             return self._save_issue_tool()
         if name == "create_issue_label":
@@ -223,6 +229,24 @@ class FakeLinear:
             return self._answer("milestone", self.milestones, key)
 
         return save_milestone
+
+    def _save_document_tool(self) -> Any:
+        async def save_document(
+            title: str = "",
+            content: str = "",
+            project: str = "",
+            id: str = "",  # noqa: A002 - Linear's argument name
+        ) -> str:
+            self._check_save("save_document", {"title": title, "project": project, "id": id})
+            if self.fail_document_save:
+                raise RuntimeError("Linear could not save the document")
+            if project not in self.projects or (id and id not in self.documents):
+                raise RuntimeError("Project or document not found")
+            key = id or f"document-{len(self.documents) + 1}"
+            self.documents[key] = {"title": title, "content": content, "project": project}
+            return self._answer("document", self.documents, key)
+
+        return save_document
 
     def _save_issue_tool(self) -> Any:
         async def save_issue(

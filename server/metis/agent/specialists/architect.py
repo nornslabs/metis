@@ -84,7 +84,7 @@ def build_architect(gateway: LLMGateway, open_session: SessionOpener) -> Special
             latest = drafted
         await _ensure_hld(scope)
         await _review(scope, latest)
-        await _refresh_hld(scope)
+        await refresh_stale_hld(scope)
         return _finish_node(state, {"stage": Stage.SPEC_CONFIRMED})
 
     return node
@@ -103,6 +103,7 @@ async def _draft(scope: ResearchScope) -> SpecVersion | str:
         step_limit=STEP_LIMIT,
         finish_tools={SAVE_SPEC},
         refusals=(SpecRefused,),
+        resumable=False,
     )
     if not await invoke_loop(loop, seed):
         logger.warning("spec.step_limit_reached")
@@ -147,10 +148,11 @@ async def _ensure_hld(scope: ResearchScope) -> None:
         await _write_hld(scope, state.latest, previous_language=None)
 
 
-async def _refresh_hld(scope: ResearchScope) -> None:
-    """After the user confirmed: write a fresh HLD when the confirmed spec text is not the one
-    the latest HLD was written for. No call when the HLD is current, and none when there is no
-    HLD (the first one could not be written; asking for a language now would be after the review).
+async def refresh_stale_hld(scope: ResearchScope) -> None:
+    """After the user confirmed, and before an export's preview: write a fresh HLD when the
+    confirmed spec text is not the one the latest HLD was written for. No call when the HLD is
+    current, and none when there is no HLD (the first one could not be written; asking for a
+    language now would be after the review).
     """
     state = await _hld_state(scope)
     if state.software and state.hld is not None and state.hld.stale and state.latest is not None:
@@ -175,6 +177,7 @@ async def _write_hld(
         step_limit=STEP_LIMIT,
         finish_tools={SAVE_HLD},
         refusals=(HldRefused,),
+        resumable=previous_language is None,
     )
     if not await invoke_loop(loop, seed):
         logger.warning("hld.step_limit_reached", spec_number=spec.number)

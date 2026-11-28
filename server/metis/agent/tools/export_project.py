@@ -38,6 +38,14 @@ def cut(text: str, limit: int) -> str:
     return text[: limit - len(ELLIPSIS)].rstrip() + ELLIPSIS
 
 
+HLD_TITLE_SUFFIX = " HLD"
+
+
+def hld_title(project_name: str) -> str:
+    """``<project name> HLD`` within Linear's name limit (the suffix is always kept)."""
+    return cut_at_word(project_name, MAX_NAME_CHARS - len(HLD_TITLE_SUFFIX)) + HLD_TITLE_SUFFIX
+
+
 def idea_url(web_base_url: str, idea_id: UUID) -> str:
     """Where the idea lives in the Metis web app."""
     return f"{web_base_url.rstrip('/')}/ideas/{idea_id}"

@@ -36,12 +36,19 @@ def build_react_specialist(
     step_limit: int = DEFAULT_STEP_LIMIT,
     finish_tools: Collection[str] = (),
     refusals: tuple[type[Exception], ...] = (),
+    resumable: bool = True,
 ) -> Any:
     """A compiled subgraph over ``MessagesState``; invoke it with ``{"messages": [...]}``.
 
     A tool may refuse a call by raising one of ``refusals``: the model gets the message back as
     an error result (which never ends the loop) and may try again. Any other tool error fails
     the run.
+
+    A loop that can pause on ``interrupt()`` must be ``resumable`` (it keeps its own checkpoint
+    under the parent's). The checkpoint of a subgraph is keyed by the order of the calls in its
+    node, so a node that runs several loops, some of which a re-run skips, makes every loop that
+    cannot pause ``resumable=False``: it then starts clean each time and never reuses another
+    loop's finished checkpoint.
     """
     bound = model.bind_tools(tools) if tools else model
 
@@ -59,7 +66,8 @@ def build_react_specialist(
         graph.add_conditional_edges(TOOLS_NODE, _after_tools(frozenset(finish_tools)))
     else:
         graph.add_edge(AGENT_NODE, END)
-    return graph.compile().with_config({"recursion_limit": step_limit})
+    compiled = graph.compile() if resumable else graph.compile(checkpointer=False)
+    return compiled.with_config({"recursion_limit": step_limit})
 
 
 async def invoke_loop(loop: Any, seed: str) -> bool:

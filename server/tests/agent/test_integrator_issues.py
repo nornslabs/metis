@@ -429,7 +429,10 @@ async def test_no_event_carries_a_token_or_the_task_text(
 ) -> None:
     run = await _export(engine, app_sessions, ctx, linear)
 
-    dump = " ".join(str(e.data) for e in await events_of(redis, run))
+    # The approval preview (an interrupt) shows the briefs the user is about to export; no other
+    # event may carry them.
+    events = [e for e in await events_of(redis, run) if e.type is not RunEventType.INTERRUPT]
+    dump = " ".join(str(e.data) for e in events)
 
     for token in linear.mcp_tokens_seen:
         assert token is None or token not in dump
