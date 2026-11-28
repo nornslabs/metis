@@ -1,0 +1,10 @@
+{"case": "run-invoice-chase-competitor", "gate": "input", "verdict": "PASS"}
+{"case": "run-invoice-chase-gap", "gate": "input", "verdict": "PASS"}
+{"case": "run-habit-pets-adjacent", "gate": "input", "verdict": "PASS"}
+{"case": "run-fridge-fetch-source", "gate": "input", "verdict": "PASS"}
+{"case": "refuse-vague-competitors", "gate": "input", "verdict": "REJECT: Too vague: it names no product, company or segment."}
+{"case": "refuse-vague-market-size", "gate": "input", "verdict": "REJECT: Too vague: it names no product, company or segment."}
+{"case": "refuse-answered-by-kb", "gate": "input", "verdict": "REJECT: The KB already holds Acme Invoices with its pricing."}
+{"case": "refuse-already-saved", "gate": "input", "verdict": "REJECT: Already saved: a market fact covers the days lost."}
+{"case": "refuse-off-topic", "gate": "input", "verdict": "REJECT: Nothing to do with this idea."}
+{"case": "refuse-fetch-adds-nothing", "gate": "input", "verdict": "REJECT: The page adds nothing to what is saved."}

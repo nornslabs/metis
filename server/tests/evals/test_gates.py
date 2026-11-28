@@ -34,7 +34,7 @@ def test_the_frozen_cases_cover_good_generic_inferable_and_duplicate_questions()
 
 
 def test_the_recorded_run_passes_every_case(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["--recorded", "--min-pass-rate", "1"]) == EXIT_OK
+    assert main(["--specialist", "interviewer", "--recorded", "--min-pass-rate", "1"]) == EXIT_OK
     assert "Pass rate: 14/14" in capsys.readouterr().out
 
 
@@ -64,7 +64,8 @@ def test_a_run_below_the_pass_rate_exits_with_one(
     path = tmp_path / "all-pass.jsonl"
     path.write_text("\n".join(json.dumps(r) for r in rows), encoding="utf-8")
 
-    assert main(["--recorded", str(path), "--min-pass-rate", "1"]) == EXIT_BELOW_THRESHOLD
+    args = ["--specialist", "interviewer", "--recorded", str(path), "--min-pass-rate", "1"]
+    assert main(args) == EXIT_BELOW_THRESHOLD
     assert "Failures:" in capsys.readouterr().out
 
 

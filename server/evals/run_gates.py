@@ -1,4 +1,7 @@
-"""``uv run python -m evals.run_gates``: review the frozen questions with the Interviewer's gates.
+"""``uv run python -m evals.run_gates``: the frozen cases of the Interviewer and Researcher gates.
+
+``--specialist`` picks the suite (``interviewer``: candidate questions; ``researcher``: candidate
+Exa searches and fetches; default both).
 
 Needs no database and no Redis (settings still load, so set the server's env, e.g. from
 ``.env``): each case goes through ``review_question`` (the function the
@@ -17,25 +20,33 @@ import asyncio
 import json
 import os
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from langchain_core.messages import AIMessage, BaseMessage
 
 from evals.gate_cases import (
     CASES_PATH,
     RECORDED_PATH,
+    RESEARCH_RECORDED_PATH,
     GateCase,
     GateCaseFileError,
+    ResearchGateCase,
     load_gate_cases,
+    load_research_gate_cases,
+)
+from evals.research_gate_eval import (
+    ITEM_MARKER,
+    RecordedResearchChat,
+    run_research_case_once,
 )
 from metis.adapters.llm.chat import build_chat_model
 from metis.agent.gate import GateContext, ModelJudge
 from metis.agent.tools.interview_gates import (
     INPUT_INSTRUCTION,
     IdeaTexts,
-    ReviewOutcome,
     review_question,
 )
 from metis.agent.tools.question_options import OptionArgs
@@ -45,7 +56,7 @@ DEFAULT_REPEAT = 2
 DEFAULT_MIN_PASS_RATE = 0.9
 CALL_TIMEOUT_SECONDS = 60.0
 EXIT_OK, EXIT_BELOW_THRESHOLD, EXIT_SETUP = 0, 1, 2
-ITEM_MARKER = "\n\nItem:\n"
+SPECIALISTS = ("interviewer", "researcher")
 
 
 class SetupError(Exception):
@@ -100,11 +111,20 @@ async def run_case_once(case: GateCase, model: LLMProvider) -> str:
     return review.outcome.value
 
 
-async def evaluate(cases: Sequence[GateCase], model: LLMProvider, repeat: int) -> list[CaseResult]:
+RunOnce = Callable[[Any, LLMProvider], Awaitable[str]]
+
+
+async def evaluate(
+    cases: Sequence[Any],
+    model: LLMProvider,
+    repeat: int,
+    run_once: RunOnce = run_case_once,
+) -> list[CaseResult]:
+    """Run every case ``repeat`` times; a case's ``expect`` is the outcome it must always get."""
     results: list[CaseResult] = []
     for case in cases:
-        got = tuple([await run_case_once(case, model) for _ in range(repeat)])
-        results.append(CaseResult(case.id, ReviewOutcome(case.expect).value, got))
+        got = tuple([await run_once(case, model) for _ in range(repeat)])
+        results.append(CaseResult(case.id, case.expect, got))
     return results
 
 
@@ -134,11 +154,9 @@ def format_report(results: Sequence[CaseResult], *, model: str) -> str:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        cases = _select(load_gate_cases(CASES_PATH), args.cases)
         if args.repeat < 1:
             raise SetupError("--repeat must be at least 1")
-        model, name = _resolve_model(args.recorded, cases)
-        results = asyncio.run(evaluate(cases, model, args.repeat))
+        results, name = asyncio.run(_run(args))
     except (GateCaseFileError, SetupError) as exc:
         print(f"error: {exc}", file=sys.stderr)  # noqa: T201
         return EXIT_SETUP
@@ -149,8 +167,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     return EXIT_OK if pass_rate(results) >= args.min_pass_rate else EXIT_BELOW_THRESHOLD
 
 
+async def _run(args: argparse.Namespace) -> tuple[list[CaseResult], str]:
+    specialists = SPECIALISTS if args.specialist == "all" else (args.specialist,)
+    if isinstance(args.recorded, Path) and len(specialists) > 1:
+        raise SetupError("--recorded FILE needs --specialist interviewer or researcher")
+    interview = load_gate_cases(CASES_PATH) if "interviewer" in specialists else ()
+    research = load_research_gate_cases() if "researcher" in specialists else ()
+    _check_ids(args.cases, [*(c.id for c in interview), *(c.id for c in research)])
+    interview, research = _select(interview, args.cases), _select(research, args.cases)
+    real = None if args.recorded else _real_model()
+    results: list[CaseResult] = []
+    if interview:
+        model = real[0] if real else _recorded_interview(interview, args.recorded)
+        results += await evaluate(interview, model, args.repeat)
+    if research:
+        model = real[0] if real else _recorded_research(research, args.recorded)
+        results += await evaluate(research, model, args.repeat, run_research_case_once)
+    return results, real[1] if real else "recorded replay"
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m evals.run_gates", description=__doc__)
+    parser.add_argument(
+        "--specialist",
+        choices=(*SPECIALISTS, "all"),
+        default="all",
+        help="which gates to run (default: all)",
+    )
     parser.add_argument("--cases", nargs="+", metavar="ID", help="only these case ids")
     parser.add_argument("--repeat", type=int, default=DEFAULT_REPEAT, help="runs per case")
     parser.add_argument("--min-pass-rate", type=float, default=DEFAULT_MIN_PASS_RATE)
@@ -159,26 +202,36 @@ def _parser() -> argparse.ArgumentParser:
         "--recorded",
         nargs="?",
         type=Path,
-        const=RECORDED_PATH,
+        const=True,
         metavar="FILE",
-        help="replay recorded verdicts instead of calling a model",
+        help="replay recorded verdicts instead of calling a model (FILE: one specialist only)",
     )
     return parser
 
 
-def _select(cases: tuple[GateCase, ...], ids: list[str] | None) -> tuple[GateCase, ...]:
-    if not ids:
-        return cases
-    unknown = sorted(set(ids) - {c.id for c in cases})
+def _check_ids(ids: list[str] | None, known: Sequence[str]) -> None:
+    unknown = sorted(set(ids or ()) - set(known))
     if unknown:
         raise SetupError(f"unknown case id(s): {', '.join(unknown)}")
-    return tuple(c for c in cases if c.id in ids)
 
 
-def _resolve_model(recorded: Path | None, cases: Sequence[GateCase]) -> tuple[LLMProvider, str]:
-    if recorded is not None:
-        by_question = {c.question: c.id for c in cases}
-        return RecordedChat(load_verdicts(recorded), by_question), "recorded replay"
+def _select[Case: (GateCase, ResearchGateCase)](
+    cases: tuple[Case, ...], ids: list[str] | None
+) -> tuple[Case, ...]:
+    return cases if not ids else tuple(c for c in cases if c.id in ids)
+
+
+def _recorded_interview(cases: Sequence[GateCase], recorded: bool | Path) -> LLMProvider:
+    path = recorded if isinstance(recorded, Path) else RECORDED_PATH
+    return RecordedChat(load_verdicts(path), {c.question: c.id for c in cases})
+
+
+def _recorded_research(cases: Sequence[ResearchGateCase], recorded: bool | Path) -> LLMProvider:
+    path = recorded if isinstance(recorded, Path) else RESEARCH_RECORDED_PATH
+    return RecordedResearchChat(load_verdicts(path), cases)
+
+
+def _real_model() -> tuple[LLMProvider, str]:
     missing = [
         n
         for n in ("EVAL_LLM_BASE_URL", "EVAL_LLM_API_KEY", "EVAL_LLM_MODEL")
