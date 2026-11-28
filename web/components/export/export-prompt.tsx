@@ -21,8 +21,16 @@ interface ExportPromptProps {
 const INVALID_ANSWER = "That answer could not be sent. Try again.";
 
 const COPY = {
-  choose_team: { text: "Choose the Linear team for this plan.", open: "Choose a team", sent: "Team chosen. Building the preview…" },
-  export_approval: { text: "The export preview is ready. Review it, then approve.", open: "Review the export", sent: "Sent." },
+  choose_team: {
+    text: "Choose the Linear team for this plan.",
+    open: "Choose a team",
+    sent: "Team chosen. Building the preview…",
+  },
+  export_approval: {
+    text: "The export preview is ready. Review it, then approve.",
+    open: "Review the export",
+    sent: "Sent.",
+  },
 } as const;
 
 /**
@@ -35,11 +43,15 @@ export function ExportPrompt({ ideaId, runId, interrupt }: ExportPromptProps) {
   const [open, setOpen] = useState(() => wasExportStartedHere(ideaId));
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Kept here, not in the dialog, so closing the dialog with Esc does not lose an edit.
+  const [projectName, setProjectName] = useState(() =>
+    interrupt.kind === "export_approval" ? interrupt.preview.project.name : "",
+  );
   const resume = useResumeRun();
   const refresh = useRefreshIdea(ideaId);
   const copy = COPY[interrupt.kind];
 
-  const answer = (value: { team_id: string } | { approved: boolean }, onSent: () => void) => {
+  const answer = (value: { team_id: string } | { approved: boolean; project_name?: string }, onSent: () => void) => {
     setError(null);
     resume.mutate(
       { runId, value },
@@ -61,7 +73,7 @@ export function ExportPrompt({ ideaId, runId, interrupt }: ExportPromptProps) {
     else setError(INVALID_ANSWER);
   };
   const decide = (approved: boolean) => {
-    const value = exportDecisionSchema.safeParse({ approved });
+    const value = exportDecisionSchema.safeParse(approved ? { approved, project_name: projectName } : { approved });
     if (value.success) answer(value.data, () => (approved ? undefined : clearExportStartedHere(ideaId)));
     else setError(INVALID_ANSWER);
   };
@@ -97,7 +109,10 @@ export function ExportPrompt({ ideaId, runId, interrupt }: ExportPromptProps) {
         />
       ) : (
         <ExportPreviewDialog
+          ideaId={ideaId}
           interrupt={interrupt}
+          name={projectName}
+          onNameChange={setProjectName}
           open={open}
           onOpenChange={setOpen}
           pending={resume.isPending}

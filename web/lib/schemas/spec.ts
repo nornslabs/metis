@@ -32,8 +32,19 @@ export const specVersionListSchema = z.object({
   items: z.array(specVersionSummarySchema),
 });
 
-/** `GET /v1/ideas/{id}/spec`: the latest and the confirmed version, each `null` while there is none. */
+/** The HLD written for one spec version (`SpecHld`); `stale` when the latest spec text moved on. */
+export const specHldSchema = z.object({
+  build_language: z.string(),
+  content_md: z.string(),
+  stale: z.boolean().default(false),
+});
+
+/**
+ * `GET /v1/ideas/{id}/spec`: the latest and the confirmed version, each `null` while there is none,
+ * and the newest HLD (`null` or missing for a non-software idea).
+ */
 export const specOverviewSchema = z.object({
+  hld: specHldSchema.nullish(),
   latest: specVersionSchema.nullable(),
   confirmed: specVersionSchema.nullable(),
 });
@@ -47,5 +58,6 @@ export const specConfirmedSchema = z.object({
 export type SpecVersion = z.infer<typeof specVersionSchema>;
 export type SpecVersionSummary = z.infer<typeof specVersionSummarySchema>;
 export type SpecVersionList = z.infer<typeof specVersionListSchema>;
+export type SpecHld = z.infer<typeof specHldSchema>;
 export type SpecOverview = z.infer<typeof specOverviewSchema>;
 export type SpecConfirmed = z.infer<typeof specConfirmedSchema>;

@@ -1,4 +1,9 @@
-import type { ExportPreview } from "@/lib/schemas/export";
+import type { ExportAction, ExportPreview } from "@/lib/schemas/export";
+
+/** "new" for an item the export creates, "updated" for one it changes. */
+export function actionLabel(action: ExportAction): string {
+  return action === "create" ? "new" : "updated";
+}
 
 /** "3 new · 1 updated" (parts that are zero are left out; "nothing" when both are). */
 export function newAndUpdated(create: number, update: number): string {
