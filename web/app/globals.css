@@ -228,19 +228,20 @@
   }
 }
 
-/* Sleek breathing cursor after the last block of streamed agent text. */
+/* Breathing orb indicator after the last block of streamed agent text. */
 @utility streaming-caret {
   & > :last-child::after {
     content: "";
     display: inline-block;
-    width: 0.14em;
-    height: 1.05em;
-    margin-left: 0.2em;
-    vertical-align: -0.15em;
-    border-radius: 1px;
+    width: 0.52em;
+    height: 0.52em;
+    margin-left: 0.35em;
+    vertical-align: 0.08em;
+    border-radius: 9999px;
     background: var(--foreground);
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--foreground) 35%, transparent);
     @media (prefers-reduced-motion: no-preference) {
-      animation: caret-pulse 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      animation: caret-pulse 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     }
   }
 }
@@ -297,10 +298,14 @@
 @keyframes caret-pulse {
   0%,
   100% {
-    opacity: 1;
+    opacity: 0.95;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--foreground) 35%, transparent);
   }
   50% {
-    opacity: 0.15;
+    opacity: 0.45;
+    transform: scale(0.75);
+    box-shadow: 0 0 0 0.28em color-mix(in oklch, var(--foreground) 0%, transparent);
   }
 }
 
