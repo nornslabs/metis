@@ -443,5 +443,5 @@ async def test_without_an_hld_the_planner_gets_no_components_and_tasks_have_none
 
     await _review(engine, ctx, run, PHASES)
 
-    assert "HLD components" not in llm.shown(0)
+    assert "give every task exactly one of these" not in llm.shown(0)
     assert await stored_components(engine, run) == [None, None, None]

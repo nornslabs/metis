@@ -24,8 +24,9 @@ def test_the_design_line_is_only_the_link_without_a_component() -> None:
 def test_a_description_ends_with_the_design_line_then_the_footer() -> None:
     text = issue_description("## Goal\n\nDo it.", "http://x/ideas/1", design_line(URL, "Web"))
 
-    assert text.splitlines()[-3:] == [
+    assert text.splitlines()[-4:] == [
         f"HLD: {URL} · Component: Web",
+        "",
         "---",
         "Created by [Metis](http://x/ideas/1)",
     ]

@@ -105,7 +105,7 @@ def test_agent_notes_are_a_collapsible_block_before_the_footer() -> None:
 
 def test_a_long_brief_loses_agent_notes_and_context_before_acceptance_criteria() -> None:
     brief = (
-        "## Goal\nG.\n\n## Context\n" + "c" * 2_500 + "\n\n## Requirements\n1. R.\n\n"
+        "## Goal\nG.\n\n## Context\n" + "c" * 3_900 + "\n\n## Requirements\n1. R.\n\n"
         "## Acceptance criteria\n- A works.\n\n## Agent notes\n" + "n" * 2_500
     )
 

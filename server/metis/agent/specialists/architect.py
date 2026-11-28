@@ -103,6 +103,7 @@ async def _draft(scope: ResearchScope) -> SpecVersion | str:
         step_limit=STEP_LIMIT,
         finish_tools={SAVE_SPEC},
         refusals=(SpecRefused,),
+        resumable=False,
     )
     if not await invoke_loop(loop, seed):
         logger.warning("spec.step_limit_reached")
@@ -176,6 +177,7 @@ async def _write_hld(
         step_limit=STEP_LIMIT,
         finish_tools={SAVE_HLD},
         refusals=(HldRefused,),
+        resumable=previous_language is None,
     )
     if not await invoke_loop(loop, seed):
         logger.warning("hld.step_limit_reached", spec_number=spec.number)
