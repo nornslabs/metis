@@ -23,8 +23,8 @@ from enum import StrEnum
 from typing import Any
 
 from metis.agent.gate import Gate, GateContext, GateDecisionKind, run_gate
+from metis.agent.text_match import is_near_duplicate, normalised
 from metis.agent.tools.question_options import OptionArgs, check_options
-from metis.agent.tools.text_similarity import is_near_duplicate, normalised
 
 SPECIALIST = "interviewer"
 INPUT_GATE_NAME = "interview_input"
@@ -82,9 +82,10 @@ class IdeaTexts:
 
 
 def _near_duplicate(item: Any) -> str | None:
+    question = item["question"]
     for turn in item["earlier_turns"]:
         earlier = turn["question"]
-        if is_near_duplicate(item["question"], earlier):
+        if is_near_duplicate(question, earlier):
             return f'This repeats an earlier question: "{earlier}". Ask about something new.'
     return None
 

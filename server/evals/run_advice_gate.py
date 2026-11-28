@@ -29,13 +29,13 @@ from evals.advice_gate_cases import (
     AdviceGateCaseFileError,
     load_advice_gate_cases,
 )
+from evals.research_gate_eval import ITEM_MARKER
 from evals.run_gates import (
     DEFAULT_MIN_PASS_RATE,
     DEFAULT_REPEAT,
     EXIT_BELOW_THRESHOLD,
     EXIT_OK,
     EXIT_SETUP,
-    ITEM_MARKER,
     CaseResult,
     SetupError,
     build_eval_model,

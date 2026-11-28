@@ -62,8 +62,8 @@ PURPOSE = "score"
 MAX_SEARCH_CALLS = 3
 SEARCH_COUNTER = "score_searches"
 RESCORE_SEARCH_COUNTER = "score_searches_rescore"
-# Graph supersteps: a few lookups and searches, then the submission (and one retry).
-STEP_LIMIT = 30
+# Graph supersteps (2 per tool turn): lookups, up to 3 searches, rubric, and submission/retries.
+STEP_LIMIT = 60
 SEARCH_CAP_MESSAGE = (
     f"The web search limit ({MAX_SEARCH_CALLS} calls) is reached; this call was not made. "
     f"Submit the scores now with {SUBMIT_SCORES}."

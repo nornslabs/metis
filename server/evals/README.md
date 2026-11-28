@@ -135,6 +135,14 @@ uv run python -m evals.run_gates --recorded            # offline replay of gates
 EVAL_LLM_BASE_URL=... EVAL_LLM_API_KEY=... EVAL_LLM_MODEL=... uv run python -m evals.run_gates
 ```
 
+The same runner checks the Researcher's gate (SHIP-417): `evals/gates/research_cases.jsonl` freezes
+13 candidate Exa calls on three ideas, each with the idea, what is saved, the searches and pages
+already used and the KB's matches. A call that fills a gap must `run`; a vague one, one the KB or
+the saved findings already answer, an off-topic one, and a repeated search or page must `refuse`
+(repeats are refused by a code check, so their cases need no recorded verdict). Verdicts for the
+others are in `gates/research_recorded.jsonl` (`{"case", "gate": "input", "verdict"}`). Pick a
+suite with `--specialist interviewer|researcher` (default: both); `--recorded FILE` needs one.
+
 Options: `--cases ID ...`, `--repeat N` (default 2; a case passes when every run matches),
 `--min-pass-rate X` (default 0.9), `--json FILE`, `--recorded [FILE]`. Exit codes as for scoring.
 CI runs the recorded replay on pull requests and the real model from the manual workflow.

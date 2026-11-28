@@ -18,8 +18,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from metis.agent.gate import Gate, GateContext, GateDecision, GateDecisionKind, run_gate
+from metis.agent.text_match import is_near_duplicate
 from metis.agent.tools.scoring import SourceBook
-from metis.agent.tools.text_similarity import is_near_duplicate
 from metis.modules.scoring import NewSuggestion, ScoreParam
 
 SPECIALIST = "advisor"

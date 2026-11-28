@@ -344,6 +344,48 @@ async def test_a_second_clarification_request_is_ignored(
     assert [t[2] for t in await _clarification_turns(engine, run)] == [Q_COUNTRY]
 
 
+async def test_a_vague_search_is_refused_makes_no_exa_call_and_the_specific_one_runs(
+    engine: AsyncEngine,
+    redis: Redis,
+    ctx: dict[str, Any],
+    llm: ScriptedLLM,
+    exa: FakeExaMcp,
+) -> None:
+    run = await _researching_run(engine)
+    llm.add(search("competitors"), search("Acme CRM pricing for freelancers"), finish())
+    llm.judge("REJECT: Too vague: name a product or a segment.", "PASS")
+
+    await run_job(ctx, run)
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    assert [c["query"] for c in exa.tool_calls] == ["Acme CRM pricing for freelancers"]
+    assert "Too vague" in llm.shown(1)
+    gates = [e.data for e in await events_of(redis, run) if e.type is RunEventType.GATE]
+    assert [(g["specialist"], g["gate"], g["decision"]) for g in gates] == [
+        ("researcher", "research_input", "retried"),
+        ("researcher", "research_input", "passed"),
+    ]
+
+
+async def test_searches_skipped_by_the_gate_still_end_the_run_with_a_closed_snapshot(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, exa: FakeExaMcp
+) -> None:
+    run = await _researching_run(engine)
+    llm.add(search("competitors"), search("market size"), search("trends"))
+    llm.add(finish("Nothing specific found."))
+    llm.judge(*["REJECT: Too vague."] * 3)
+
+    await run_job(ctx, run)
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    assert (await run_row(engine, run)).error is None
+    assert exa.tool_calls == []
+    assert "was not made" in llm.shown(3)
+    assert await _snapshots(engine, run) == [
+        ("Nothing specific found. No direct competitors found.", True)
+    ]
+
+
 async def test_the_exa_call_cap_stops_a_researcher_that_keeps_searching(
     engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, exa: FakeExaMcp
 ) -> None:
