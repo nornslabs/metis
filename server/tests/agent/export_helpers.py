@@ -28,6 +28,7 @@ TOOLS = (
     "create_issue_label",
     "save_project",
     "save_milestone",
+    "save_document",
     "save_issue",
 )
 PHASE_NAMES = ["Foundations", "Core", "Launch"]
@@ -60,6 +61,7 @@ async def export_run(
     confirm: bool = True,
     sub: str = "ada",
     plan_input: planning.PlanInput | None = None,
+    hld_md: str | None = None,
 ) -> QueuedRun:
     """A queued run on an idea at ``planning`` with a confirmed spec and (by default) a saved
     draft plan of three phases, three tasks and two blocked-by links."""
@@ -73,6 +75,18 @@ async def export_run(
                 idea_id,
                 NewSpecVersion(content_md="## Problem\n\nLeads get lost.", source=SpecSource.AGENT),
             )
+            if hld_md is not None:
+                await ideas.save_spec_hld(
+                    session,
+                    run.workspace_id,
+                    idea_id,
+                    ideas.NewSpecHld(
+                        spec_version_number=1,
+                        spec_hash=ideas.spec_hash("## Problem\n\nLeads get lost."),
+                        build_language="Python",
+                        content_md=hld_md,
+                    ),
+                )
             await ideas.confirm_spec(session, run.workspace_id, idea_id, 1)
             overview = await ideas.get_spec_overview(session, run.workspace_id, idea_id)
             if plan:

@@ -211,6 +211,7 @@ async def _insert_children(
                 "description": task.description,
                 "estimate": task.estimate,
                 "labels": list(task.labels),
+                "component": task.component,
                 "parent_task_id": None if task.parent_key is None else task_ids[task.parent_key],
             }
         )
@@ -250,6 +251,7 @@ def _phase_views(
                     description=task.description,
                     estimate=task.estimate,
                     labels=tuple(task.labels),
+                    component=task.component,
                     parent_task_id=task.parent_task_id,
                     blocked_by=tuple(sorted(blockers[task.id], key=place.__getitem__)),
                 )

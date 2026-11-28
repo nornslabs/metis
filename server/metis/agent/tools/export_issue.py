@@ -19,6 +19,14 @@ FOOTER_LABEL = "Created by"
 # length (a footer is a short line: the label and one link).
 FOOTER_RESERVE_CHARS = 200
 BRIEF_SEPARATOR_CHARS = 2
+# The Design line (``HLD: <url> · Component: <name>``) is reserved at this size when an idea has
+# an HLD, so the preview and the export fit a brief to the same length.
+DESIGN_RESERVE_CHARS = 300
+# A component name is cut to this size in the line, so a line stays within its reserve for any
+# document url Linear gives (about 100 characters).
+MAX_DESIGN_COMPONENT_CHARS = 80
+DESIGN_LABEL = "HLD:"
+COMPONENT_LABEL = "Component:"
 
 
 def ordered_tasks(plan: Plan) -> list[Task]:
@@ -56,19 +64,33 @@ def issue_title(title: str) -> str:
     return cut(title, MAX_NAME_CHARS)
 
 
-def brief_room(footer_chars: int = 0) -> int:
-    """How many characters the brief gets once the footer and its separator are kept."""
+def brief_room(footer_chars: int = 0, *, design_chars: int | None = None) -> int:
+    """How many characters the brief gets once the footer, the Design line (``design_chars`` is
+    ``None`` when there is no HLD) and their separators are kept."""
     reserved = max(footer_chars, FOOTER_RESERVE_CHARS) + BRIEF_SEPARATOR_CHARS
+    if design_chars is not None:
+        reserved += max(design_chars, DESIGN_RESERVE_CHARS) + BRIEF_SEPARATOR_CHARS
     return max(MAX_DESCRIPTION_CHARS - reserved, 0)
 
 
-def issue_description(description: str, idea_url: str) -> str:
-    """The task's issue brief (Agent notes in a collapsible block), then a "Created by Metis"
-    footer linking back to the idea. The brief is fitted so the whole stays within Linear's
-    limit: Agent notes go first, then Context, and Acceptance criteria are kept whole."""
+def design_line(hld_url: str, component: str | None) -> str:
+    """``HLD: <url> · Component: <name>``; just the link for a task with no component."""
+    line = f"{DESIGN_LABEL} {hld_url}"
+    name = cut(component or "", MAX_DESIGN_COMPONENT_CHARS)
+    return f"{line} · {COMPONENT_LABEL} {name}" if name else line
+
+
+def issue_description(description: str, idea_url: str, design: str | None = None) -> str:
+    """The task's issue brief (Agent notes in a collapsible block), then the Design line when the
+    idea has an HLD, then a "Created by Metis" footer linking back to the idea. The brief is
+    fitted so the whole stays within Linear's limit: Agent notes go first, then Context, and
+    Acceptance criteria are kept whole."""
     footer = f"---\n{FOOTER_LABEL} [Metis]({idea_url})"
-    body = fit_brief(description, brief_room(len(footer)))
-    return f"{body}\n\n{footer}" if body else footer
+    body = fit_brief(
+        description, brief_room(len(footer), design_chars=None if design is None else len(design))
+    )
+    parts = [part for part in (body, design, footer) if part]
+    return "\n\n".join(parts)
 
 
 def labels_to_create(used: Collection[str], existing: Collection[str]) -> list[str]:

@@ -22,6 +22,7 @@ from metis.agent.tools.export_project import (
     MAX_PROJECT_NAME_CHARS,
     ProjectScore,
     cut,
+    hld_title,
     milestone_description,
     milestone_name,
     project_description,
@@ -37,8 +38,10 @@ from metis.modules.planning import Phase, Plan
 
 SAVE_PROJECT = "save_project"
 SAVE_MILESTONE = "save_milestone"
+SAVE_DOCUMENT = "save_document"
 ITEM_PROJECT = "project"
 ITEM_MILESTONE = "milestone"
+ITEM_HLD = "hld"
 _PROVIDER = IntegrationProvider.LINEAR
 
 logger = get_logger(__name__)
@@ -55,6 +58,15 @@ class ProjectSource:
     score: ProjectScore | None
     plan: Plan
     team_id: str
+
+
+@dataclass(frozen=True)
+class HldSource:
+    """The HLD the export saves as a Linear Document: the idea it belongs to (the document is
+    kept per idea, so a regenerated HLD updates the same document) and its markdown."""
+
+    idea_id: UUID
+    content_md: str
 
 
 @dataclass
@@ -138,6 +150,39 @@ async def write_project_and_milestones(
         await publish_progress(context, ITEM_MILESTONE, name, action_of(existing), index + 2, total)
         logger.info("export.milestone_saved", phase_index=index, action=action_of(existing))
     return ProjectWrite(project, milestone_ids)
+
+
+async def write_hld_document(
+    context: McpRunContext,
+    tools: dict[str, BaseTool],
+    hld: HldSource,
+    project: SavedItem,
+    project_name: str,
+    tally: ExportTally,
+    done: int,
+    total: int,
+) -> SavedItem:
+    """Create or update the HLD's Linear Document on the project. The ref is committed right
+    after the call, so a retry updates the same document and never creates a second one."""
+    async with context.open_session(context.workspace_id) as session:
+        existing = (
+            await integrations.list_external_refs(
+                session, context.workspace_id, _PROVIDER, LocalKind.HLD, [hld.idea_id]
+            )
+        ).get(hld.idea_id)
+    title = hld_title(project_name)
+    saved = await save_item(
+        context,
+        tools,
+        SAVE_DOCUMENT,
+        _document_args(project, title, hld.content_md, existing),
+        LocalKind.HLD,
+        hld.idea_id,
+    )
+    tally.record(action_of(existing))
+    await publish_progress(context, ITEM_HLD, title, action_of(existing), done, total)
+    logger.info("export.hld_saved", action=action_of(existing))
+    return saved
 
 
 async def _refs(
@@ -288,7 +333,28 @@ def _milestone_args(
     return arguments
 
 
-_ENTITY_KEYS = ("project", "milestone", "projectMilestone", "issue", "label", "issueLabel")
+def _document_args(
+    project: SavedItem, title: str, content_md: str, existing: ExternalRef | None
+) -> dict[str, Any]:
+    arguments: dict[str, Any] = {
+        "title": title,
+        "content": content_md,
+        "project": project.external_id,
+    }
+    if existing is not None:
+        arguments["id"] = existing.external_id
+    return arguments
+
+
+_ENTITY_KEYS = (
+    "document",
+    "project",
+    "milestone",
+    "projectMilestone",
+    "issue",
+    "label",
+    "issueLabel",
+)
 
 
 def parse_saved_item(text: str) -> SavedItem:

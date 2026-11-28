@@ -30,6 +30,7 @@ class TaskRow(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     estimate: Mapped[int] = mapped_column(SmallInteger)
     labels: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
+    component: Mapped[str | None] = mapped_column(Text, default=None)
     parent_task_id: Mapped[UUID | None] = mapped_column(
         ForeignKey(f"{SCHEMA}.tasks.id"), default=None
     )

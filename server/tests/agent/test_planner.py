@@ -27,7 +27,9 @@ from tests.agent.planner_helpers import (
     planning_run,
     propose,
     save_existing_plan,
+    save_hld_for,
     save_plan,
+    stored_components,
     stored_dep_count,
     stored_phases,
     stored_plans,
@@ -389,3 +391,57 @@ async def test_a_run_pausing_on_the_phase_review_resumes_with_linear_tools_loade
 
     assert (await stored_plans(engine, run))[0]["status"] == "draft"
     assert (await run_row(engine, run)).status == "succeeded"
+
+
+# ---------------------------------------------------------------------- HLD components
+def _with_components(*names: str | None) -> list[dict[str, Any]]:
+    return [{**t, "component": n} for t, n in zip(TASKS, names, strict=True)]
+
+
+async def test_the_planner_is_shown_the_hld_components_and_each_task_keeps_its_own(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, app_sessions: Any
+) -> None:
+    run = await planning_run(engine, app_sessions)
+    await save_hld_for(engine, app_sessions, run)
+    llm.add(propose(), save_plan(_with_components("Leads API", "web app", "Web app")))
+    await run_job(ctx, run)
+
+    await _review(engine, ctx, run, PHASES)
+
+    assert "- Leads API" in llm.shown(0) and "- Web app" in llm.shown(0)
+    assert await stored_components(engine, run) == ["Leads API", "Web app", "Web app"]
+
+
+async def test_a_task_with_an_unknown_or_missing_component_is_refused_then_fixed(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, app_sessions: Any
+) -> None:
+    run = await planning_run(engine, app_sessions)
+    await save_hld_for(engine, app_sessions, run)
+    llm.add(
+        propose(),
+        save_plan(_with_components("Leads API", "Billing", None)),
+        save_plan(_with_components("Leads API", "Web app", "Leads API")),
+    )
+    await run_job(ctx, run)
+
+    await _review(engine, ctx, run, PHASES)
+
+    seen = llm.shown(2)
+    assert (
+        "exactly one component" in seen and "`b` has 'Billing'" in seen and "`c` has None" in seen
+    )
+    assert await stored_components(engine, run) == ["Leads API", "Web app", "Leads API"]
+    assert len(await stored_plans(engine, run)) == 1
+
+
+async def test_without_an_hld_the_planner_gets_no_components_and_tasks_have_none(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, app_sessions: Any
+) -> None:
+    run = await planning_run(engine, app_sessions)
+    llm.add(propose(), save_plan(_with_components("Anything", None, None)))
+    await run_job(ctx, run)
+
+    await _review(engine, ctx, run, PHASES)
+
+    assert "HLD components" not in llm.shown(0)
+    assert await stored_components(engine, run) == [None, None, None]

@@ -20,6 +20,7 @@ from metis.core.errors import (
     PlanNotEditableError,
     SpecNotFoundError,
 )
+from metis.modules import ideas
 from metis.modules.planning import Plan
 from tests.helpers.auth import assert_problem
 from tests.modules.ideas.idea_helpers import IDEAS_URL, Caller, create, member_of, owner
@@ -36,7 +37,7 @@ from tests.modules.planning.planning_helpers import (
     task_id,
     titles,
 )
-from tests.modules.scoring.scoring_helpers import Sessions
+from tests.modules.scoring.scoring_helpers import Sessions, in_workspace
 
 
 async def _get(
@@ -384,6 +385,65 @@ async def _edit_task(
         json={"version": version, **fields},
         headers=caller.headers,
     )
+
+
+async def _save_hld(sessions: Sessions, caller: Caller, idea_id: str) -> None:
+    """An HLD with the components ``Leads API`` and ``Web app`` for the idea's newest spec."""
+    workspace_id = UUID(caller.workspace_id)
+    async with in_workspace(sessions, workspace_id) as session:
+        spec = await ideas.get_spec(session, workspace_id, UUID(idea_id))
+        await ideas.save_spec_hld(
+            session,
+            workspace_id,
+            UUID(idea_id),
+            ideas.NewSpecHld(
+                spec_version_number=spec.number,
+                spec_hash=ideas.spec_hash(spec.content_md),
+                build_language="Python",
+                content_md="## MVP components\n\n### Leads API\n\n### Web app\n",
+            ),
+        )
+
+
+async def test_a_task_component_is_set_to_an_hld_name_spelled_as_the_hld_does(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada, idea, _, plan = await planned(client, engine, app_sessions)
+    await _save_hld(app_sessions, ada, idea["id"])
+
+    response = await _edit_task(client, ada, plan, "a", 1, component="web APP")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["phases"][0]["tasks"][0]["component"] == "Web app"
+
+
+async def test_a_component_that_is_not_in_the_hld_is_refused_and_the_plan_is_unchanged(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada, idea, _, plan = await planned(client, engine, app_sessions)
+    await _save_hld(app_sessions, ada, idea["id"])
+
+    response = await _edit_task(client, ada, plan, "a", 1, component="Billing")
+
+    assert_problem(response, 422, "plan.invalid_plan")
+    assert "Leads API, Web app" in response.text
+    fresh = await _get(client, ada, idea["id"])
+    assert fresh.json()["version"] == 1
+
+
+async def test_a_component_needs_an_hld_and_an_empty_one_clears_it(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada, idea, _, plan = await planned(client, engine, app_sessions)
+
+    refused = await _edit_task(client, ada, plan, "a", 1, component="Web app")
+    await _save_hld(app_sessions, ada, idea["id"])
+    set_ = await _edit_task(client, ada, plan, "a", 1, component="Web app")
+    cleared = await _edit_task(client, ada, plan, "a", 2, component="")
+
+    assert_problem(refused, 422, "plan.invalid_plan")
+    assert set_.json()["phases"][0]["tasks"][0]["component"] == "Web app"
+    assert cleared.json()["phases"][0]["tasks"][0]["component"] is None
 
 
 async def test_a_task_is_edited(

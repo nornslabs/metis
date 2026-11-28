@@ -30,7 +30,7 @@ from metis.agent.tools.issue_brief import REQUIRED_SECTIONS, heading, missing_se
 from metis.agent.tools.research_kb import ResearchScope
 from metis.core.errors import InvalidPlanError
 from metis.core.logging import get_logger
-from metis.modules import planning
+from metis.modules import ideas, planning
 from metis.modules.ideas import PhaseReviewResume
 from metis.modules.planning import ESTIMATES, Plan
 
@@ -91,6 +91,10 @@ class TaskArg(BaseModel):
     )
     estimate: int = Field(default=0, description=f"One of {', '.join(map(str, ESTIMATES))}.")
     labels: list[str] = Field(default_factory=list, description="Up to 10 short labels.")
+    component: str | None = Field(
+        default=None,
+        description="The one HLD component this task belongs to (exactly as listed), if given.",
+    )
     blocked_by: list[str] = Field(
         default_factory=list, description="Keys of the tasks that must finish first."
     )
@@ -107,10 +111,14 @@ class SavePlanArgs(BaseModel):
 
 
 def planning_tools(
-    scope: ResearchScope, ledger: PlanLedger, spec_version_id: UUID
+    scope: ResearchScope,
+    ledger: PlanLedger,
+    spec_version_id: UUID,
+    components: tuple[str, ...] = (),
 ) -> list[BaseTool]:
-    """The Planner's allow-list: ``propose_phases`` and ``save_plan``."""
-    return [_propose_phases(ledger), _save_plan(scope, ledger, spec_version_id)]
+    """The Planner's allow-list: ``propose_phases`` and ``save_plan``. ``components`` are the
+    idea's HLD component names (none when the idea has no HLD): every task must name one."""
+    return [_propose_phases(ledger), _save_plan(scope, ledger, spec_version_id, components)]
 
 
 def _propose_phases(ledger: PlanLedger) -> BaseTool:
@@ -137,7 +145,12 @@ def _propose_phases(ledger: PlanLedger) -> BaseTool:
     )
 
 
-def _save_plan(scope: ResearchScope, ledger: PlanLedger, spec_version_id: UUID) -> BaseTool:
+def _save_plan(
+    scope: ResearchScope,
+    ledger: PlanLedger,
+    spec_version_id: UUID,
+    components: tuple[str, ...],
+) -> BaseTool:
     async def save_plan(tasks: list[TaskArg]) -> str:
         if ledger.refusals >= MAX_REFUSALS:
             return CLOSED
@@ -147,7 +160,7 @@ def _save_plan(scope: ResearchScope, ledger: PlanLedger, spec_version_id: UUID) 
             raise PlanRefused(NO_PHASES_YET)
         try:
             _check_briefs(tasks)
-            data = _plan_input(ledger.phases, tasks)
+            data = _plan_input(ledger.phases, tasks, _checked_components(tasks, components))
             async with scope.session() as session:
                 ledger.saved = await planning.save_plan(
                     session, scope.workspace_id, scope.idea_id, spec_version_id, data
@@ -209,6 +222,28 @@ def _check_briefs(tasks: list[TaskArg]) -> None:
         )
 
 
+def _checked_components(tasks: list[TaskArg], components: tuple[str, ...]) -> dict[str, str]:
+    """Each task key mapped to its component spelled as the HLD spells it. With no HLD the
+    result is empty; otherwise a task with a missing or unknown component is refused."""
+    if not components:
+        return {}
+    chosen: dict[str, str] = {}
+    problems: list[str] = []
+    for task in tasks:
+        name = ideas.match_component(components, task.component)
+        if name is None:
+            problems.append(f"`{task.key}` has {task.component!r}")
+        else:
+            chosen[task.key] = name
+    if problems:
+        raise PlanRefused(
+            "Every task needs exactly one component of the HLD: "
+            f"{', '.join(f'`{name}`' for name in components)}. "
+            f"{'; '.join(problems[:MAX_BRIEF_PROBLEMS_SHOWN])}. {SAVE_AGAIN}"
+        )
+    return chosen
+
+
 def _checked_phases(phases: list[PhaseArg]) -> list[PhaseArg]:
     """The proposal, or a refusal the model can fix (no interrupt is raised for a bad one)."""
     if not MIN_PHASES <= len(phases) <= MAX_PHASES:
@@ -222,7 +257,7 @@ def _checked_phases(phases: list[PhaseArg]) -> list[PhaseArg]:
 
 
 def _plan_input(
-    phases: tuple[planning.PhaseInput, ...], tasks: list[TaskArg]
+    phases: tuple[planning.PhaseInput, ...], tasks: list[TaskArg], components: dict[str, str]
 ) -> planning.PlanInput:
     task_inputs = tuple(
         planning.TaskInput(
@@ -232,6 +267,7 @@ def _plan_input(
             description=t.description,
             estimate=t.estimate,
             labels=tuple(t.labels),
+            component=components.get(t.key),
             parent_key=t.parent_key,
         )
         for t in tasks

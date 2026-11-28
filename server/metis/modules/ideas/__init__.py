@@ -48,6 +48,7 @@ from metis.modules.ideas.dto import (
     TurnSource,
     WorkflowRun,
 )
+from metis.modules.ideas.helpers.hld_markdown import component_names, match_component
 from metis.modules.ideas.helpers.spec_markdown import render_markdown as render_spec_markdown
 from metis.modules.ideas.service.ideas import (
     apply_revision,
@@ -140,6 +141,8 @@ __all__ = [
     "get_spec",
     "get_spec_overview",
     "list_spec_versions",
+    "component_names",
+    "match_component",
     "save_spec_hld",
     "save_spec_version",
     "set_kind",

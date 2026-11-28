@@ -9,6 +9,7 @@ from pydantic import Field
 
 from metis.helpers.dto import FrozenModel
 from metis.modules.planning.dto._fields import (
+    Component,
     Label,
     LongText,
     Name,
@@ -41,6 +42,7 @@ class TaskInput(FrozenModel):
     description: TaskDescription = ""
     estimate: int
     labels: tuple[Label, ...] = Field(default=(), max_length=MAX_LABELS)
+    component: Component | None = None
     parent_key: TaskKey | None = None
 
 
@@ -68,6 +70,7 @@ class Task(FrozenModel):
     description: str
     estimate: int
     labels: tuple[str, ...]
+    component: str | None = None
     parent_task_id: UUID | None
     blocked_by: tuple[UUID, ...]
 

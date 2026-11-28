@@ -150,3 +150,47 @@ async def save_existing_plan(
             tasks=(planning.TaskInput(key="a", phase=0, title="Task a", estimate=3),),
         )
         await planning.save_plan(session, run.workspace_id, idea_id, overview.confirmed.id, data)
+
+
+HLD_MD = (
+    "## Overview\n\nA lead tracker.\n\n## MVP components\n\n"
+    "### Leads API\n\n**Purpose:** Store.\n\n"
+    "### Web app\n\n**Purpose:** Show.\n\n## How the components connect\n\nHTTP."
+)
+
+
+async def save_hld_for(
+    engine: AsyncEngine, app_sessions: async_sessionmaker[AsyncSession], run: QueuedRun
+) -> None:
+    """An HLD (components ``Leads API`` and ``Web app``) for the idea's confirmed spec."""
+    idea_id = await idea_of(engine, run)
+    async with in_workspace(app_sessions, run.workspace_id) as session:
+        overview = await ideas.get_spec_overview(session, run.workspace_id, idea_id)
+        assert overview.confirmed is not None
+        await ideas.save_spec_hld(
+            session,
+            run.workspace_id,
+            idea_id,
+            ideas.NewSpecHld(
+                spec_version_number=overview.confirmed.number,
+                spec_hash=ideas.spec_hash(overview.confirmed.content_md),
+                build_language="Python",
+                content_md=HLD_MD,
+            ),
+        )
+
+
+async def stored_components(engine: AsyncEngine, run: QueuedRun) -> list[str | None]:
+    """The tasks' components in plan order."""
+    async with engine.connect() as conn:
+        result = await conn.execute(
+            text(
+                "SELECT t.component FROM planning.tasks t "
+                "JOIN planning.phases h ON h.id = t.phase_id "
+                "JOIN planning.plans p ON p.id = t.plan_id "
+                "JOIN ideas.workflow_runs r ON r.idea_id = p.idea_id WHERE r.id = :run "
+                "ORDER BY h.position, t.position"
+            ),
+            {"run": run.run_id},
+        )
+        return [row[0] for row in result.all()]

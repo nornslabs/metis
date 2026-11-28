@@ -107,10 +107,14 @@ async def _plan(scope: ResearchScope, spec: SpecVersion, mcp: McpRunContext) -> 
     async with scope.session() as session:
         model = await scope.gateway.chat_model(session, PURPOSE)
         seed = await _seed(session, scope, spec)
+        overview = await ideas.get_spec_overview(session, scope.workspace_id, scope.idea_id)
+    components = ideas.component_names(overview.hld.content_md) if overview.hld else ()
+    if components:
+        seed = f"{seed}\n\n{_components_text(components)}"
     linear_tools = await load_optional_mcp_tools(mcp, PLANNER_POLICY)
     loop = build_react_specialist(
         load_specialist_prompt(PROMPT),
-        [*linear_tools, *planning_tools(scope, ledger, spec.id)],
+        [*linear_tools, *planning_tools(scope, ledger, spec.id, components)],
         model,
         step_limit=STEP_LIMIT,
         finish_tools={SAVE_PLAN},
@@ -123,6 +127,14 @@ async def _plan(scope: ResearchScope, spec: SpecVersion, mcp: McpRunContext) -> 
         logger.warning("plan.no_valid_plan", refusals=ledger.refusals)
         return ErrorCode.PLAN_INVALID_SUBMISSION.value
     return None
+
+
+def _components_text(components: tuple[str, ...]) -> str:
+    listed = "\n".join(f"- {name}" for name in components)
+    return (
+        "HLD components (give every task exactly one of these as its `component`, spelled "
+        f"exactly):\n{listed}"
+    )
 
 
 async def _seed(session: AsyncSession, scope: ResearchScope, spec: SpecVersion) -> str:
