@@ -20,6 +20,8 @@ open while the loop runs: the Exa key is read first in its own short one.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 from uuid import UUID
 
@@ -38,6 +40,7 @@ from metis.agent.specialists.base import build_react_specialist, finished_call_a
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
+from metis.agent.tools.exa import PROVIDER as EXA_PROVIDER
 from metis.agent.tools.exa import ExaCallBudget, exa_tools_for, open_exa_tools, with_call_cap
 from metis.agent.tools.research_gates import (
     CallMemory,
@@ -56,7 +59,7 @@ from metis.agent.tools.research_kb import (
     research_tools,
 )
 from metis.core.config import get_settings
-from metis.core.errors import ErrorCode
+from metis.core.errors import ErrorCode, UpstreamError
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
 from metis.core.ports import FeatureFlagProvider, FlagContext
@@ -74,6 +77,11 @@ STEP_LIMIT = 80
 SUMMARY_LIMIT = 4_000
 NOTICE_SKIPPED_NO_EXA = "research.skipped_no_exa"
 NOTICE_SKIPPED_NO_EXA_TEXT = "Research is skipped: Exa isn't set up."
+NOTICE_PARTIAL_EXA_LOST = "research.partial_exa_lost"
+NOTICE_PARTIAL_EXA_LOST_TEXT = (
+    "Web search stopped part-way, so research is incomplete. Continuing with what was found."
+)
+EXA_LOST_SUMMARY = "Research stopped early: web search failed part-way. Findings may be incomplete."
 NO_COMPETITORS_NOTE = "No direct competitors found."
 NO_SUMMARY = "Research ended without a summary."
 CAP_MESSAGE = (
@@ -133,11 +141,13 @@ def build_researcher(
             logger.info("research.already_closed")
             return _finish_node(state, {"stage": Stage.SCORING})
         budget = ExaCallBudget(redis, scope.run_id, MAX_EXA_CALLS)
-        messages = await _research(scope, redis, make_exa_client, budget)
-        if messages is None:
+        outcome = await _research(scope, redis, make_exa_client, budget)
+        if outcome.end is _LoopEnd.EXA_LOST:
+            return await _close_partial(state, scope)
+        if outcome.end is _LoopEnd.STEP_LIMIT:
             logger.warning("research.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
-        finish = _finish_args(messages)
+        finish = _finish_args(outcome.messages)
         rounds = state.get("clarification_rounds", 0)
         if (
             finish.needs_clarification
@@ -163,13 +173,28 @@ def build_researcher(
     return node
 
 
+class _LoopEnd(StrEnum):
+    FINISHED = "finished"
+    STEP_LIMIT = "step_limit"
+    EXA_LOST = "exa_lost"
+
+
+@dataclass(frozen=True)
+class _LoopOutcome:
+    """How the research loop ended; ``messages`` are set only when it ``FINISHED``."""
+
+    end: _LoopEnd
+    messages: Sequence[AnyMessage] = ()
+
+
 async def _research(
     scope: ResearchScope, redis: Redis, make_exa_client: ClientFactory, budget: ExaCallBudget
-) -> list[AnyMessage] | None:
-    """The loop's messages, or ``None`` when it hit its step limit.
+) -> _LoopOutcome:
+    """Run the loop inside the Exa session.
 
-    The limit is caught inside the Exa session: ``open_mcp_session`` turns any exception that
-    leaves its block into ``UpstreamError``, which would hide ``GraphRecursionError``.
+    The step limit and a lost Exa (not another provider's failure) are caught inside the
+    session, so they end it cleanly. Exa failing at connect, or before the loop saved anything,
+    still raises ``UpstreamError``.
     """
     async with scope.session() as session:
         credentials = await get_key_for_use(session, scope.workspace_id, ProviderKind.EXA)
@@ -201,8 +226,40 @@ async def _research(
         try:
             result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
         except GraphRecursionError:
-            return None
-    return list(result["messages"])
+            return _LoopOutcome(_LoopEnd.STEP_LIMIT)
+        except UpstreamError as exc:
+            if not _is_exa_failure(exc) or not await _has_findings(scope):
+                raise
+            logger.warning("research.exa_lost", reason=(exc.meta or {}).get("reason"))
+            return _LoopOutcome(_LoopEnd.EXA_LOST)
+    return _LoopOutcome(_LoopEnd.FINISHED, tuple(result["messages"]))
+
+
+def _is_exa_failure(exc: UpstreamError) -> bool:
+    """Whether ``exc`` is Exa failing; the LLM gateway raises ``UpstreamError`` too."""
+    return (exc.meta or {}).get("provider") == EXA_PROVIDER
+
+
+async def _has_findings(scope: ResearchScope) -> bool:
+    """Whether this run's snapshot holds a competitor or a research item."""
+    async with scope.session() as session:
+        snapshot = await open_run_snapshot(session, scope)
+        saved = await research.get_snapshot(session, scope.workspace_id, snapshot.id)
+    return bool(saved.items or saved.competitors)
+
+
+async def _close_partial(state: MetisState, scope: ResearchScope) -> dict[str, Any]:
+    """Close the snapshot with what was found, tell the user it is incomplete, go on to scoring."""
+    get_stream_writer()(
+        {
+            "type": RunEventType.NOTICE.value,
+            "code": NOTICE_PARTIAL_EXA_LOST,
+            "text": NOTICE_PARTIAL_EXA_LOST_TEXT,
+        }
+    )
+    async with scope.session() as session:
+        await _close(session, scope, ResearchFinish(summary=EXA_LOST_SUMMARY))
+    return _finish_node(state, {"stage": Stage.SCORING})
 
 
 async def _exa_key_missing(scope: ResearchScope) -> bool:

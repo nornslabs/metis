@@ -18,9 +18,12 @@ from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from metis.core.events import RunEventType, publish
+from metis.core.logging import get_logger
 from metis.helpers.http import ClientFactory, FailureReason, provider_error
-from metis.helpers.mcp import failure_reason, open_mcp_session
+from metis.helpers.mcp import describe_causes, failure_reason, open_mcp_session
 from metis.modules.identity import KeyReadiness, ProviderKind, get_key_for_use, key_readiness
+
+logger = get_logger(__name__)
 
 PROVIDER = "exa"
 EXA_MCP_URL = "https://mcp.exa.ai/mcp"
@@ -168,6 +171,13 @@ def _wrap_tool(tool: BaseTool, name: str, run_id: str, redis: Redis) -> BaseTool
                     break
                 except Exception as exc:  # noqa: BLE001 - MCP errors are normalized below
                     reason = failure_reason(exc)
+                    logger.warning(
+                        "exa.tool_failed",
+                        tool=name,
+                        reason=reason.value,
+                        attempt=attempt + 1,
+                        causes=describe_causes(exc),
+                    )
                     retryable = {FailureReason.RATE_LIMITED, FailureReason.SERVER_ERROR}
                     if reason not in retryable or attempt == len(RETRY_DELAYS):
                         raise provider_error(PROVIDER, reason) from None

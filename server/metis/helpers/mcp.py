@@ -13,31 +13,65 @@ import re
 from collections.abc import AsyncGenerator, Iterator
 from contextlib import asynccontextmanager
 
+import anyio
 import httpx
-from mcp import ClientSession
+from mcp import ClientSession, McpError
 from mcp.client.streamable_http import streamable_http_client
 
 from metis.core.errors import UpstreamError
+from metis.core.logging import get_logger
 from metis.helpers.http import UNAUTHORIZED_STATUSES, FailureReason, provider_error
+
+logger = get_logger(__name__)
+
+_PROVIDER_FAILURES = (
+    httpx.HTTPError,
+    TimeoutError,
+    McpError,
+    anyio.ClosedResourceError,
+    anyio.BrokenResourceError,
+    anyio.EndOfStream,
+)
 
 
 @asynccontextmanager
 async def open_mcp_session(
     http: httpx.AsyncClient, url: str, provider: str
 ) -> AsyncGenerator[ClientSession]:
-    """An initialised MCP session to ``url``; failures raise ``UpstreamError``."""
+    """An initialised MCP session to ``url``; provider failures raise ``UpstreamError``.
+
+    A failure while connecting is always a provider failure. Once the session is open, only
+    an exception that is itself a provider failure (HTTP, timeout, MCP protocol, closed
+    stream) is mapped; any other exception raised by the block passes through unchanged, so
+    a bug or a domain error in the caller is not reported as a provider problem.
+    """
+    connected = False
     try:
         async with (
             streamable_http_client(url, http_client=http) as (read, write, _session_id),
             ClientSession(read, write) as session,
         ):
             await session.initialize()
+            connected = True
             yield session
     except UpstreamError:
         raise
-    except Exception as exc:  # noqa: BLE001 - every failure maps to a safe reason
+    except Exception as exc:  # noqa: BLE001 - every provider failure maps to a safe reason
+        leaves = list(_leaves(exc))
+        if connected and not any(_is_provider_failure(leaf) for leaf in leaves):
+            if len(leaves) == 1:
+                raise leaves[0] from None
+            raise
+        reason = _reason(exc)
+        logger.error(
+            "mcp.session_failed",
+            provider=provider,
+            reason=reason.value,
+            connected=connected,
+            causes=describe_causes(exc),
+        )
         # Chain nothing: transport errors can carry the request and its headers.
-        raise provider_error(provider, _reason(exc)) from None
+        raise provider_error(provider, reason) from None
 
 
 def _leaves(exc: BaseException) -> Iterator[BaseException]:
@@ -47,6 +81,26 @@ def _leaves(exc: BaseException) -> Iterator[BaseException]:
             yield from _leaves(inner)
     else:
         yield exc
+
+
+def _is_provider_failure(exc: BaseException) -> bool:
+    """Whether ``exc`` is the provider or the connection failing, not the caller's own error."""
+    return isinstance(exc, _PROVIDER_FAILURES)
+
+
+def describe_causes(exc: BaseException) -> list[str]:
+    """Log-safe names of the leaf exceptions in ``exc``: each class and, when it has one, a
+    status code; never a message (a message can carry an upstream body)."""
+    return [_describe(leaf) for leaf in _leaves(exc)]
+
+
+def _describe(exc: BaseException) -> str:
+    name = f"{type(exc).__module__}.{type(exc).__qualname__}"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return f"{name}({exc.response.status_code})"
+    if isinstance(exc, McpError):
+        return f"{name}({exc.error.code})"
+    return name
 
 
 def _reason(exc: BaseException) -> FailureReason:

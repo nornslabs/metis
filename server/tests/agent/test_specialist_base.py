@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypedDict
 
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.errors import GraphRecursionError
+from langgraph.graph import END, START, StateGraph
 
 from metis.agent.specialists.base import build_react_specialist
 from metis.core.ports import LLMProvider, ToolDefinition
@@ -88,3 +91,34 @@ async def test_a_finishing_tool_ends_the_loop_without_another_model_call() -> No
     messages = result["messages"]
     assert [type(m) for m in messages] == [HumanMessage, AIMessage, ToolMessage]
     assert len(model.seen) == 1
+
+
+class _RunState(TypedDict, total=False):
+    done: bool
+
+
+async def test_a_non_resumable_loop_runs_inside_a_run_that_waits_for_each_checkpoint() -> None:
+    """The run streams with ``durability="sync"``; a loop with no checkpointer must not wait
+    for a save it never makes (it crashed with ``_put_checkpoint_fut``)."""
+    model = FakeChat([_call_echo("hi"), AIMessage(content="done")])
+    loop = build_react_specialist("p", [echo], model, resumable=False)
+
+    async def node(_state: _RunState) -> _RunState:
+        await loop.ainvoke({"messages": [HumanMessage(content="go")]})
+        return {"done": True}
+
+    graph = StateGraph(_RunState)
+    graph.add_node("node", node)
+    graph.add_edge(START, "node")
+    graph.add_edge("node", END)
+    run = graph.compile(checkpointer=InMemorySaver())
+
+    chunks = [
+        chunk
+        async for chunk in run.astream(
+            {}, {"configurable": {"thread_id": "t"}}, stream_mode="values", durability="sync"
+        )
+    ]
+
+    assert chunks[-1] == {"done": True}
+    assert len(model.seen) == 2
