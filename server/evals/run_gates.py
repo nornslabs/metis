@@ -175,7 +175,7 @@ async def _run(args: argparse.Namespace) -> tuple[list[CaseResult], str]:
     research = load_research_gate_cases() if "researcher" in specialists else ()
     _check_ids(args.cases, [*(c.id for c in interview), *(c.id for c in research)])
     interview, research = _select(interview, args.cases), _select(research, args.cases)
-    real = None if args.recorded else _real_model()
+    real = None if args.recorded else build_eval_model()
     results: list[CaseResult] = []
     if interview:
         model = real[0] if real else _recorded_interview(interview, args.recorded)
@@ -231,7 +231,7 @@ def _recorded_research(cases: Sequence[ResearchGateCase], recorded: bool | Path)
     return RecordedResearchChat(load_verdicts(path), cases)
 
 
-def _real_model() -> tuple[LLMProvider, str]:
+def build_eval_model() -> tuple[LLMProvider, str]:
     missing = [
         n
         for n in ("EVAL_LLM_BASE_URL", "EVAL_LLM_API_KEY", "EVAL_LLM_MODEL")

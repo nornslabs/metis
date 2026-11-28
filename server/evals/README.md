@@ -146,3 +146,21 @@ suite with `--specialist interviewer|researcher` (default: both); `--recorded FI
 Options: `--cases ID ...`, `--repeat N` (default 2; a case passes when every run matches),
 `--min-pass-rate X` (default 0.9), `--json FILE`, `--recorded [FILE]`. Exit codes as for scoring.
 CI runs the recorded replay on pull requests and the real model from the manual workflow.
+
+### Advisor gate evals
+
+`evals/advice_gates/cases.jsonl` freezes 15 candidate suggestions on three ideas (SHIP-418), each
+with the weakest score parameters, the suggestions already saved and the URLs the run saw. A
+*good* suggestion must pass. A *generic* one, one with an *unsupported* quote and a *flattering*
+one are rejected by the judge. A *duplicate*, a *wrong*-target one and one with an *invented* URL
+are rejected by a code check, so the recorded file (`advice_gates/recorded.jsonl`) has no verdict
+for them and the model is never called.
+
+```bash
+cd server
+uv run python -m evals.run_advice_gate --recorded
+EVAL_LLM_BASE_URL=... EVAL_LLM_API_KEY=... EVAL_LLM_MODEL=... uv run python -m evals.run_advice_gate
+```
+
+Same options and exit codes as the gate evals above; the manual workflow also uploads
+`advice-gate-results.json`.
