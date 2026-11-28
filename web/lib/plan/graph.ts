@@ -1,10 +1,10 @@
 import type { TaskView } from "@/lib/plan/view";
 
-export const NODE_WIDTH = 148;
-export const NODE_HEIGHT = 40;
-const GAP_X = 12;
-const GAP_Y = 28;
-const PADDING = 8;
+export const NODE_WIDTH = 160;
+export const NODE_HEIGHT = 44;
+const GAP_X = 14;
+const GAP_Y = 30;
+const PADDING = 12;
 
 export interface GraphNode {
   readonly view: TaskView;
