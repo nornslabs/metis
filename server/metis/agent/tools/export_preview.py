@@ -14,10 +14,7 @@ from uuid import UUID
 
 from metis.agent.tools.export_issue import brief_room
 from metis.agent.tools.export_project import (
-    MAX_PROJECT_NAME_CHARS,
-    cut_at_word,
     hld_title,
-    suggest_project_names,
 )
 from metis.agent.tools.issue_brief import fit_brief
 from metis.helpers.dto import FrozenModel
@@ -34,12 +31,10 @@ class ExportTeam(FrozenModel):
 
 
 class PreviewProject(FrozenModel):
-    """``name`` is the name the project gets (the saved one, else the first suggestion);
-    ``suggestions`` are the names the user can pick instead (empty in older records)."""
+    """``name`` is the name the project gets: the saved one, else the one suggested name."""
 
     name: str
     action: Action
-    suggestions: tuple[str, ...] = ()
 
 
 class PreviewHld(FrozenModel):
@@ -116,9 +111,7 @@ class ExportPreview(FrozenModel):
 def build_export_preview(
     *,
     team: ExportTeam,
-    idea_title: str,
-    saved_project_name: str | None = None,
-    spec_text: str = "",
+    project_name: str,
     plan: Plan,
     project_exists: bool,
     phase_refs: Collection[UUID],
@@ -126,12 +119,10 @@ def build_export_preview(
     linear_labels: Collection[str] | None,
     hld_exists: bool | None = None,
 ) -> ExportPreview:
-    """The preview for ``plan``. ``phase_refs`` and ``task_refs`` are the local ids that
+    """The preview for ``plan``; ``project_name`` is the name the project gets (already chosen:
+    the saved one, else the suggestion). ``phase_refs`` and ``task_refs`` are the local ids that
     already have a Linear item; ``linear_labels`` is ``None`` when it could not be read.
     ``hld_exists`` is ``None`` when the idea has no HLD, else whether its Linear document exists."""
-    suggestions = suggest_project_names(
-        saved=saved_project_name, idea_title=idea_title, spec_text=spec_text
-    )
     milestones = tuple(
         PreviewMilestone(name=phase.name, action=_action(phase.id in phase_refs))
         for phase in plan.phases
@@ -139,17 +130,10 @@ def build_export_preview(
     tasks = [task for phase in plan.phases for task in phase.tasks]
     updated_issues = sum(1 for task in tasks if task.id in task_refs)
     updated_milestones = sum(1 for m in milestones if m.action == "update")
-    project_name = (
-        suggestions[0] if suggestions else cut_at_word(idea_title, MAX_PROJECT_NAME_CHARS)
-    )
     return ExportPreview(
         team=team,
         plan_version=plan.version,
-        project=PreviewProject(
-            name=project_name,
-            action=_action(project_exists),
-            suggestions=suggestions,
-        ),
+        project=PreviewProject(name=project_name, action=_action(project_exists)),
         hld=None
         if hld_exists is None
         else PreviewHld(title=hld_title(project_name), action=_action(hld_exists)),
@@ -181,7 +165,7 @@ def build_export_preview(
 
 
 def with_project_name(preview: ExportPreview, name: str) -> ExportPreview:
-    """``preview`` with the name the user approved (the suggestions stay as shown)."""
+    """``preview`` with the name the user approved."""
     update: dict[str, object] = {"project": preview.project.model_copy(update={"name": name})}
     if preview.hld is not None:
         update["hld"] = preview.hld.model_copy(update={"title": hld_title(name)})

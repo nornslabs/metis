@@ -20,6 +20,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from metis.agent.tools.project_name import fallback_name
 from metis.core.events import RunEventType
 from tests.agent.export_helpers import (
     TOOLS,
@@ -115,7 +116,7 @@ async def test_the_first_export_creates_the_project_and_one_milestone_per_phase(
 
     assert (await run_row(engine, run)).status == "succeeded"
     [project] = linear.projects.values()
-    assert project["name"] == await _idea_title(engine, run)
+    assert project["name"] == fallback_name(await _idea_title(engine, run))
     assert project["teams"] == ["team-2"]
     assert "Leads get lost." in project["description"]
     assert "Plan version 1." in project["description"]
