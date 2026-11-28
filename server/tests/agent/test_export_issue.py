@@ -91,6 +91,31 @@ def test_an_issue_description_is_the_task_text_then_a_metis_footer() -> None:
     assert text.endswith(f"Created by [Metis]({URL})")
 
 
+def test_agent_notes_are_a_collapsible_block_before_the_footer() -> None:
+    brief = (
+        "## Goal\nG.\n\n## Requirements\n1. R.\n\n## Acceptance criteria\n- A.\n\n"
+        "## Agent notes\nN."
+    )
+
+    text = issue_description(brief, URL)
+
+    assert ">>> Agent notes\n\nN.\n\n>>>\n\n---\nCreated by" in text
+    assert text.endswith(f"Created by [Metis]({URL})")
+
+
+def test_a_long_brief_loses_agent_notes_and_context_before_acceptance_criteria() -> None:
+    brief = (
+        "## Goal\nG.\n\n## Context\n" + "c" * 2_500 + "\n\n## Requirements\n1. R.\n\n"
+        "## Acceptance criteria\n- A works.\n\n## Agent notes\n" + "n" * 2_500
+    )
+
+    text = issue_description(brief, URL)
+
+    assert len(text) <= MAX_DESCRIPTION_CHARS
+    assert "Agent notes" not in text and "## Context" not in text
+    assert "## Acceptance criteria\n- A works." in text
+
+
 def test_an_empty_task_text_leaves_only_the_footer() -> None:
     assert issue_description("  ", URL) == f"---\nCreated by [Metis]({URL})"
 

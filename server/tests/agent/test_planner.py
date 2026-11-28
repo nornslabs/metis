@@ -146,6 +146,22 @@ async def test_a_dependency_cycle_is_refused_with_the_tasks_named_then_fixed(
     assert len(await stored_tasks(engine, run)) == len(TASKS)
 
 
+async def test_a_task_without_an_issue_brief_is_refused_with_the_missing_sections_then_fixed(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, app_sessions: Any
+) -> None:
+    run = await planning_run(engine, app_sessions)
+    thin = {**task("a", 0), "description": "Do a. Done when a works."}
+    llm.add(propose(), save_plan([thin]), save_plan())
+    await run_job(ctx, run)
+
+    await _review(engine, ctx, run, PHASES)
+
+    seen = llm.shown(2)
+    assert "`a` lacks `## Goal`, `## Requirements`, `## Acceptance criteria`" in seen
+    assert len(await stored_plans(engine, run)) == 1
+    assert len(await stored_tasks(engine, run)) == len(TASKS)
+
+
 async def test_an_estimate_above_eight_is_refused_with_the_split_hint(
     engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, app_sessions: Any
 ) -> None:

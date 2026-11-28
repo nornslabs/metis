@@ -26,6 +26,7 @@ from langgraph.types import interrupt
 from pydantic import BaseModel, Field, ValidationError
 
 from metis.agent.tools.ask_user import PHASE_REVIEW
+from metis.agent.tools.issue_brief import REQUIRED_SECTIONS, heading, missing_sections
 from metis.agent.tools.research_kb import ResearchScope
 from metis.core.errors import InvalidPlanError
 from metis.core.logging import get_logger
@@ -38,6 +39,7 @@ SAVE_PLAN = "save_plan"
 MIN_PHASES = 3
 MAX_PHASES = 7
 MAX_REFUSALS = 2
+MAX_BRIEF_PROBLEMS_SHOWN = 5
 CLOSED = "Saving is closed: two attempts were refused. Stop."
 SAVED = "Plan saved."
 NO_PHASES_YET = f"Nothing was saved. Call {PROPOSE_PHASES} first; the phases come from the review."
@@ -80,7 +82,13 @@ class TaskArg(BaseModel):
     key: str = Field(default="", description="A short unique key for this task, e.g. `t1`.")
     phase: int = Field(default=-1, description="Index (from 0) of the task's phase in the list.")
     title: str = Field(default="", description="Short title.")
-    description: str = Field(default="", description="What, the steps and the acceptance criteria.")
+    description: str = Field(
+        default="",
+        description=(
+            "The issue brief in Markdown with `##` sections: Goal, Context, Requirements, "
+            "Out of scope, Acceptance criteria, Dependencies, and an optional Agent notes."
+        ),
+    )
     estimate: int = Field(default=0, description=f"One of {', '.join(map(str, ESTIMATES))}.")
     labels: list[str] = Field(default_factory=list, description="Up to 10 short labels.")
     blocked_by: list[str] = Field(
@@ -138,6 +146,7 @@ def _save_plan(scope: ResearchScope, ledger: PlanLedger, spec_version_id: UUID) 
             # model proposes again. Raised, not returned, so the loop does not end on it.
             raise PlanRefused(NO_PHASES_YET)
         try:
+            _check_briefs(tasks)
             data = _plan_input(ledger.phases, tasks)
             async with scope.session() as session:
                 ledger.saved = await planning.save_plan(
@@ -183,6 +192,21 @@ def _message(error: Exception) -> str:
         )
         return f"A task is not valid ({problems})."
     return str(error)
+
+
+def _check_briefs(tasks: list[TaskArg]) -> None:
+    """Refuse a task whose description is not a usable issue brief, naming what is missing."""
+    problems = [
+        f"`{task.key}` lacks {', '.join(f'`{heading(name)}`' for name in missing)}"
+        for task in tasks
+        if (missing := missing_sections(task.description))
+    ]
+    if problems:
+        needed = ", ".join(f"`{heading(name)}`" for name in REQUIRED_SECTIONS)
+        raise PlanRefused(
+            f"Every task description must be an issue brief with {needed} sections. "
+            f"{'; '.join(problems[:MAX_BRIEF_PROBLEMS_SHOWN])}. {SAVE_AGAIN}"
+        )
 
 
 def _checked_phases(phases: list[PhaseArg]) -> list[PhaseArg]:
