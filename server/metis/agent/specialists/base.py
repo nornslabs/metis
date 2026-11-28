@@ -16,6 +16,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph._internal._constants import CONFIG_KEY_DURABILITY
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -26,6 +27,7 @@ from metis.core.ports import LLMProvider
 AGENT_NODE = "agent"
 TOOLS_NODE = "tools"
 DEFAULT_STEP_LIMIT = 12
+NO_SAVE_DURABILITY = "exit"
 MAX_TOOL_INVOCATION_ERRORS = 3
 
 
@@ -96,14 +98,13 @@ def build_react_specialist(
         graph.add_conditional_edges(TOOLS_NODE, _after_tools(frozenset(finish_tools)))
     else:
         graph.add_edge(AGENT_NODE, END)
-    compiled = graph.compile() if resumable else graph.compile(checkpointer=False)
-    if not resumable:
-        # LangGraph inherits the parent's durability="sync", which crashes when checkpointer=False
-        # because AsyncPregelLoop has no _put_checkpoint_fut.
-        return compiled.with_config(
-            {"recursion_limit": step_limit, "configurable": {"__pregel_durability": "async"}}
-        )
-    return compiled.with_config({"recursion_limit": step_limit})
+    if resumable:
+        return graph.compile().with_config({"recursion_limit": step_limit})
+    # No checkpointer, so no save to wait for: pin the durability, or the loop inherits the
+    # run's ``sync`` from the parent config and waits for a save that never happens.
+    return graph.compile(checkpointer=False).with_config(
+        {"recursion_limit": step_limit, "configurable": {CONFIG_KEY_DURABILITY: NO_SAVE_DURABILITY}}
+    )
 
 
 async def invoke_loop(loop: Any, seed: str) -> bool:

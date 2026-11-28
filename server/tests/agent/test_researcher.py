@@ -22,6 +22,7 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
+from metis.agent.specialists.researcher import EXA_LOST_SUMMARY, NOTICE_PARTIAL_EXA_LOST
 from metis.agent.tools.exa import ExaCallBudget
 from metis.core.events import RunEventType
 from metis.helpers.ids import uuid7
@@ -40,7 +41,7 @@ from tests.agent.run_job_helpers import (
     run_row,
     statuses,
 )
-from tests.modules.identity.fake_exa_mcp import FakeExaMcp
+from tests.modules.identity.fake_exa_mcp import ExaMode, FakeExaMcp
 
 ACME = {
     "name": "Acme CRM",
@@ -463,4 +464,36 @@ async def test_a_loop_that_never_settles_fails_with_the_step_limit(
     row = await run_row(engine, run)
     assert row.status == "failed"
     assert row.error is not None and row.error["code"] == "run.step_limit_reached"
+    assert await _snapshots(engine, run) == [(None, False)]  # opened, never closed
+
+
+async def test_exa_failing_after_findings_closes_research_with_a_notice(
+    engine: AsyncEngine, redis: Redis, ctx: dict[str, Any], llm: ScriptedLLM, exa: FakeExaMcp
+) -> None:
+    run = await _researching_run(engine)
+    exa.mode = ExaMode.TOOL_ERROR  # the search fails; saving findings does not touch Exa
+    llm.add(call("kb_upsert_competitor", **ACME), call("save_research_item", **FACT))
+    llm.add(search("more competitors"))
+
+    await run_job(ctx, run)
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    assert await _snapshots(engine, run) == [(EXA_LOST_SUMMARY, True)]
+    assert await _linked(engine, run) == [("Acme CRM", "acme.example.com", Decimal("0.80"))]
+    notices = [e.data for e in await events_of(redis, run) if e.type is RunEventType.NOTICE]
+    assert [n["code"] for n in notices] == [NOTICE_PARTIAL_EXA_LOST]
+
+
+async def test_exa_failing_before_anything_is_saved_still_fails_the_run(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM, exa: FakeExaMcp
+) -> None:
+    run = await _researching_run(engine)
+    exa.mode = ExaMode.TOOL_ERROR
+    llm.add(search("first search"))
+
+    await run_job(ctx, run)
+
+    row = await run_row(engine, run)
+    assert row.status == "failed"
+    assert row.error is not None and row.error["code"] == "provider.upstream_error"
     assert await _snapshots(engine, run) == [(None, False)]  # opened, never closed

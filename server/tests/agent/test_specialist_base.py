@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TypedDict
 
 import pytest
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
+from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.errors import GraphRecursionError
+from langgraph.graph import END, START, StateGraph
 
 from metis.agent.specialists.base import (
     ToolInvocationLimitError,
@@ -135,30 +138,32 @@ def test_json_list_accepts_stringified_json_and_rejects_malformed_json() -> None
         Args.model_validate({"items": '["a", unquoted]'})
 
 
-async def test_non_resumable_specialist_runs_inside_sync_durability_parent() -> None:
-    from langgraph.checkpoint.memory import InMemorySaver
-    from langgraph.graph import END, START, MessagesState, StateGraph
+class _RunState(TypedDict, total=False):
+    done: bool
 
-    model = FakeChat([AIMessage(content="ok")])
-    sub = build_react_specialist("p", [], model, resumable=False)
 
-    parent = StateGraph(MessagesState)
+async def test_a_non_resumable_loop_runs_inside_a_run_that_waits_for_each_checkpoint() -> None:
+    """The run streams with ``durability="sync"``; a loop with no checkpointer must not wait
+    for a save it never makes (it crashed with ``_put_checkpoint_fut``)."""
+    model = FakeChat([_call_echo("hi"), AIMessage(content="done")])
+    loop = build_react_specialist("p", [echo], model, resumable=False)
 
-    async def call_sub(state: MessagesState) -> dict[str, list[BaseMessage]]:
-        return dict(await sub.ainvoke({"messages": state["messages"]}))
+    async def node(_state: _RunState) -> _RunState:
+        await loop.ainvoke({"messages": [HumanMessage(content="go")]})
+        return {"done": True}
 
-    parent.add_node("sub", call_sub)
-    parent.add_edge(START, "sub")
-    parent.add_edge("sub", END)
-    compiled = parent.compile(checkpointer=InMemorySaver())
+    graph = StateGraph(_RunState)
+    graph.add_node("node", node)
+    graph.add_edge(START, "node")
+    graph.add_edge("node", END)
+    run = graph.compile(checkpointer=InMemorySaver())
 
     chunks = [
         chunk
-        async for chunk in compiled.astream(
-            {"messages": [HumanMessage(content="go")]},
-            {"configurable": {"thread_id": "t-sync"}},
-            durability="sync",
-            subgraphs=True,
+        async for chunk in run.astream(
+            {}, {"configurable": {"thread_id": "t"}}, stream_mode="values", durability="sync"
         )
     ]
-    assert chunks
+
+    assert chunks[-1] == {"done": True}
+    assert len(model.seen) == 2
