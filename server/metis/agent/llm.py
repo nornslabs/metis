@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from typing import Any
+from urllib.parse import urlsplit
 from uuid import UUID
 
 import httpx
@@ -26,13 +27,18 @@ from langchain_core.callbacks import AsyncCallbackHandler, BaseCallbackHandler
 from langchain_core.outputs import ChatGeneration, LLMResult
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.adapters.llm import OpenAICompatibleChat, build_chat_model, build_embedder
 from metis.agent.tracing import tracing_callbacks
 from metis.core.config import get_settings
 from metis.core.db import get_session_maker, set_workspace, transaction
-from metis.core.errors import UpstreamError, provider_not_configured
+from metis.core.errors import (
+    ProviderNotConfiguredError,
+    UpstreamError,
+    provider_not_configured,
+)
 from metis.core.logging import get_logger
-from metis.core.ports import Embedder, LLMProvider
+from metis.core.ports import Embedder, FeatureFlagProvider, FlagContext, LLMProvider
 from metis.helpers.http import FailureReason
 from metis.helpers.pricing import ModelPrice, cost_usd
 from metis.modules.ideas import NewLlmUsage, record_llm_usage
@@ -40,6 +46,45 @@ from metis.modules.identity import ProviderCredentials, ProviderKind, get_key_fo
 from metis.modules.research import EMBEDDING_DIMENSIONS
 
 logger = get_logger(__name__)
+
+_DEFAULT_RATE_LIMITS: dict[str, object] = {
+    "default": {"requests_per_minute": 0},
+}
+
+
+ROUTING_STRATEGY_FLAG = "model_routing_strategy"
+ROUTING_STRATEGIES = frozenset({"cost_optimized", "quality_optimized", "balanced"})
+
+
+def _flag_value(routing: dict[str, object], key: str) -> str | None:
+    value = routing.get(key)
+    return str(value) if value is not None else None
+
+
+_VENDOR_HOSTS: dict[str, tuple[str, ...]] = {
+    "openai": ("api.openai.com",),
+    "anthropic": ("api.anthropic.com",),
+    "google": ("generativelanguage.googleapis.com",),
+    "local": ("localhost", "127.0.0.1", "::1", "host.docker.internal"),
+}
+
+
+def _vendor_from_base_url(base_url: str | None) -> str | None:
+    """The vendor whose kill switch governs ``base_url``, or ``None`` for an unknown host.
+
+    Matches the exact credential host, not a substring, so a look-alike such as
+    ``openai.example.com`` is not mistaken for OpenAI.
+    """
+    if not base_url:
+        return None
+    try:
+        hostname = (urlsplit(base_url).hostname or "").lower()
+    except ValueError:
+        return None
+    for vendor, hosts in _VENDOR_HOSTS.items():
+        if hostname in hosts:
+            return vendor
+    return None
 
 
 class LLMGateway:
@@ -53,6 +98,7 @@ class LLMGateway:
         sessions: async_sessionmaker[AsyncSession] | None = None,
         prices: Mapping[str, ModelPrice] | None = None,
         http_client: httpx.AsyncClient | None = None,
+        flags: FeatureFlagProvider | None = None,
     ) -> None:
         settings = get_settings()
         self._workspace_id = workspace_id
@@ -61,31 +107,154 @@ class LLMGateway:
         self._prices = settings.llm_prices if prices is None else prices
         self._http_client = http_client
         self._tracing = tracing_callbacks(settings)
+        self._flags = flags or build_feature_flag_provider(settings)
         self._models: dict[str, OpenAICompatibleChat] = {}
+        self._vendor: str | None = None
+        self._strategy_read = False
+        self._strategy: str | None = None
         self._embedding_model = settings.llm_embedding_model
         self._call_timeout = settings.llm_call_timeout_seconds
         self._long_call_timeout = settings.llm_long_call_timeout_seconds
         self._embedder: Embedder | None = None
         self._embeddings_unavailable = False
+        self._request_counts: dict[str, int] = {}
 
-    async def chat_model(self, session: AsyncSession, purpose: str) -> LLMProvider:
+    def _flag_context(self) -> FlagContext:
+        return FlagContext(
+            workspace_id=self._workspace_id,
+            environment=get_settings().app_env,
+        )
+
+    async def _routing_strategy(self) -> str | None:
+        """The run's routing strategy, read once per run (that read is the exposure).
+
+        ``None`` when the flag is unset or names an unknown strategy.
+        """
+        if self._strategy_read:
+            return self._strategy
+        self._strategy_read = True
+        try:
+            value = await self._flags.get_experiment_variant(
+                ROUTING_STRATEGY_FLAG, self._flag_context(), ""
+            )
+        except Exception:  # noqa: BLE001  (an experiment outage must not stop a run)
+            logger.warning("feature_flags.experiment_unavailable", key=ROUTING_STRATEGY_FLAG)
+            return None
+        if value in ROUTING_STRATEGIES:
+            self._strategy = value
+        elif value:
+            logger.warning("feature_flags.unknown_variation", key=ROUTING_STRATEGY_FLAG)
+        return self._strategy
+
+    async def _routing(
+        self, context: FlagContext, default_routing: dict[str, object]
+    ) -> dict[str, object]:
+        """The strategy's routing flag, else ``model_routing``, else ``default_routing``."""
+        strategy = await self._routing_strategy()
+        if strategy is not None:
+            chosen = await self._flags.get_json(f"model_routing_{strategy}", context, None)
+            if isinstance(chosen, dict) and chosen:
+                return chosen
+        plain = await self._flags.get_json("model_routing", context, default_routing)
+        return plain if isinstance(plain, dict) else default_routing
+
+    async def _require_llm_enabled(self) -> None:
+        """Raise ``ProviderNotConfiguredError`` when the ``llm_enabled`` kill switch is off.
+
+        The ``FlagContext`` carries the run's workspace and the deployment environment.
+        The flag itself is decided by the configured provider, so this gateway never
+        reads flags directly.
+        """
+        if not await self._flags.is_enabled("llm_enabled", self._flag_context(), default=True):
+            raise ProviderNotConfiguredError(
+                "LLM calls are disabled: the ``llm_enabled`` kill switch is off.",
+                meta={"provider": "llm", "reason": "kill_switch"},
+            )
+
+    async def _require_provider_enabled(self, vendor: str) -> None:
+        """Raise ``ProviderNotConfiguredError`` when ``llm_{vendor}_enabled`` is off.
+
+        Runs after the master ``llm_enabled`` switch. An unset flag counts as on, like the
+        master switch. The error names the disabled vendor.
+        """
+        flag = f"llm_{vendor}_enabled"
+        if not await self._flags.is_enabled(flag, self._flag_context(), default=True):
+            raise ProviderNotConfiguredError(
+                f"LLM calls are disabled: the `{flag}` kill switch is off.",
+                meta={"provider": vendor, "reason": "kill_switch"},
+            )
+
+    async def chat_model(
+        self, session: AsyncSession, purpose: str, tier: str = "default"
+    ) -> LLMProvider:
         """The run's chat model for ``purpose``.
 
         ``session`` reads the saved key. Raises ``ProviderNotConfiguredError`` when the
-        workspace has no LLM key.
+        workspace has no LLM key, or when the ``llm_enabled`` kill switch is off.
+        Model selection and per-tier rate limits come from the ``model_routing`` and
+        ``rate_limits`` JSON flags.
         """
+        await self._require_llm_enabled()
+
+        context = FlagContext(
+            workspace_id=self._workspace_id,
+            environment=get_settings().app_env,
+            custom_attributes={"tier": tier},
+        )
+        rate_limits = await self._flags.get_json("rate_limits", context, _DEFAULT_RATE_LIMITS)
+        if not isinstance(rate_limits, dict):
+            rate_limits = _DEFAULT_RATE_LIMITS
+        tier_limits = rate_limits.get(tier, rate_limits.get("default", {}))
+        if not isinstance(tier_limits, dict):
+            tier_limits = {}
+        limit = tier_limits.get("requests_per_minute", 0)
+        if not isinstance(limit, int):
+            limit = 0
+        if limit > 0:
+            count = self._request_counts.get(tier, 0) + 1
+            self._request_counts[tier] = count
+            if count > limit:
+                raise ProviderNotConfiguredError(
+                    f"Rate limit exceeded for tier {tier}: {limit} requests per minute.",
+                    meta={"provider": "llm", "reason": "rate_limited", "tier": tier},
+                )
+
         cached = self._models.get(purpose)
         if cached is not None:
+            # A flag flipped mid-run must still stop a gateway that already built its model.
+            if self._vendor is not None:
+                await self._require_provider_enabled(self._vendor)
             return cached
-        credentials, base_url, chat_model = await self._credentials(session)
+        credentials, base_url, _, _ = await self._credentials(session)
+        assert credentials.model is not None
+
+        self._vendor = _vendor_from_base_url(base_url)
+        if self._vendor is not None:
+            await self._require_provider_enabled(self._vendor)
+
+        # Default routing uses the workspace's saved model as the fallback.
+        default_routing: dict[str, object] = {
+            "default": credentials.model,
+            "fallback": credentials.model,
+        }
+        routing = await self._routing(context, default_routing)
+
+        model_name: str | None = credentials.model
+        for key in (tier, "default", "fallback"):
+            value = _flag_value(routing, key)
+            if value is not None:
+                model_name = value
+                break
+        assert model_name is not None
+
         model = build_chat_model(
             base_url=base_url,
             api_key=credentials.api_key,
-            model=chat_model,
+            model=model_name,
             purpose=purpose,
             timeout_seconds=self._call_timeout,
             long_timeout_seconds=self._long_call_timeout,
-            callbacks=[*self._tracing, self._usage_recorder(chat_model)],
+            callbacks=[*self._tracing, self._usage_recorder(model_name)],
             http_client=self._http_client,
         )
         self._models[purpose] = model
@@ -100,6 +269,7 @@ class LLMGateway:
         """
         if not texts:
             return []
+        await self._require_llm_enabled()
         if self._embeddings_unavailable:
             return None
         embedder = await self._get_embedder(session)
@@ -125,16 +295,18 @@ class LLMGateway:
         if embedder is not None:
             await embedder.aclose()
 
-    async def _credentials(self, session: AsyncSession) -> tuple[ProviderCredentials, str, str]:
+    async def _credentials(
+        self, session: AsyncSession
+    ) -> tuple[ProviderCredentials, str, str, ProviderKind]:
         """The workspace's LLM credentials with their ``base_url`` and chat ``model``."""
         credentials = await get_key_for_use(session, self._workspace_id, ProviderKind.LLM)
         if credentials.base_url is None or credentials.model is None:
             raise provider_not_configured(ProviderKind.LLM)
-        return credentials, credentials.base_url, credentials.model
+        return credentials, credentials.base_url, credentials.model, credentials.kind
 
     async def _get_embedder(self, session: AsyncSession) -> Embedder:
         if self._embedder is None:
-            credentials, base_url, _ = await self._credentials(session)
+            credentials, base_url, _, _ = await self._credentials(session)
             self._embedder = build_embedder(
                 base_url=base_url,
                 api_key=credentials.api_key,

@@ -123,6 +123,11 @@ class ExaCallBudget:
         await self._redis.expire(self._key, CACHE_TTL_SECONDS)
         return int(used) <= self._limit
 
+    async def exhausted(self) -> bool:
+        """Whether every call is spent; reads the count without spending a call."""
+        used = await self._redis.get(self._key)
+        return used is not None and int(used) >= self._limit
+
 
 def with_call_cap(
     tools: Sequence[BaseTool], budget: ExaCallBudget, *, limit_message: str

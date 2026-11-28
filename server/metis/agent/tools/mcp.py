@@ -30,8 +30,10 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import McpHttpClientFactory
 from redis.asyncio import Redis
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.tools.mcp_policy import ApprovalLedger, McpToolPolicy, McpWriteRefused
 from metis.agent.tools.research_kb import SessionOpener
+from metis.core.config import get_settings
 from metis.core.errors import (
     IntegrationExpiredError,
     IntegrationNotConnectedError,
@@ -39,6 +41,7 @@ from metis.core.errors import (
 )
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
+from metis.core.ports import FlagContext
 from metis.helpers.http import ClientFactory, FailureReason, provider_error
 from metis.helpers.mcp import failure_reason
 from metis.modules import integrations
@@ -97,6 +100,19 @@ async def load_mcp_tools(
     Raises ``IntegrationNotConnectedError`` / ``IntegrationExpiredError`` (naming the provider)
     when there is no usable connection, and ``UpstreamError`` when the provider fails.
     """
+    _flags = build_feature_flag_provider(get_settings())
+    settings = get_settings()
+    flag_context = FlagContext(
+        workspace_id=context.workspace_id,
+        environment=settings.app_env,
+        custom_attributes={},
+    )
+    if not await _flags.is_enabled(f"{provider.value}_enabled", flag_context, default=True):
+        logger.info(
+            "integration.skipped_provider_disabled",
+            provider=provider.value,
+        )
+        return []
     if not policy.allowed:
         return []
     connection = _Connection(context, provider, policy, ledger or ApprovalLedger())

@@ -7,8 +7,12 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.adapters.feature_flags import build_feature_flag_provider
+from metis.core.config import get_settings
 from metis.core.crypto import decrypt, seal_from_json
 from metis.core.db import WORKSPACE_SETTING
+from metis.core.errors import ProviderNotConfiguredError
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.modules.identity import repo
 from metis.modules.identity.dto import ProviderKind
 from metis.modules.stt.dto import STTErrorResponse, TranscribeResponse
@@ -19,6 +23,7 @@ async def transcribe_audio(
     workspace_id: UUID,
     audio_content: bytes,
     content_type: str,
+    flags: FeatureFlagProvider | None = None,
 ) -> TranscribeResponse | STTErrorResponse:
     """Transcribe audio using the workspace's configured STT provider.
 
@@ -31,10 +36,23 @@ async def transcribe_audio(
         workspace_id: Workspace ID
         audio_content: Raw audio bytes
         content_type: MIME type of audio (e.g., "audio/webm")
+        flags: Feature flag provider (defaults to the static environment provider)
 
     Returns:
         TranscribeResponse with transcript, or STTErrorResponse on failure
     """
+    _flags = flags or build_feature_flag_provider(get_settings())
+    flag_context = FlagContext(
+        workspace_id=workspace_id,
+        environment=get_settings().app_env,
+        custom_attributes={},
+    )
+    if not await _flags.is_enabled("sarvam_enabled", flag_context, default=True):
+        raise ProviderNotConfiguredError(
+            "Sarvam STT is disabled: the sarvam_enabled kill switch is off.",
+            meta={"provider": "stt", "reason": "kill_switch"},
+        )
+
     # Check if Sarvam API key exists for this workspace
     async with repo.rls.context(session, WORKSPACE_SETTING, workspace_id):
         key_row = await repo.provider_keys.get(session, workspace_id, ProviderKind.SARVAM)

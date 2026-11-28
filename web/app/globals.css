@@ -210,46 +210,78 @@
   }
 }
 
-/* Agent work in progress (ui-context.md, Shimmer): muted text with a moving highlight. */
+/* Agent work in progress (ui-context.md, Shimmer): muted text with a smooth sweeping highlight. */
 @utility text-shimmer {
   background-image: linear-gradient(
     90deg,
     var(--muted-foreground) 0%,
-    var(--muted-foreground) 40%,
+    var(--muted-foreground) 35%,
     var(--foreground) 50%,
-    var(--muted-foreground) 60%,
+    var(--muted-foreground) 65%,
     var(--muted-foreground) 100%
   );
-  background-size: 300% 100%;
+  background-size: 250% 100%;
   background-clip: text;
   color: transparent;
   @media (prefers-reduced-motion: no-preference) {
-    animation: shimmer 1.8s linear infinite;
+    animation: shimmer 2.2s ease-in-out infinite;
   }
 }
 
-/* Streaming caret after the last block of agent text; it blinks only when motion is allowed. */
+/* Breathing orb indicator after the last block of streamed agent text. */
 @utility streaming-caret {
   & > :last-child::after {
     content: "";
     display: inline-block;
-    width: 0.46em;
-    height: 1em;
-    margin-left: 0.15em;
-    vertical-align: -0.15em;
+    width: 0.52em;
+    height: 0.52em;
+    margin-left: 0.35em;
+    vertical-align: 0.08em;
+    border-radius: 9999px;
     background: var(--foreground);
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--foreground) 35%, transparent);
     @media (prefers-reduced-motion: no-preference) {
-      animation: caret-blink 1s steps(2) infinite;
+      animation: caret-pulse 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     }
+  }
+}
+
+/* Staggered breathing dots for inline thinking / working states. */
+@utility typing-dot {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: typing-wave 1.2s ease-in-out infinite;
+  }
+}
+
+/* Subtle top hairline sweep on the working bar. */
+@utility working-sweep {
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--foreground) 45%, transparent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: sweep 2s ease-in-out infinite;
   }
 }
 
 @keyframes shimmer {
   from {
-    background-position: 100% 0;
+    background-position: 150% 0;
   }
   to {
-    background-position: 0 0;
+    background-position: -50% 0;
+  }
+}
+
+@keyframes sweep {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
   }
 }
 
@@ -263,9 +295,30 @@
   }
 }
 
-@keyframes caret-blink {
-  to {
-    opacity: 0;
+@keyframes caret-pulse {
+  0%,
+  100% {
+    opacity: 0.95;
+    transform: scale(1);
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--foreground) 35%, transparent);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.75);
+    box-shadow: 0 0 0 0.28em color-mix(in oklch, var(--foreground) 0%, transparent);
+  }
+}
+
+@keyframes typing-wave {
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: translateY(0) scale(0.85);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-1.5px) scale(1);
   }
 }
 
@@ -296,10 +349,10 @@
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0;
-  --frame: min(1280px, 100% - 160px);
+  --frame: min(1560px, 100% - 64px);
   --col: 760px;
-  --hist-w: 264px;
-  --panel-w: clamp(360px, 36vw, 500px);
+  --hist-w: 256px;
+  --panel-w: clamp(340px, 32vw, 460px);
   --overlay-w: min(320px, 88%);
   --header-h: 44px;
   --footer-h: 32px;
@@ -367,6 +420,22 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--border);
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--muted-foreground);
   }
   html,
   body {

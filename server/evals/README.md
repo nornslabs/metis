@@ -120,3 +120,47 @@ the expected failures there. The offline run passes 11 of 14 cases (79%) on purp
 - `scoring` (manual, Actions > Evals > Run workflow): the real model. Needs the repository
   secrets `EVAL_LLM_BASE_URL` and `EVAL_LLM_API_KEY`; the model name is a run input. It fails
   under the minimum pass rate and uploads `results.json`.
+
+## Gate evals
+
+A second, smaller set checks the Interviewer's gates (SHIP-416): `evals/gates/cases.jsonl` freezes
+14 candidate questions on three ideas. A *good* question must pass, a *generic* one ("What is the
+pain?") and a *duplicate* of an earlier question must be rejected, and an *inferable* question
+(its answer is in the idea text or an earlier answer) must be skipped with the quoted source.
+No database or Redis is needed, only the server's env (the settings load).
+
+```bash
+cd server
+uv run python -m evals.run_gates --recorded            # offline replay of gates/recorded.jsonl
+EVAL_LLM_BASE_URL=... EVAL_LLM_API_KEY=... EVAL_LLM_MODEL=... uv run python -m evals.run_gates
+```
+
+The same runner checks the Researcher's gate (SHIP-417): `evals/gates/research_cases.jsonl` freezes
+13 candidate Exa calls on three ideas, each with the idea, what is saved, the searches and pages
+already used and the KB's matches. A call that fills a gap must `run`; a vague one, one the KB or
+the saved findings already answer, an off-topic one, and a repeated search or page must `refuse`
+(repeats are refused by a code check, so their cases need no recorded verdict). Verdicts for the
+others are in `gates/research_recorded.jsonl` (`{"case", "gate": "input", "verdict"}`). Pick a
+suite with `--specialist interviewer|researcher` (default: both); `--recorded FILE` needs one.
+
+Options: `--cases ID ...`, `--repeat N` (default 2; a case passes when every run matches),
+`--min-pass-rate X` (default 0.9), `--json FILE`, `--recorded [FILE]`. Exit codes as for scoring.
+CI runs the recorded replay on pull requests and the real model from the manual workflow.
+
+### Advisor gate evals
+
+`evals/advice_gates/cases.jsonl` freezes 15 candidate suggestions on three ideas (SHIP-418), each
+with the weakest score parameters, the suggestions already saved and the URLs the run saw. A
+*good* suggestion must pass. A *generic* one, one with an *unsupported* quote and a *flattering*
+one are rejected by the judge. A *duplicate*, a *wrong*-target one and one with an *invented* URL
+are rejected by a code check, so the recorded file (`advice_gates/recorded.jsonl`) has no verdict
+for them and the model is never called.
+
+```bash
+cd server
+uv run python -m evals.run_advice_gate --recorded
+EVAL_LLM_BASE_URL=... EVAL_LLM_API_KEY=... EVAL_LLM_MODEL=... uv run python -m evals.run_advice_gate
+```
+
+Same options and exit codes as the gate evals above; the manual workflow also uploads
+`advice-gate-results.json`.

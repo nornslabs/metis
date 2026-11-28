@@ -30,13 +30,22 @@ from pydantic import ValidationError
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.adapters.feature_flags import build_feature_flag_provider
+from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
-from metis.agent.prompts import load_prompt
+from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, finished_call_args
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.agent.tools.exa import ExaCallBudget, exa_tools_for, open_exa_tools, with_call_cap
+from metis.agent.tools.research_gates import (
+    CallMemory,
+    kb_lookup_for,
+    load_run_knowledge,
+    with_kb_matches,
+    with_research_gate,
+)
 from metis.agent.tools.research_kb import (
     FINISH_RESEARCH,
     MAX_CLARIFICATION_QUESTIONS,
@@ -46,9 +55,11 @@ from metis.agent.tools.research_kb import (
     open_run_snapshot,
     research_tools,
 )
+from metis.core.config import get_settings
 from metis.core.errors import ErrorCode
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.modules import ideas, research
 from metis.modules.ideas import RunKind, Stage
@@ -78,8 +89,11 @@ def build_researcher(
     open_session: SessionOpener,
     redis: Redis,
     make_exa_client: ClientFactory,
+    flags: FeatureFlagProvider | None = None,
 ) -> SpecialistNode:
     """The Researcher node for one run."""
+    _flags = flags or build_feature_flag_provider(get_settings())
+    settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
         scope = ResearchScope(
@@ -89,6 +103,21 @@ def build_researcher(
             open_session=open_session,
             gateway=gateway,
         )
+        flag_context = FlagContext(
+            workspace_id=scope.workspace_id,
+            environment=settings.app_env,
+            custom_attributes={},
+        )
+        if not await _flags.is_enabled("exa_enabled", flag_context, default=True):
+            logger.info("research.skipped_exa_disabled")
+            get_stream_writer()(
+                {
+                    "type": RunEventType.NOTICE.value,
+                    "code": NOTICE_SKIPPED_NO_EXA,
+                    "text": "Research is skipped: the exa_enabled kill switch is off.",
+                }
+            )
+            return _finish_node(state, {"research_skipped": True})
         if await _exa_key_missing(scope):
             logger.info("research.skipped_no_exa")
             get_stream_writer()(
@@ -146,18 +175,28 @@ async def _research(
         credentials = await get_key_for_use(session, scope.workspace_id, ProviderKind.EXA)
         model = await scope.gateway.chat_model(session, PURPOSE)
         seed = await _seed(session, scope)
+        gates = await build_gate_context(scope.gateway, session, redis, scope.run_id)
     async with open_exa_tools(
         credentials.api_key, scope.run_id, redis, make_exa_client
     ) as exa_tools:
-        exa = with_call_cap(
+        capped = with_call_cap(
             exa_tools_for(Specialist.RESEARCHER.value, exa_tools), budget, limit_message=CAP_MESSAGE
         )
+        exa = with_research_gate(
+            capped,
+            budget=budget,
+            memory=CallMemory(redis, scope.run_id),
+            context=with_kb_matches(gates, kb_lookup_for(scope)),
+            load_knowledge=lambda: load_run_knowledge(scope),
+            limit_message=CAP_MESSAGE,
+        )
         loop = build_react_specialist(
-            load_prompt(PROMPT),
+            load_specialist_prompt(PROMPT),
             [*exa, *research_tools(scope)],
             model,
             step_limit=STEP_LIMIT,
             finish_tools={FINISH_RESEARCH},
+            refusals=(GateRefusal,),
         )
         try:
             result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})

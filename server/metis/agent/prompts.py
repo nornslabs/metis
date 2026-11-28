@@ -3,6 +3,9 @@
 A prompt change is a new version file; existing versions are never edited, so a run can
 be traced to the exact text it used. ``load_prompt`` returns the latest version unless
 one is named, and raises ``PromptNotFoundError`` for an unknown name or version.
+
+``load_specialist_prompt`` is the one way a specialist gets its prompt: the soul
+(``soul.v<N>.md``, the voice shared by every specialist) followed by the specialist's own.
 """
 
 from __future__ import annotations
@@ -11,6 +14,7 @@ import re
 from pathlib import Path
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+SOUL_PROMPT = "soul"
 _VERSIONED = re.compile(r"^(?P<name>[a-z_]+)\.v(?P<version>[1-9][0-9]*)\.md$")
 
 
@@ -29,6 +33,11 @@ def load_prompt(name: str, version: int | None = None, *, directory: Path = PROM
             f"Prompt {name!r} has no version {chosen}; available: {sorted(versions)}"
         )
     return versions[chosen].read_text(encoding="utf-8")
+
+
+def load_specialist_prompt(name: str, version: int | None = None) -> str:
+    """The soul followed by prompt ``name``: the text a specialist's model is given."""
+    return f"{load_prompt(SOUL_PROMPT)}\n{load_prompt(name, version)}"
 
 
 def _versions(name: str, directory: Path) -> dict[int, Path]:

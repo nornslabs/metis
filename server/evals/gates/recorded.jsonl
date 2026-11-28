@@ -1,0 +1,20 @@
+{"case": "good-invoice-chase-time", "gate": "input", "verdict": "PASS"}
+{"case": "good-invoice-chase-time", "gate": "output", "verdict": "PASS"}
+{"case": "good-invoice-chase-reply", "gate": "input", "verdict": "PASS"}
+{"case": "good-invoice-chase-reply", "gate": "output", "verdict": "PASS"}
+{"case": "good-habit-pets-after-exams", "gate": "input", "verdict": "PASS"}
+{"case": "good-habit-pets-after-exams", "gate": "output", "verdict": "PASS"}
+{"case": "good-fridge-watch-night", "gate": "input", "verdict": "PASS"}
+{"case": "good-fridge-watch-night", "gate": "output", "verdict": "PASS"}
+{"case": "generic-pain", "gate": "input", "verdict": "PASS"}
+{"case": "generic-pain", "gate": "output", "verdict": "REJECT: This could be asked of any idea unchanged; name something specific to this one."}
+{"case": "generic-customer", "gate": "input", "verdict": "PASS"}
+{"case": "generic-customer", "gate": "output", "verdict": "REJECT: This could be asked of any idea unchanged; name something specific to this one."}
+{"case": "generic-market", "gate": "input", "verdict": "PASS"}
+{"case": "generic-market", "gate": "output", "verdict": "REJECT: This could be asked of any idea unchanged; name something specific to this one."}
+{"case": "generic-unique", "gate": "input", "verdict": "PASS"}
+{"case": "generic-unique", "gate": "output", "verdict": "REJECT: This could be asked of any idea unchanged; name something specific to this one."}
+{"case": "inferable-channel", "gate": "input", "verdict": "REJECT: answered: \"by email and text\""}
+{"case": "inferable-audience", "gate": "input", "verdict": "REJECT: answered: \"students preparing for exams\""}
+{"case": "inferable-log-interval", "gate": "input", "verdict": "REJECT: answered: \"every 5 minutes\""}
+{"case": "inferable-earlier-answer", "gate": "input", "verdict": "REJECT: answered: \"Small restaurant owners\""}

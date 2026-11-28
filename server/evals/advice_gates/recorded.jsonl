@@ -1,0 +1,9 @@
+{"case": "good-invoice-agency-niche", "verdict": "PASS"}
+{"case": "good-invoice-free-tier", "verdict": "PASS"}
+{"case": "good-fridge-insurance-channel", "verdict": "PASS"}
+{"case": "good-pets-teacher-pilot", "verdict": "PASS"}
+{"case": "generic-improve-marketing", "verdict": "REJECT: This could be given to any idea."}
+{"case": "generic-add-features", "verdict": "REJECT: This could be given to any idea."}
+{"case": "generic-restates-idea", "verdict": "REJECT: The idea already sends reminders by email and text."}
+{"case": "unsupported-quote-claim", "verdict": "REJECT: The quote does not support the claim about yearly losses."}
+{"case": "flattering-tone", "verdict": "REJECT: The rationale flatters the idea instead of giving a reason."}

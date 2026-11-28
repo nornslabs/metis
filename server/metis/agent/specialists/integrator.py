@@ -36,6 +36,7 @@ from langgraph.config import get_stream_writer
 from langgraph.types import interrupt
 from redis.asyncio import Redis
 
+from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -47,7 +48,12 @@ from metis.agent.tools.export_linear import (
     read_label_names,
     read_teams,
 )
-from metis.agent.tools.export_preview import ExportPreview, ExportTeam, build_export_preview
+from metis.agent.tools.export_preview import (
+    ExportPreview,
+    ExportTeam,
+    build_export_preview,
+    with_project_name,
+)
 from metis.agent.tools.export_project import ProjectScore, idea_url
 from metis.agent.tools.export_writes import (
     ExportTally,
@@ -68,10 +74,11 @@ from metis.core.errors import (
 )
 from metis.core.events import RunEventType, publish
 from metis.core.logging import get_logger
+from metis.core.ports import FeatureFlagProvider, FlagContext
 from metis.helpers.http import ClientFactory
 from metis.helpers.time import utcnow
 from metis.modules import ideas, identity, integrations, planning, scoring
-from metis.modules.ideas import Stage
+from metis.modules.ideas import MAX_PROJECT_NAME_LENGTH, Stage
 from metis.modules.integrations import (
     FINISHED_STATUSES,
     ExportJob,
@@ -96,8 +103,11 @@ def build_integrator(
     redis: Redis,
     make_client: ClientFactory,
     mcp_http_client: McpHttpClientFactory | None = None,
+    flags: FeatureFlagProvider | None = None,
 ) -> SpecialistNode:
     """The Integrator node for one run."""
+    _flags = flags or build_feature_flag_provider(get_settings())
+    settings = get_settings()
 
     async def node(state: MetisState) -> dict[str, Any]:
         workspace_id, idea_id = UUID(state["workspace_id"]), UUID(state["idea_id"])
@@ -116,7 +126,9 @@ def build_integrator(
         async with open_session(workspace_id) as session:
             decided = await integrations.get_export_decision(session, workspace_id, run_id)
         if decided is not None:
-            return await _replay(state, context, ledger, open_session, source, decided)
+            return await _replay(
+                state, context, ledger, open_session, source, decided, flags=_flags
+            )
         tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
         team, chosen = await _team(tools, source.saved_team_id)
         preview = await _preview(tools, source, team)
@@ -127,16 +139,34 @@ def build_integrator(
             links=preview.blocked_by_links,
         )
         answer = interrupt({"type": EXPORT_APPROVAL, "preview": preview.model_dump(mode="json")})
-        approved, decided_by, previewed = _decision(answer)
+        approved, decided_by, previewed, chosen_name = _decision(answer)
+        if approved:
+            preview = with_project_name(preview, chosen_name or preview.project.name)
+            await _save_project_name(open_session, workspace_id, source, preview.project.name)
         await _record(
             open_session, workspace_id, run_id, source, preview, approved, decided_by, previewed
         )
         if chosen:
             await _save_team(open_session, workspace_id, team)
         logger.info("export.decided", approved=approved)
-        result = (
-            await _write(context, ledger, tools, source, preview, previewed) if approved else None
-        )
+        result: dict[str, Any] | None = None
+        if approved:
+            flag_context = FlagContext(
+                workspace_id=workspace_id,
+                environment=settings.app_env,
+                custom_attributes={},
+            )
+            if not await _flags.is_enabled("linear_enabled", flag_context, default=True):
+                logger.info("export.skipped_linear_disabled")
+                get_stream_writer()(
+                    {
+                        "type": RunEventType.NOTICE.value,
+                        "code": "export.skipped_linear_disabled",
+                        "text": "Linear export is skipped: the linear_enabled kill switch is off.",
+                    }
+                )
+            else:
+                result = await _write(context, ledger, tools, source, preview, previewed)
         return await _finish(state, context, approved, result)
 
     return node
@@ -149,6 +179,7 @@ async def _replay(
     open_session: SessionOpener,
     source: _Source,
     decided: ExportJob,
+    flags: FeatureFlagProvider | None = None,
 ) -> dict[str, Any]:
     """Finish a run whose decision was already recorded (a re-run after a crash between the
     record and the checkpoint). It asks nothing: the saved team may already have changed, which
@@ -157,18 +188,38 @@ async def _replay(
     approved = decided.status in _WRITING_STATUSES | FINISHED_STATUSES
     if preview.team.id != source.saved_team_id:
         await _save_team(open_session, context.workspace_id, preview.team)
+    if approved:
+        await _save_project_name(open_session, context.workspace_id, source, preview.project.name)
     logger.info("export.decision_replayed", approved=approved)
     result: dict[str, Any] | None = None
     if decided.status is ExportStatus.SUCCEEDED:
         result = decided.result
-    elif decided.status in (ExportStatus.PARTIAL, ExportStatus.FAILED):
+    elif decided.status is ExportStatus.PARTIAL:
         raise _partial_error(decided.result)
+    elif decided.status is ExportStatus.FAILED:
+        raise UpstreamError("The Linear export did not complete")
     elif approved:
-        tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
-        result = await _write(
-            context, ledger, tools, source, preview, _stored_plan_version(decided)
+        _flags = flags or build_feature_flag_provider(get_settings())
+        settings = get_settings()
+        flag_context = FlagContext(
+            workspace_id=context.workspace_id,
+            environment=settings.app_env,
+            custom_attributes={},
         )
-    return await _finish(state, context, approved, result)
+        if not await _flags.is_enabled("linear_enabled", flag_context, default=True):
+            logger.info("export.skipped_linear_disabled")
+        else:
+            tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
+            result = await _write(
+                context, ledger, tools, source, preview, _stored_plan_version(decided)
+            )
+    return await _finish(
+        state,
+        context,
+        approved,
+        result,
+        publish_finished=decided.status is not ExportStatus.SUCCEEDED,
+    )
 
 
 class _Source:
@@ -180,6 +231,7 @@ class _Source:
         title: str,
         plan: Plan,
         saved_team_id: str | None,
+        project_name: str | None,
         project_ref: bool,
         phase_refs: frozenset[UUID],
         task_refs: frozenset[UUID],
@@ -190,6 +242,7 @@ class _Source:
         self.title = title
         self.plan = plan
         self.saved_team_id = saved_team_id
+        self.project_name = project_name
         self.project_ref = project_ref
         self.phase_refs = phase_refs
         self.task_refs = task_refs
@@ -227,6 +280,7 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
         idea.title,
         plan,
         saved.linear_team_id,
+        idea.project_name,
         idea_id in project,
         frozenset(phases),
         frozenset(task_refs),
@@ -258,6 +312,8 @@ async def _preview(tools: dict[str, BaseTool], source: _Source, team: ExportTeam
     return build_export_preview(
         team=team,
         idea_title=source.title,
+        saved_project_name=source.project_name,
+        spec_text=source.spec_text,
         plan=source.plan,
         project_exists=source.project_ref,
         phase_refs=source.phase_refs,
@@ -296,6 +352,17 @@ async def _record(
             decided_at=utcnow(),
             summary=summary,
         )
+
+
+async def _save_project_name(
+    open_session: SessionOpener, workspace_id: UUID, source: _Source, name: str
+) -> None:
+    """Keep the approved name on the idea, so a re-export suggests and reuses it."""
+    if source.project_name == name:
+        return
+    async with open_session(workspace_id) as session:
+        await ideas.set_project_name(session, workspace_id, source.idea_id, name)
+    logger.info("export.project_name_saved", length=len(name))
 
 
 async def _save_team(open_session: SessionOpener, workspace_id: UUID, team: ExportTeam) -> None:
@@ -380,7 +447,7 @@ async def _write_everything(
         tools,
         ProjectSource(
             idea_id=source.idea_id,
-            title=source.title,
+            title=preview.project.name,
             url=url,
             spec_text=source.spec_text,
             score=source.score,
@@ -456,7 +523,12 @@ def _partial_error(result: dict[str, Any]) -> ExportPartialError:
 
 
 async def _finish(
-    state: MetisState, context: McpRunContext, approved: bool, result: dict[str, Any] | None
+    state: MetisState,
+    context: McpRunContext,
+    approved: bool,
+    result: dict[str, Any] | None,
+    *,
+    publish_finished: bool = True,
 ) -> dict[str, Any]:
     update: dict[str, Any] = {
         "export_state": STATE_APPROVED if approved else STATE_DECLINED,
@@ -465,12 +537,13 @@ async def _finish(
     if approved and result is not None:
         update["stage"] = Stage.EXPORTED
         update["pending_approval"] = None
-        await publish(
-            str(context.run_id),
-            RunEventType.EXPORT_FINISHED,
-            {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
-            redis=context.redis,
-        )
+        if publish_finished:
+            await publish(
+                str(context.run_id),
+                RunEventType.EXPORT_FINISHED,
+                {key: result.get(key) for key in ("project_url", "created", "updated", "links")},
+                redis=context.redis,
+            )
     get_stream_writer()(
         {"type": RunEventType.NODE_FINISHED.value, "node": Specialist.INTEGRATOR.value}
     )
@@ -482,16 +555,29 @@ def _stored_plan_version(job: ExportJob) -> int | None:
     return version if isinstance(version, int) and not isinstance(version, bool) else None
 
 
-def _decision(answer: object) -> tuple[bool, UUID, int | None]:
-    """``(approved, decided_by, plan_version)`` from the resume value. The API stamps
-    ``decided_by`` and the plan version the preview showed (``None`` when it names none)."""
+def _decision(answer: object) -> tuple[bool, UUID, int | None, str | None]:
+    """``(approved, decided_by, plan_version, project_name)`` from the resume value. The API
+    stamps ``decided_by`` and the plan version the preview showed (``None`` when it names none);
+    ``project_name`` is the name the user chose (``None``: keep the suggested one)."""
     if not isinstance(answer, dict) or not isinstance(answer.get("approved"), bool):
         raise ValueError("The export approval answer must be {approved: bool}")
     if "decided_by" not in answer:
         raise ValueError("The export approval answer names no user (the resume route adds one)")
     version = answer.get("plan_version")
     previewed = version if isinstance(version, int) and not isinstance(version, bool) else None
-    return answer["approved"], UUID(str(answer["decided_by"])), previewed
+    return answer["approved"], UUID(str(answer["decided_by"])), previewed, _chosen_name(answer)
+
+
+def _chosen_name(answer: dict[str, Any]) -> str | None:
+    """The project name in the resume value, trimmed; ``None`` when none was sent. The resume
+    route has checked it, but it is checked again: a name Linear would refuse must not get as
+    far as the idea's row or a Linear call."""
+    raw = answer.get("project_name")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or not 0 < len(raw.strip()) <= MAX_PROJECT_NAME_LENGTH:
+        raise ValueError(f"The project name must be 1–{MAX_PROJECT_NAME_LENGTH} characters")
+    return raw.strip()
 
 
 def _export_team(team: dict[str, str]) -> ExportTeam:

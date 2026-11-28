@@ -14,6 +14,7 @@ from pydantic import (
     Field,
     StrictBool,
     StrictStr,
+    StringConstraints,
     model_validator,
 )
 
@@ -28,6 +29,9 @@ MAX_ANSWER_OPTIONS = 5  # the most options a question offers (``agent/tools/ques
 # the reviewed list against planning's own rules again when it saves the plan.
 MAX_REVIEWED_PHASES = 12
 MAX_PHASE_NAME_LENGTH = 120
+# Linear refuses a project name over 80 characters. ``ideas`` owns the limit (the export reads it
+# from here; the ``ideas.ideas.project_name`` check in migration ``0028`` repeats it).
+MAX_PROJECT_NAME_LENGTH = 80
 MAX_PHASE_TEXT_LENGTH = 1_000
 PhaseName = Annotated[
     StrictStr,
@@ -195,6 +199,11 @@ class TeamChoice(FrozenModel):
     team_id: StrictStr = Field(min_length=1, max_length=200)
 
 
+ProjectName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_PROJECT_NAME_LENGTH)
+]
+
+
 class ExportApprovalResume(FrozenModel):
     """The answer to an ``export_approval`` interrupt. A bare true/false is not accepted: the
     export must be approved or declined by name."""
@@ -202,6 +211,16 @@ class ExportApprovalResume(FrozenModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     approved: StrictBool
+    # The Linear project name to use; left out, the export uses the suggested one.
+    project_name: ProjectName | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _ignore_the_name_of_a_decline(cls, data: Any) -> Any:
+        """A declined export saves no name, so whatever name came with it is dropped unchecked."""
+        if isinstance(data, dict) and data.get("approved") is False:
+            return {key: value for key, value in data.items() if key != "project_name"}
+        return data
 
 
 ResumeValue = (

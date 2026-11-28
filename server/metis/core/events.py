@@ -42,6 +42,7 @@ class RunEventType(StrEnum):
     TOOL_CALL = "tool_call"
     NOTICE = "notice"
     SCORE = "score"
+    GATE = "gate"
     EXPORT_PROGRESS = "export_progress"
     EXPORT_FINISHED = "export_finished"
     INTERRUPT = "interrupt"

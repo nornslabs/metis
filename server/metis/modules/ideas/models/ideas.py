@@ -35,6 +35,8 @@ class IdeaRow(Base):
     version: Mapped[int] = mapped_column(Integer, default=1)
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     interview_brief: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # The Linear project name the user approved for the export (null until then).
+    project_name: Mapped[str | None] = mapped_column(Text)
     # The spec version the user confirmed (``spec_versions.id``; null until then).
     confirmed_spec_version_id: Mapped[UUID | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

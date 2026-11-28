@@ -130,16 +130,24 @@ async def _embed(
     return vectors[0] if vectors else None
 
 
+async def find_kb_matches(
+    scope: ResearchScope, query: str, k: int = DEFAULT_KB_RESULTS
+) -> list[research.KbMatch]:
+    """The KB's matches for ``query`` (embedding match, else name or domain), in a short
+    transaction. Raises ``MetisError`` when the ``research`` module refuses the lookup."""
+    async with scope.session() as session:
+        embedding = await _embed(scope, session, [query])
+        return await research.kb_lookup(
+            session, scope.workspace_id, query, k, query_embedding=embedding
+        )
+
+
 def kb_lookup_tool(scope: ResearchScope) -> BaseTool:
     async def kb_lookup(query: str, k: int = DEFAULT_KB_RESULTS) -> str:
-        async with scope.session() as session:
-            embedding = await _embed(scope, session, [query])
-            try:
-                matches = await research.kb_lookup(
-                    session, scope.workspace_id, query, k, query_embedding=embedding
-                )
-            except MetisError as exc:
-                return f"The lookup was refused: {exc}"
+        try:
+            matches = await find_kb_matches(scope, query, k)
+        except MetisError as exc:
+            return f"The lookup was refused: {exc}"
         return json.dumps(
             [
                 {

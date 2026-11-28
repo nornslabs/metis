@@ -10,6 +10,7 @@ from metis.modules.ideas.controller import router
 from metis.modules.ideas.dto import (
     CHECKLIST,
     MAX_INTERVIEW_QUESTIONS,
+    MAX_PROJECT_NAME_LENGTH,
     MAX_RAW_TEXT_LENGTH,
     MAX_SPEC_LENGTH,
     TOPIC_MEANING,
@@ -41,6 +42,7 @@ from metis.modules.ideas.dto import (
     SpecVersionSummary,
     Stage,
     TeamChoice,
+    TurnSource,
     WorkflowRun,
 )
 from metis.modules.ideas.helpers.spec_markdown import render_markdown as render_spec_markdown
@@ -49,6 +51,7 @@ from metis.modules.ideas.service.ideas import (
     get_idea,
     live_idea_ids,
     set_current_score,
+    set_project_name,
     transition,
 )
 from metis.modules.ideas.service.interview import (
@@ -92,6 +95,7 @@ __all__ = [
     "apply_revision",
     "CHECKLIST",
     "MAX_INTERVIEW_QUESTIONS",
+    "MAX_PROJECT_NAME_LENGTH",
     "MAX_RAW_TEXT_LENGTH",
     "MAX_SPEC_LENGTH",
     "TOPIC_MEANING",
@@ -109,6 +113,7 @@ __all__ = [
     "TeamChoice",
     "PhaseReviewResume",
     "QuestionRefusal",
+    "TurnSource",
     "RunKind",
     "RunRef",
     "RunStarted",
@@ -155,5 +160,6 @@ __all__ = [
     "save_interview_turn",
     "start_refresh_run",
     "set_current_score",
+    "set_project_name",
     "transition",
 ]

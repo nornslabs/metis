@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { AgentText } from "@/components/chat/agent-text";
 import { RunErrorRow, RunNote } from "@/components/chat/run-notice";
 import { RunNotices } from "@/components/chat/run-notices";
+import { TypingDots } from "@/components/chat/typing-dots";
 import { WorkSummary } from "@/components/chat/work-summary";
 import { isActiveStatus, type RunState } from "@/lib/events/reducer";
 
@@ -28,12 +29,14 @@ interface RunMessageBodyProps {
  */
 export function RunMessageBody({ state, streamLost, retry, sourceCount, outputs, approval, text }: RunMessageBodyProps) {
   const working = isActiveStatus(state.status) && state.status !== "awaiting_user" && !streamLost;
+  const bodyText = text ?? state.text;
+  const streaming = working && state.status === "running";
   return (
     <>
       <WorkSummary steps={state.steps} sourceCount={sourceCount} working={working} />
       <RunNotices notices={state.notices} />
       {outputs}
-      <AgentText text={text ?? state.text} streaming={working && state.status === "running"} />
+      {bodyText ? <AgentText text={bodyText} streaming={streaming} /> : working ? <TypingDots /> : null}
       {streamLost ? (
         <RunNote>Live updates stopped. Reload the page to see the latest progress.</RunNote>
       ) : null}

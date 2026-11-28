@@ -17,7 +17,7 @@ function StepIcon({ done, skipped, live }: { done: boolean; skipped: boolean; li
   return (
     <span
       aria-hidden="true"
-      className="size-3 animate-spin border-2 border-border border-t-current motion-reduce:animate-none"
+      className="size-3 animate-spin rounded-full border-2 border-border border-t-current motion-reduce:animate-none"
     />
   );
 }

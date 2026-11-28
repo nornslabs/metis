@@ -12,6 +12,7 @@ from typing import Any
 from arq import cron
 from arq.worker import run_worker
 
+from metis.adapters.feature_flags import close_feature_flag_providers
 from metis.core.config import get_settings
 from metis.core.jobs import enqueue, redis_settings
 from metis.core.logging import configure_logging, get_logger
@@ -49,6 +50,7 @@ async def on_startup(ctx: dict[str, Any]) -> None:
 
 
 async def on_shutdown(ctx: dict[str, Any]) -> None:
+    await close_feature_flag_providers()
     logger.info("scheduler.stopped")
 
 
