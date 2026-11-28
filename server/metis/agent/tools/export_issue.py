@@ -11,9 +11,14 @@ from collections.abc import Collection, Mapping
 from uuid import UUID
 
 from metis.agent.tools.export_project import MAX_DESCRIPTION_CHARS, MAX_NAME_CHARS, cut
+from metis.agent.tools.issue_brief import fit_brief
 from metis.modules.planning import Plan, Task
 
 FOOTER_LABEL = "Created by"
+# The footer is reserved at this size, so the preview and the export fit a brief to the same
+# length (a footer is a short line: the label and one link).
+FOOTER_RESERVE_CHARS = 200
+BRIEF_SEPARATOR_CHARS = 2
 
 
 def ordered_tasks(plan: Plan) -> list[Task]:
@@ -51,12 +56,18 @@ def issue_title(title: str) -> str:
     return cut(title, MAX_NAME_CHARS)
 
 
+def brief_room(footer_chars: int = 0) -> int:
+    """How many characters the brief gets once the footer and its separator are kept."""
+    reserved = max(footer_chars, FOOTER_RESERVE_CHARS) + BRIEF_SEPARATOR_CHARS
+    return max(MAX_DESCRIPTION_CHARS - reserved, 0)
+
+
 def issue_description(description: str, idea_url: str) -> str:
-    """The task's own text (what, steps, acceptance criteria), then a "Created by Metis" footer
-    linking back to the idea. The text is cut so the whole stays within Linear's limit."""
+    """The task's issue brief (Agent notes in a collapsible block), then a "Created by Metis"
+    footer linking back to the idea. The brief is fitted so the whole stays within Linear's
+    limit: Agent notes go first, then Context, and Acceptance criteria are kept whole."""
     footer = f"---\n{FOOTER_LABEL} [Metis]({idea_url})"
-    room = MAX_DESCRIPTION_CHARS - len(footer) - 2
-    body = cut(description, max(room, 0))
+    body = fit_brief(description, brief_room(len(footer)))
     return f"{body}\n\n{footer}" if body else footer
 
 

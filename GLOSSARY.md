@@ -19,3 +19,11 @@ A gate that decides whether something a specialist produced is good enough to ke
 **Skipped item**
 An action a gate rejected for good, after the specialist had its chances to revise. A skipped item is a valid outcome, not a failure of the run.
 _Avoid_: dropped, failed
+
+**HLD**
+The high-level design of a software idea: the MVP broken into components, the build language, and how the components fit together. A blueprint of what is built and why, never the implementation. Non-software ideas have none.
+_Avoid_: architecture doc, tech spec
+
+**Issue brief**
+A Linear issue's description when it holds everything needed to build the task: goal, context, requirements, what not to do, acceptance criteria, and a link to the HLD component. A developer only needs the issue number.
+_Avoid_: ticket text, issue body

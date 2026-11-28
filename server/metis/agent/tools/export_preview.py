@@ -12,11 +12,13 @@ from collections.abc import Collection
 from typing import Literal
 from uuid import UUID
 
+from metis.agent.tools.export_issue import brief_room
 from metis.agent.tools.export_project import (
     MAX_PROJECT_NAME_CHARS,
     cut_at_word,
     suggest_project_names,
 )
+from metis.agent.tools.issue_brief import fit_brief
 from metis.helpers.dto import FrozenModel
 from metis.modules.planning import Plan, Task
 
@@ -51,10 +53,21 @@ class PreviewMilestones(FrozenModel):
     items: tuple[PreviewMilestone, ...]
 
 
+class PreviewIssue(FrozenModel):
+    """One issue as Linear will show it (before the footer): its title and the brief, fitted the
+    same way the export fits it."""
+
+    title: str
+    description: str
+
+
 class PreviewIssues(FrozenModel):
+    """``items`` is empty in records saved before issue briefs existed."""
+
     total: int
     create: int
     update: int
+    items: tuple[PreviewIssue, ...] = ()
 
 
 class PreviewLabel(FrozenModel):
@@ -129,7 +142,16 @@ def build_export_preview(
             items=milestones,
         ),
         issues=PreviewIssues(
-            total=len(tasks), create=len(tasks) - updated_issues, update=updated_issues
+            total=len(tasks),
+            create=len(tasks) - updated_issues,
+            update=updated_issues,
+            items=tuple(
+                PreviewIssue(
+                    title=task.title,
+                    description=fit_brief(task.description, brief_room()),
+                )
+                for task in tasks
+            ),
         ),
         blocked_by_links=sum(len(task.blocked_by) for task in tasks),
         labels=_labels(tasks, linear_labels),

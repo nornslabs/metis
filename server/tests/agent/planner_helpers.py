@@ -22,6 +22,14 @@ PHASES = [
 ]
 
 
+def brief(key: str) -> str:
+    """A minimal valid issue brief for task ``key``."""
+    return (
+        f"## Goal\nDeliver {key}.\n\n## Requirements\n1. Build {key}.\n\n"
+        f"## Acceptance criteria\n- {key} works."
+    )
+
+
 def task(
     key: str, phase: int, estimate: int = 3, blocked_by: tuple[str, ...] = ()
 ) -> dict[str, Any]:
@@ -29,7 +37,7 @@ def task(
         "key": key,
         "phase": phase,
         "title": f"Task {key}",
-        "description": f"Do {key}. Done when {key} works.",
+        "description": brief(key),
         "estimate": estimate,
         "labels": ["backend"],
         "blocked_by": list(blocked_by),

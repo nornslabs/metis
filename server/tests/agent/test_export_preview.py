@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
-from metis.agent.tools.export_preview import ExportTeam, build_export_preview, with_project_name
+from metis.agent.tools.export_issue import brief_room, issue_description
+from metis.agent.tools.export_preview import (
+    ExportPreview,
+    ExportTeam,
+    build_export_preview,
+    with_project_name,
+)
 from metis.modules.planning import CriticalPath, Phase, Plan, PlanStatus, Task
 
 TEAM = ExportTeam(id="team-1", name="Product")
@@ -75,6 +81,35 @@ def test_every_count_comes_from_the_plan() -> None:
     assert (preview.milestones.total, preview.issues.total) == (2, 3)
     assert preview.blocked_by_links == 3
     assert [label.name for label in preview.labels.items] == ["backend", "ui"]
+
+
+def test_every_issue_carries_its_title_and_its_brief() -> None:
+    brief = "## Goal\nG.\n\n## Requirements\n1. R.\n\n## Acceptance criteria\n- A."
+    task = _task(0).model_copy(update={"description": brief})
+
+    preview = _preview(_plan([[task]]))
+
+    assert [(i.title, i.description) for i in preview.issues.items] == [(task.title, brief)]
+
+
+def test_a_record_saved_before_briefs_has_no_issue_items() -> None:
+    record = _preview(_plan([[_task(0)]])).model_dump(mode="json")
+    record["issues"].pop("items")
+
+    assert ExportPreview.model_validate(record).issues.items == ()
+
+
+def test_the_preview_fits_a_long_brief_exactly_as_the_export_will() -> None:
+    brief = (
+        "## Goal\nG.\n\n## Requirements\n1. R.\n\n## Acceptance criteria\n- A.\n\n## Agent notes\n"
+        + ("n" * 5_000)
+    )
+    task = _task(0).model_copy(update={"description": brief})
+
+    shown = _preview(_plan([[task]])).issues.items[0].description
+    written = issue_description(brief, "https://metis.test/ideas/1")
+
+    assert written.startswith(shown) and len(shown) <= brief_room()
 
 
 def test_nothing_exported_before_means_everything_is_created() -> None:
