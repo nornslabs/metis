@@ -16,7 +16,6 @@ from metis.modules.ideas import MAX_PROJECT_NAME_LENGTH
 # until Linear's own are known.
 MAX_PROJECT_NAME_CHARS = MAX_PROJECT_NAME_LENGTH
 MAX_NAME_CHARS = MAX_PROJECT_NAME_LENGTH
-MAX_NAME_SUGGESTIONS = 3
 MAX_DESCRIPTION_CHARS = 4_000
 MAX_SPEC_SUMMARY_CHARS = 600
 ELLIPSIS = "…"
@@ -60,29 +59,6 @@ def cut_at_word(text: str, limit: int) -> str:
     head = text[:limit]
     boundary = head.rfind(" ")
     return (head[:boundary] if boundary > 0 else head).rstrip(" -–—:,;.")
-
-
-def suggest_project_names(*, saved: str | None, idea_title: str, spec_text: str) -> tuple[str, ...]:
-    """Up to ``MAX_NAME_SUGGESTIONS`` project names of at most ``MAX_PROJECT_NAME_CHARS``
-    characters, the best fit first: the saved name (a re-export keeps it), the idea title, then
-    the spec's first heading. Duplicates (ignoring case) are dropped; no model call."""
-    candidates = (saved or "", idea_title, _first_heading(spec_text))
-    names: list[str] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        name = cut_at_word(candidate, MAX_PROJECT_NAME_CHARS)
-        if name and name.casefold() not in seen:
-            seen.add(name.casefold())
-            names.append(name)
-    return tuple(names[:MAX_NAME_SUGGESTIONS])
-
-
-def _first_heading(spec_text: str) -> str:
-    for line in spec_text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("#"):
-            return stripped.lstrip("#").strip()
-    return ""
 
 
 def spec_summary(spec_text: str) -> str:

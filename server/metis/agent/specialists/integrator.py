@@ -56,7 +56,12 @@ from metis.agent.tools.export_preview import (
     build_export_preview,
     with_project_name,
 )
-from metis.agent.tools.export_project import ProjectScore, idea_url
+from metis.agent.tools.export_project import (
+    MAX_PROJECT_NAME_CHARS,
+    ProjectScore,
+    cut_at_word,
+    idea_url,
+)
 from metis.agent.tools.export_writes import (
     ExportTally,
     HldSource,
@@ -67,6 +72,7 @@ from metis.agent.tools.export_writes import (
 )
 from metis.agent.tools.mcp import McpRunContext, load_mcp_tools
 from metis.agent.tools.mcp_policy import INTEGRATOR_POLICY, ApprovalLedger
+from metis.agent.tools.project_name import PROJECT_NAME_PURPOSE, suggest_project_name
 from metis.agent.tools.research_kb import ResearchScope, SessionOpener
 from metis.core.config import get_settings
 from metis.core.errors import (
@@ -96,6 +102,8 @@ from metis.modules.planning import Plan
 EXPORT_ACTION = "export"
 # A recorded job in these statuses has an approval whose writes may still need to carry on.
 _WRITING_STATUSES = frozenset({ExportStatus.APPROVED, ExportStatus.RUNNING})
+# How long the run's suggested project name is kept, so a resume shows the name the user saw.
+PROJECT_NAME_CACHE_SECONDS = 24 * 60 * 60
 # A job that already ended: a re-run (a crash before the run was recorded) must not write again.
 STATE_APPROVED = "approved"
 STATE_DECLINED = "declined"
@@ -142,7 +150,10 @@ def build_integrator(
             )
         tools = {t.name: t for t in await load_mcp_tools(context, INTEGRATOR_POLICY, ledger)}
         team, chosen = await _team(tools, source.saved_team_id)
-        preview = await _preview(tools, source, team)
+        project_name = await _project_name(
+            open_session, redis, gateway, workspace_id, run_id, source
+        )
+        preview = await _preview(tools, source, team, project_name)
         logger.info(
             "export.preview_built",
             milestones=preview.milestones.total,
@@ -250,6 +261,7 @@ class _Source:
         score: ProjectScore | None,
         hld: HldSource | None = None,
         hld_ref: bool = False,
+        raw_text: str = "",
     ) -> None:
         self.idea_id = idea_id
         self.title = title
@@ -263,6 +275,7 @@ class _Source:
         self.score = score
         self.hld = hld
         self.hld_ref = hld_ref
+        self.raw_text = raw_text
 
 
 async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: UUID) -> _Source:
@@ -308,6 +321,7 @@ async def _read_plan(open_session: SessionOpener, workspace_id: UUID, idea_id: U
         None if latest is None else ProjectScore(latest.total, latest.band.value),
         hld,
         idea_id in hld_refs,
+        idea.raw_text,
     )
 
 
@@ -329,13 +343,54 @@ async def _team(tools: dict[str, BaseTool], saved_team_id: str | None) -> tuple[
     return _export_team(chosen), True
 
 
-async def _preview(tools: dict[str, BaseTool], source: _Source, team: ExportTeam) -> ExportPreview:
+def _project_name_key(run_id: UUID) -> str:
+    return f"agent:export:{run_id}:project_name"
+
+
+async def _project_name(
+    open_session: SessionOpener,
+    redis: Redis,
+    gateway: LLMGateway | None,
+    workspace_id: UUID,
+    run_id: UUID,
+    source: _Source,
+) -> str:
+    """The name the project gets: the saved one (no model call), else one model-written name.
+
+    The suggestion is kept in Redis for the run, because the node re-runs on resume and the
+    name the user saw must be the one an approval without a typed name keeps. A failed call
+    gives the title-based fallback."""
+    if source.project_name:
+        return cut_at_word(source.project_name, MAX_PROJECT_NAME_CHARS)
+    key = _project_name_key(run_id)
+    cached = await redis.get(key)
+    if cached:
+        return cached.decode() if isinstance(cached, bytes) else str(cached)
+    model = None
+    if gateway is not None:
+        try:
+            async with open_session(workspace_id) as session:
+                model = await gateway.chat_model(session, PROJECT_NAME_PURPOSE)
+        except Exception as error:  # noqa: BLE001  (no model, or a kill switch: the fallback serves)
+            logger.warning(
+                "export.project_name_model_unavailable",
+                run_id=str(run_id),
+                error=type(error).__name__,
+            )
+    name = await suggest_project_name(
+        model, idea_title=source.title, raw_text=source.raw_text, spec_text=source.spec_text
+    )
+    await redis.set(key, name, ex=PROJECT_NAME_CACHE_SECONDS)
+    return name
+
+
+async def _preview(
+    tools: dict[str, BaseTool], source: _Source, team: ExportTeam, project_name: str
+) -> ExportPreview:
     labels = await read_label_names(tools.get(LIST_LABELS))
     return build_export_preview(
         team=team,
-        idea_title=source.title,
-        saved_project_name=source.project_name,
-        spec_text=source.spec_text,
+        project_name=project_name,
         plan=source.plan,
         project_exists=source.project_ref,
         phase_refs=source.phase_refs,
