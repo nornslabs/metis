@@ -1,7 +1,7 @@
 import { Check, Minus } from "lucide-react";
 
 import type { RunStep } from "@/lib/events/reducer";
-import { nodeLabel, toolLabel } from "@/lib/events/labels";
+import { gateItemLabel, nodeLabel, toolLabel } from "@/lib/events/labels";
 import { cn } from "@/lib/utils";
 
 interface StepListProps {
@@ -53,6 +53,15 @@ export function StepList({ steps, live }: StepListProps) {
               {step.tools.map(toolLabel).join(" · ")}
             </span>
           ) : null}
+          {(step.skips ?? []).map((skip, skipIndex) => (
+            <span
+              key={`${skip.gate}-${skipIndex}`}
+              data-testid="gate-skip"
+              className="pl-5 text-meta text-muted-foreground"
+            >
+              {nodeLabel(step.node)} skipped {gateItemLabel(skip.gate)}: {skip.reason}
+            </span>
+          ))}
         </li>
       ))}
     </ol>

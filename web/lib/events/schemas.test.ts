@@ -242,3 +242,21 @@ describe("parseRunEvent, export", () => {
     expect(parseRunEvent("interrupt", frame("interrupt", { type: "export_approval", preview: {} }))).toMatchObject({ type: "notice", code: UNREADABLE_PAUSE_CODE });
   });
 });
+
+describe("parseRunEvent, gate", () => {
+  const payload = { specialist: "interviewer", gate: "interview_input", decision: "skipped", reason: "It repeats an answer." };
+
+  test("reads a gate event", () => {
+    expect(parseRunEvent("gate", frame("gate", payload))).toEqual({ type: "gate", ...payload });
+  });
+
+  test("ignores an unknown decision, a missing field and a non-object payload", () => {
+    expect(parseRunEvent("gate", frame("gate", { ...payload, decision: "ignored" }))).toBeNull();
+    expect(parseRunEvent("gate", frame("gate", { specialist: "interviewer", gate: "interview_input" }))).toBeNull();
+    expect(parseRunEvent("gate", frame("gate", "skipped"))).toBeNull();
+  });
+
+  test("accepts an extra field", () => {
+    expect(parseRunEvent("gate", frame("gate", { ...payload, span: "x" }))).toMatchObject({ decision: "skipped" });
+  });
+});

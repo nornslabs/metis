@@ -56,13 +56,13 @@ describe("pickedLabel", () => {
 
 describe("questionHeading and keyHint", () => {
   it("shows n of m, n alone, or a plain heading", () => {
-    expect(questionHeading(2, 5)).toBe("Question 2 of 5");
+    expect(questionHeading(2, 5)).toBe("Question 2 of up to 5");
     expect(questionHeading(2, undefined)).toBe("Question 2");
     expect(questionHeading(undefined, undefined)).toBe("Pick an answer");
   });
 
   it("never shows a total below the number", () => {
-    expect(questionHeading(4, 3)).toBe("Question 4 of 4");
+    expect(questionHeading(4, 3)).toBe("Question 4 of up to 4");
   });
 
   it("describes the keys that work", () => {
