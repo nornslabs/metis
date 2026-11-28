@@ -155,8 +155,10 @@ class KbJudge:
     async def _with_matches(self, item: str) -> str:
         try:
             data = json.loads(item)
-            data["kb_matches"] = await self._lookup(data["target"])
-            return json.dumps(data, ensure_ascii=False)
+            if not str(data["target"]).strip():
+                return item  # nothing to look up: the KB rejects an empty query
+            matches = await self._lookup(data["target"])
+            return json.dumps({**data, "kb_matches": matches}, ensure_ascii=False)
         except Exception:  # noqa: BLE001  (the judge goes on without matches)
             logger.warning("research_gate.kb_lookup_failed", exc_info=True)
             return item
