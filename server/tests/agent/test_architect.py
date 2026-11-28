@@ -56,8 +56,33 @@ SCORE_PARAMS = (
 )
 
 
+HLD_FIELDS: dict[str, Any] = {
+    "build_language": "Python",
+    "overview": "A small web app with one API and one database.",
+    "stack": "- FastAPI\n- Postgres",
+    "components": [
+        {
+            "name": "Leads API",
+            "purpose": "Stores and serves the lead list.",
+            "responsibilities": "- Create leads\n- List leads",
+        },
+        {
+            "name": "Web app",
+            "purpose": "Shows the lead list to the freelancer.",
+            "responsibilities": "- Render the list\n- Add a lead",
+        },
+    ],
+    "connections": "The web app calls the Leads API over HTTP.",
+    "functional_requirements": "- Add a lead\n- See all leads",
+}
+
+
 def save_spec(kind: str = "software", **overrides: str) -> Reply:
     return call("save_spec", kind=kind, **{**SECTIONS, **overrides})
+
+
+def save_hld(**overrides: Any) -> Reply:
+    return call("save_hld", **{**HLD_FIELDS, **overrides})
 
 
 @pytest.fixture
@@ -174,7 +199,7 @@ async def test_the_architect_drafts_version_one_and_waits_for_the_review(
     engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
 ) -> None:
     run = await _spec_run(engine)
-    llm.add(save_spec())
+    llm.add(save_spec(), save_hld())
 
     await run_job(ctx, run)
 
@@ -194,7 +219,7 @@ async def test_the_model_is_shown_the_idea_the_research_and_only_the_accepted_ad
 ) -> None:
     run = await _spec_run(engine)
     await _accepted_and_open_suggestions(engine, run)
-    llm.add(save_spec())
+    llm.add(save_spec(), save_hld())
 
     await run_job(ctx, run)
 
@@ -226,7 +251,7 @@ async def test_a_refused_spec_is_corrected_and_stored_once(
     engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
 ) -> None:
     run = await _spec_run(engine)
-    llm.add(save_spec(risks="  "), save_spec())
+    llm.add(save_spec(risks="  "), save_spec(), save_hld())
 
     await run_job(ctx, run)
 
@@ -241,7 +266,7 @@ async def test_a_bad_kind_or_an_oversized_spec_is_refused(
 ) -> None:
     run = await _spec_run(engine)
     first = save_spec(**bad) if "problem" in bad else save_spec(bad["kind"])
-    llm.add(first, save_spec())
+    llm.add(first, save_spec(), save_hld())
 
     await run_job(ctx, run)
 
@@ -284,14 +309,14 @@ async def test_confirming_resumes_the_run_to_the_end_without_another_model_call(
     app_sessions: async_sessionmaker[AsyncSession],
 ) -> None:
     run = await _spec_run(engine)
-    llm.add(save_spec())
+    llm.add(save_spec(), save_hld())
     await run_job(ctx, run)
     await _confirm(engine, app_sessions, run, 1)
 
     await run_job(ctx, run, resume={"confirmed_number": 1})
 
     assert (await run_row(engine, run)).status == "succeeded"
-    assert llm.calls == 1
+    assert llm.calls == 2  # the spec and the HLD; the confirm of an unedited spec adds none
     assert len(await _versions(engine, run)) == 1
     assert await idea_stage(engine, run) == "exported"
     assert "architect" in finished(await events_of(redis, run))

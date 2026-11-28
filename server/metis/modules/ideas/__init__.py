@@ -9,6 +9,7 @@ LLM gateway writes its usage rows.
 from metis.modules.ideas.controller import router
 from metis.modules.ideas.dto import (
     CHECKLIST,
+    MAX_HLD_LENGTH,
     MAX_INTERVIEW_QUESTIONS,
     MAX_PROJECT_NAME_LENGTH,
     MAX_RAW_TEXT_LENGTH,
@@ -26,6 +27,7 @@ from metis.modules.ideas.dto import (
     InterviewTopic,
     InterviewTurn,
     NewLlmUsage,
+    NewSpecHld,
     NewSpecVersion,
     PhaseReviewResume,
     QuestionRefusal,
@@ -34,6 +36,7 @@ from metis.modules.ideas.dto import (
     RunStarted,
     RunStatus,
     SpecDiff,
+    SpecHld,
     SpecOverview,
     SpecSection,
     SpecSource,
@@ -66,6 +69,7 @@ from metis.modules.ideas.service.interview import (
     save_interview_turn,
 )
 from metis.modules.ideas.service.llm_usage import record_llm_usage
+from metis.modules.ideas.service.spec_hlds import save_spec_hld, spec_hash
 from metis.modules.ideas.service.specs import (
     confirm_spec,
     diff_specs,
@@ -97,6 +101,7 @@ __all__ = [
     "MAX_INTERVIEW_QUESTIONS",
     "MAX_PROJECT_NAME_LENGTH",
     "MAX_RAW_TEXT_LENGTH",
+    "MAX_HLD_LENGTH",
     "MAX_SPEC_LENGTH",
     "TOPIC_MEANING",
     "Idea",
@@ -108,6 +113,7 @@ __all__ = [
     "InterviewTopic",
     "InterviewTurn",
     "NewLlmUsage",
+    "NewSpecHld",
     "NewSpecVersion",
     "ExportApprovalResume",
     "TeamChoice",
@@ -119,6 +125,7 @@ __all__ = [
     "RunStarted",
     "RunStatus",
     "SpecDiff",
+    "SpecHld",
     "SpecOverview",
     "SpecSection",
     "SpecSource",
@@ -133,6 +140,7 @@ __all__ = [
     "get_spec",
     "get_spec_overview",
     "list_spec_versions",
+    "save_spec_hld",
     "save_spec_version",
     "set_kind",
     "waiting_run",
@@ -155,6 +163,7 @@ __all__ = [
     "question_progress",
     "record_llm_usage",
     "render_spec_markdown",
+    "spec_hash",
     "router",
     "save_interview_brief",
     "save_interview_turn",

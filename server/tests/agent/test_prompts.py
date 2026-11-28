@@ -85,7 +85,15 @@ def test_the_planner_prompt_asks_for_issue_briefs_and_the_older_version_is_kept(
 def test_the_soul_ships_and_leads_every_specialist_prompt_that_calls_a_model() -> None:
     soul = load_prompt("soul")
 
-    for name in ("interviewer", "researcher", "scorer", "advisor", "architect", "planner"):
+    for name in (
+        "interviewer",
+        "researcher",
+        "scorer",
+        "advisor",
+        "architect",
+        "architect_hld",
+        "planner",
+    ):
         assert load_specialist_prompt(name).startswith(soul)
         assert load_specialist_prompt(name).endswith(load_prompt(name))
 
@@ -101,3 +109,11 @@ def test_the_integrator_makes_no_model_call_so_its_prompt_has_no_soul() -> None:
     from metis.agent.specialists import integrator
 
     assert "load_specialist_prompt" not in open(integrator.__file__).read()
+
+
+def test_the_architect_hld_prompt_is_a_blueprint_that_asks_for_the_language_once() -> None:
+    prompt = load_prompt("architect_hld")
+
+    assert "blueprint" in prompt and "no code" in prompt.lower()
+    assert "`ask_build_language`" in prompt and "`save_hld`" in prompt
+    assert "Never ask twice" in prompt

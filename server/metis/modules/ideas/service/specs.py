@@ -41,6 +41,7 @@ from metis.modules.ideas.dto.ideas import IdeaKind
 from metis.modules.ideas.helpers.spec_markdown import diff_sections, parse_sections
 from metis.modules.ideas.models import IdeaRow, SpecVersionRow
 from metis.modules.ideas.service import ideas as ideas_service
+from metis.modules.ideas.service import spec_hlds
 
 logger = get_logger(__name__)
 
@@ -99,15 +100,22 @@ async def get_spec(
 async def get_spec_overview(
     session: AsyncSession, workspace_id: UUID, idea_id: UUID
 ) -> SpecOverview:
-    """The latest and the confirmed version; each is ``None`` while there is none."""
+    """The latest and the confirmed version, and the newest HLD; each is ``None`` while there
+    is none."""
     idea = await _get_idea_row(session, workspace_id, idea_id)
     latest = await repo.specs.latest(session, workspace_id, idea_id)
     confirmed = None
     if idea.confirmed_spec_version_id is not None:
         confirmed = await repo.specs.get(session, workspace_id, idea.confirmed_spec_version_id)
+    hld = None
+    if latest is not None:
+        hld = await spec_hlds.latest_spec_hld(
+            session, workspace_id, idea_id, spec_hlds.spec_hash(latest.content_md)
+        )
     return SpecOverview(
         latest=None if latest is None else SpecVersion.model_validate(latest),
         confirmed=None if confirmed is None else SpecVersion.model_validate(confirmed),
+        hld=hld,
     )
 
 
