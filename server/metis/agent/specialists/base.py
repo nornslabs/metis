@@ -16,7 +16,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
-from langgraph._internal._constants import CONFIG_KEY_DURABILITY
+from langgraph._internal._constants import CONFIG_KEY_DURABILITY, CONFIG_KEY_SCRATCHPAD
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -94,10 +94,17 @@ def build_react_specialist(
         graph.add_edge(AGENT_NODE, END)
     if resumable:
         return graph.compile().with_config({"recursion_limit": step_limit})
-    # No checkpointer, so no save to wait for: pin the durability, or the loop inherits the
-    # run's ``sync`` from the parent config and waits for a save that never happens.
+    # No checkpointer, so no save to wait for: pin the durability (or the loop inherits ``sync``
+    # from the parent) and clear the parent's scratchpad (or it increments ``subgraph_counter``
+    # and shifts the checkpoint namespace of any later ``resumable=True`` loop when skipped).
     return graph.compile(checkpointer=False).with_config(
-        {"recursion_limit": step_limit, "configurable": {CONFIG_KEY_DURABILITY: NO_SAVE_DURABILITY}}
+        {
+            "recursion_limit": step_limit,
+            "configurable": {
+                CONFIG_KEY_DURABILITY: NO_SAVE_DURABILITY,
+                CONFIG_KEY_SCRATCHPAD: None,
+            },
+        }
     )
 
 

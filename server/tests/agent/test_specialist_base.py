@@ -200,3 +200,43 @@ async def test_resumable_loop_interrupt_and_resume_passes_answer_to_tool() -> No
     assert any(
         isinstance(m, ToolMessage) and m.content == "TypeScript" for m in model.seen[1]
     )
+
+
+async def test_skipping_non_resumable_loop_on_resume_keeps_later_checkpoint() -> None:
+    from langgraph.types import Command, interrupt
+
+    @tool
+    def ask(question: str) -> str:
+        """Ask the user."""
+        return str(interrupt({"question": question}))
+
+    draft_model = FakeChat([AIMessage(content="spec")])
+    ask_call = {"name": "ask", "args": {"question": "lang?"}, "id": "c1"}
+    hld_model = FakeChat([AIMessage(content="", tool_calls=[ask_call]), AIMessage(content="hld")])
+    draft_loop = build_react_specialist("p", [], draft_model, resumable=False)
+    hld_loop = build_react_specialist("p", [ask], hld_model, resumable=True)
+    drafted = False
+
+    async def node(_state: _RunState) -> _RunState:
+        nonlocal drafted
+        if not drafted:
+            await invoke_loop(draft_loop, "draft")
+            drafted = True
+        await invoke_loop(hld_loop, "hld")
+        return {"done": True}
+
+    graph = StateGraph(_RunState)
+    graph.add_node("node", node)
+    graph.add_edge(START, "node")
+    graph.add_edge("node", END)
+    run = graph.compile(checkpointer=InMemorySaver())
+    cfg: RunnableConfig = {"configurable": {"thread_id": "t-skip"}}
+
+    await run.ainvoke({}, cfg, durability="sync")
+    result = await run.ainvoke(Command(resume="TypeScript"), cfg, durability="sync")
+
+    assert result == {"done": True}
+    assert len(hld_model.seen) == 2
+    assert any(
+        isinstance(m, ToolMessage) and m.content == "TypeScript" for m in hld_model.seen[1]
+    )
