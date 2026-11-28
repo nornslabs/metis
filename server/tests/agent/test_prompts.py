@@ -48,6 +48,14 @@ def test_the_researcher_prompt_names_the_tools_it_may_use() -> None:
     assert all(tool in prompt for tool in ("kb_lookup", "save_research_item", "finish_research"))
 
 
+def test_the_researcher_prompt_explains_refused_calls_and_the_older_version_is_kept() -> None:
+    latest = load_prompt("researcher")
+
+    assert "refused" in latest and "skipped" in latest
+    assert latest == load_prompt("researcher", 3)
+    assert "refused" not in load_prompt("researcher", 2)
+
+
 def test_the_interviewer_prompt_offers_options_and_the_older_version_is_kept() -> None:
     latest = load_prompt("interviewer")
 
