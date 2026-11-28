@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 
 import pytest
 import structlog
@@ -19,6 +20,19 @@ _REQUIRED_ENV = {
 
 for _name, _value in _REQUIRED_ENV.items():
     os.environ.setdefault(_name, _value)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_settings_after_test() -> Iterator[None]:
+    """Drop cached settings after each test so a test's env overrides never leak.
+
+    ``monkeypatch`` restores the environment, but the ``get_settings`` cache would keep
+    the overridden values (e.g. a different ``DATABASE_URL``) for later tests.
+    """
+    yield
+    from metis.core.config import get_settings  # noqa: PLC0415  (env must be set first)
+
+    get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)
