@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+import json
 import re
-from typing import Annotated
+from typing import Annotated, Any, TypeVar
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field
 
 from metis.helpers.text import normalise_email
+
+T = TypeVar("T")
+
+
+def parse_json_list(value: Any) -> Any:
+    """Decode a stringified JSON array; pass non-strings through to Pydantic."""
+    if not isinstance(value, str):
+        return value
+    try:
+        decoded = json.loads(value)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON string ({exc.msg}); pass a JSON array") from exc
+    if not isinstance(decoded, list):
+        raise ValueError("must be a JSON array")
+    return decoded
+
+
+JsonList = Annotated[list[T], BeforeValidator(parse_json_list)]
+JsonTuple = Annotated[tuple[T, ...], BeforeValidator(parse_json_list)]
 
 MAX_EMAIL_LENGTH = 320
 # Shape check only: deliverability is not checked.

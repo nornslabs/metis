@@ -30,7 +30,11 @@ from redis.asyncio import Redis
 from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_specialist_prompt
-from metis.agent.specialists.base import build_react_specialist, finished_call_args
+from metis.agent.specialists.base import (
+    ToolInvocationLimitError,
+    build_react_specialist,
+    finished_call_args,
+)
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -82,6 +86,9 @@ def build_interviewer(
         except GraphRecursionError:
             logger.warning("interview.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
+        except ToolInvocationLimitError:
+            logger.warning("interview.tool_call_failed")
+            return _finish_node(state, {"last_error": ErrorCode.RUN_TOOL_CALL_FAILED.value})
         async with scope.session() as session:
             brief = await ideas.finish_interview(
                 session, scope.workspace_id, scope.idea_id, scope.run_id, _findings(messages)

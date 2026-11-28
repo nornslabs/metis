@@ -23,6 +23,7 @@ from metis.agent.tools.research_kb import ResearchScope
 from metis.agent.tools.score_scale import SCALE
 from metis.core.errors import MetisError
 from metis.core.logging import get_logger
+from metis.helpers.dto import parse_json_list
 from metis.modules import scoring
 from metis.modules.scoring import NewParamScore, ScoreParam, ScoreRun, ScoreTrigger
 
@@ -53,10 +54,10 @@ class SubmitScoresArgs(BaseModel):
 
 class SubmitScoresCall(BaseModel):
     """What the model sends. The entries are checked in the tool, not by the tool node, so a
-    malformed entry is a refusal the model can fix (and that counts toward the retry limit)
-    instead of an error the loop never counts."""
+    malformed entry (or a stringified JSON array) is parsed here or becomes a refusal the model
+    can fix (and that counts toward the retry limit) instead of an error the loop never counts."""
 
-    params: list[dict[str, Any]] = Field(
+    params: list[dict[str, Any]] | str = Field(
         description=(
             "Exactly six entries, one per parameter, each "
             "{param: one of " + ", ".join(p.value for p in ScoreParam) + "; "
@@ -154,7 +155,7 @@ def _get_rubric(scope: ResearchScope) -> BaseTool:
 
 
 def _submit_scores(scope: ResearchScope, book: SourceBook, ledger: SubmissionLedger) -> BaseTool:
-    async def submit_scores(params: list[dict[str, Any]]) -> str:
+    async def submit_scores(params: list[dict[str, Any]] | str) -> str:
         if ledger.refusals >= MAX_REFUSALS:
             return CLOSED
         entries, problems = _parse(params)
@@ -181,11 +182,14 @@ def _submit_scores(scope: ResearchScope, book: SourceBook, ledger: SubmissionLed
     )
 
 
-def _parse(params: list[dict[str, Any]]) -> tuple[tuple[NewParamScore, ...], list[str]]:
+def _parse(params: list[dict[str, Any]] | str) -> tuple[tuple[NewParamScore, ...], list[str]]:
     """The entries as ``NewParamScore``, or what is wrong with them."""
     try:
-        return SubmitScoresArgs.model_validate({"params": params}).params, []
-    except ValidationError as exc:
+        decoded = parse_json_list(params)
+        return SubmitScoresArgs.model_validate({"params": decoded}).params, []
+    except ValueError as exc:
+        if not isinstance(exc, ValidationError):
+            return (), [f"params: {exc}"]
         return (), [
             f"{'.'.join(str(part) for part in err['loc'])}: {err['msg']}" for err in exc.errors()
         ]

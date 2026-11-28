@@ -36,7 +36,11 @@ from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_specialist_prompt
-from metis.agent.specialists.base import build_react_specialist, finished_call_args
+from metis.agent.specialists.base import (
+    ToolInvocationLimitError,
+    build_react_specialist,
+    finished_call_args,
+)
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -147,6 +151,9 @@ def build_researcher(
         if outcome.end is _LoopEnd.STEP_LIMIT:
             logger.warning("research.step_limit_reached")
             return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
+        if outcome.end is _LoopEnd.TOOL_CALL_FAILED:
+            logger.warning("research.tool_call_failed")
+            return _finish_node(state, {"last_error": ErrorCode.RUN_TOOL_CALL_FAILED.value})
         finish = _finish_args(outcome.messages)
         rounds = state.get("clarification_rounds", 0)
         if (
@@ -176,6 +183,7 @@ def build_researcher(
 class _LoopEnd(StrEnum):
     FINISHED = "finished"
     STEP_LIMIT = "step_limit"
+    TOOL_CALL_FAILED = "tool_call_failed"
     EXA_LOST = "exa_lost"
 
 
@@ -192,9 +200,9 @@ async def _research(
 ) -> _LoopOutcome:
     """Run the loop inside the Exa session.
 
-    The step limit and a lost Exa (not another provider's failure) are caught inside the
-    session, so they end it cleanly. Exa failing at connect, or before the loop saved anything,
-    still raises ``UpstreamError``.
+    The step limit, tool-call limit, and a lost Exa (not another provider's failure) are caught
+    inside the session, so they end it cleanly. Exa failing at connect, or before the loop saved
+    anything, still raises ``UpstreamError``.
     """
     async with scope.session() as session:
         credentials = await get_key_for_use(session, scope.workspace_id, ProviderKind.EXA)
@@ -227,6 +235,8 @@ async def _research(
             result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
         except GraphRecursionError:
             return _LoopOutcome(_LoopEnd.STEP_LIMIT)
+        except ToolInvocationLimitError:
+            return _LoopOutcome(_LoopEnd.TOOL_CALL_FAILED)
         except UpstreamError as exc:
             if not _is_exa_failure(exc) or not await _has_findings(scope):
                 raise

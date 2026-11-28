@@ -13,8 +13,13 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, StateGraph
 
-from metis.agent.specialists.base import build_react_specialist
+from metis.agent.specialists.base import (
+    ToolInvocationLimitError,
+    build_react_specialist,
+    invoke_loop,
+)
 from metis.core.ports import LLMProvider, ToolDefinition
+from metis.helpers.dto import JsonList
 
 
 class FakeChat:
@@ -93,6 +98,46 @@ async def test_a_finishing_tool_ends_the_loop_without_another_model_call() -> No
     assert len(model.seen) == 1
 
 
+async def test_three_consecutive_tool_invocation_errors_stop_the_loop() -> None:
+    bad = AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": 123}, "id": "c1"}])
+    model = FakeChat([bad])
+    agent = build_react_specialist("p", [echo], model, step_limit=20)
+
+    with pytest.raises(ToolInvocationLimitError):
+        await agent.ainvoke({"messages": [HumanMessage(content="go")]})
+
+    assert len(model.seen) == 3
+
+
+async def test_a_successful_tool_call_resets_the_tool_invocation_error_count() -> None:
+    bad = AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": 123}, "id": "c1"}])
+    model = FakeChat([bad, bad, _call_echo("ok", "c2"), bad, bad, AIMessage(content="done")])
+    agent = build_react_specialist("p", [echo], model, step_limit=20)
+
+    result = await agent.ainvoke({"messages": [HumanMessage(content="go")]})
+
+    assert result["messages"][-1].content == "done"
+
+
+async def test_invoke_loop_returns_true_on_tool_invocation_limit() -> None:
+    bad = AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": 123}, "id": "c1"}])
+    model = FakeChat([bad])
+    agent = build_react_specialist("p", [echo], model, step_limit=20)
+
+    assert await invoke_loop(agent, "go") is True
+
+
+def test_json_list_accepts_stringified_json_and_rejects_malformed_json() -> None:
+    from pydantic import BaseModel, ValidationError
+
+    class Args(BaseModel):
+        items: JsonList[str]
+
+    assert Args.model_validate({"items": '["a", "b"]'}).items == ["a", "b"]
+    with pytest.raises(ValidationError):
+        Args.model_validate({"items": '["a", unquoted]'})
+
+
 class _RunState(TypedDict, total=False):
     done: bool
 
@@ -122,3 +167,76 @@ async def test_a_non_resumable_loop_runs_inside_a_run_that_waits_for_each_checkp
 
     assert chunks[-1] == {"done": True}
     assert len(model.seen) == 2
+
+
+async def test_resumable_loop_interrupt_and_resume_passes_answer_to_tool() -> None:
+    from langgraph.types import Command, interrupt
+
+    @tool
+    def ask(question: str) -> str:
+        """Ask the user."""
+        return str(interrupt({"question": question}))
+
+    ask_call = {"name": "ask", "args": {"question": "lang?"}, "id": "c1"}
+    model = FakeChat([AIMessage(content="", tool_calls=[ask_call]), AIMessage(content="got it")])
+    loop = build_react_specialist("p", [ask], model, resumable=True)
+
+    async def node(_state: _RunState) -> _RunState:
+        await loop.ainvoke({"messages": [HumanMessage(content="go")]})
+        return {"done": True}
+
+    graph = StateGraph(_RunState)
+    graph.add_node("node", node)
+    graph.add_edge(START, "node")
+    graph.add_edge("node", END)
+    run = graph.compile(checkpointer=InMemorySaver())
+    cfg: RunnableConfig = {"configurable": {"thread_id": "t-int"}}
+
+    await run.ainvoke({}, cfg)
+    result = await run.ainvoke(Command(resume="TypeScript"), cfg)
+
+    assert result == {"done": True}
+    assert len(model.seen) == 2
+    assert any(
+        isinstance(m, ToolMessage) and m.content == "TypeScript" for m in model.seen[1]
+    )
+
+
+async def test_skipping_non_resumable_loop_on_resume_keeps_later_checkpoint() -> None:
+    from langgraph.types import Command, interrupt
+
+    @tool
+    def ask(question: str) -> str:
+        """Ask the user."""
+        return str(interrupt({"question": question}))
+
+    draft_model = FakeChat([AIMessage(content="spec")])
+    ask_call = {"name": "ask", "args": {"question": "lang?"}, "id": "c1"}
+    hld_model = FakeChat([AIMessage(content="", tool_calls=[ask_call]), AIMessage(content="hld")])
+    draft_loop = build_react_specialist("p", [], draft_model, resumable=False)
+    hld_loop = build_react_specialist("p", [ask], hld_model, resumable=True)
+    drafted = False
+
+    async def node(_state: _RunState) -> _RunState:
+        nonlocal drafted
+        if not drafted:
+            await invoke_loop(draft_loop, "draft")
+            drafted = True
+        await invoke_loop(hld_loop, "hld")
+        return {"done": True}
+
+    graph = StateGraph(_RunState)
+    graph.add_node("node", node)
+    graph.add_edge(START, "node")
+    graph.add_edge("node", END)
+    run = graph.compile(checkpointer=InMemorySaver())
+    cfg: RunnableConfig = {"configurable": {"thread_id": "t-skip"}}
+
+    await run.ainvoke({}, cfg, durability="sync")
+    result = await run.ainvoke(Command(resume="TypeScript"), cfg, durability="sync")
+
+    assert result == {"done": True}
+    assert len(hld_model.seen) == 2
+    assert any(
+        isinstance(m, ToolMessage) and m.content == "TypeScript" for m in hld_model.seen[1]
+    )

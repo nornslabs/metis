@@ -11,12 +11,12 @@ settles by raising ``GraphRecursionError``. It counts per invocation: a loop tha
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import BaseTool
-from langgraph._internal._constants import CONFIG_KEY_DURABILITY
+from langgraph._internal._constants import CONFIG_KEY_DURABILITY, CONFIG_KEY_SCRATCHPAD
 from langgraph.errors import GraphRecursionError
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
@@ -28,6 +28,11 @@ AGENT_NODE = "agent"
 TOOLS_NODE = "tools"
 DEFAULT_STEP_LIMIT = 12
 NO_SAVE_DURABILITY = "exit"
+MAX_TOOL_INVOCATION_ERRORS = 3
+
+
+class ToolInvocationLimitError(Exception):
+    """Raised when a specialist hits ``MAX_TOOL_INVOCATION_ERRORS`` consecutive schema errors."""
 
 
 def build_react_specialist(
@@ -62,24 +67,52 @@ def build_react_specialist(
     graph.add_node(AGENT_NODE, call_model)
     graph.add_edge(START, AGENT_NODE)
     if tools:
-        handled: tuple[type[Exception], ...] = (ToolInvocationError, *refusals)
-        graph.add_node(TOOLS_NODE, ToolNode(list(tools), handle_tool_errors=handled))
+        consecutive_errors = 0
+
+        def handle_error(exc: Exception) -> str:
+            nonlocal consecutive_errors
+            if isinstance(exc, ToolInvocationError):
+                consecutive_errors += 1
+                if consecutive_errors >= MAX_TOOL_INVOCATION_ERRORS:
+                    raise ToolInvocationLimitError(str(exc)) from exc
+                return f"Error: {exc}\n Please fix your mistakes."
+            if refusals and isinstance(exc, refusals):
+                consecutive_errors = 0
+                return str(exc)
+            raise exc
+
+        def reset_errors() -> None:
+            nonlocal consecutive_errors
+            consecutive_errors = 0
+
+        graph.add_node(TOOLS_NODE, ToolNode(list(tools), handle_tool_errors=handle_error))
         graph.add_conditional_edges(AGENT_NODE, tools_condition, {"tools": TOOLS_NODE, END: END})
-        graph.add_conditional_edges(TOOLS_NODE, _after_tools(frozenset(finish_tools)))
+        graph.add_conditional_edges(
+            TOOLS_NODE, _after_tools(frozenset(finish_tools), on_success=reset_errors)
+        )
     else:
         graph.add_edge(AGENT_NODE, END)
     if resumable:
         return graph.compile().with_config({"recursion_limit": step_limit})
-    # No checkpointer, so no save to wait for: pin the durability, or the loop inherits the
-    # run's ``sync`` from the parent config and waits for a save that never happens.
+    # No checkpointer, so no save to wait for: pin the durability (or the loop inherits ``sync``
+    # from the parent) and clear the parent's scratchpad (or it increments ``subgraph_counter``
+    # and shifts the checkpoint namespace of any later ``resumable=True`` loop when skipped).
     return graph.compile(checkpointer=False).with_config(
-        {"recursion_limit": step_limit, "configurable": {CONFIG_KEY_DURABILITY: NO_SAVE_DURABILITY}}
+        {
+            "recursion_limit": step_limit,
+            "configurable": {
+                CONFIG_KEY_DURABILITY: NO_SAVE_DURABILITY,
+                CONFIG_KEY_SCRATCHPAD: None,
+            },
+        }
     )
 
 
 async def invoke_loop(loop: Any, seed: str) -> bool:
     """Run ``loop`` on ``seed``; ``False`` when it hit its step limit.
 
+    ``ToolInvocationLimitError`` returns ``True`` so callers treat it as a loop that ended
+    without saving a valid submission (e.g. ``*.invalid_submission``) rather than a step limit.
     The limit is caught here so a caller can call this inside an Exa session:
     ``open_mcp_session`` turns any exception that leaves its block into ``UpstreamError``,
     which would hide ``GraphRecursionError``.
@@ -88,18 +121,27 @@ async def invoke_loop(loop: Any, seed: str) -> bool:
         await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
     except GraphRecursionError:
         return False
+    except ToolInvocationLimitError:
+        return True
     return True
 
 
-def _after_tools(finish_tools: frozenset[str]) -> Any:
+def _after_tools(
+    finish_tools: frozenset[str], on_success: Callable[[], None] | None = None
+) -> Any:
     """Route after a tool step: ``END`` when a finishing tool just succeeded, else the model."""
 
     def route(state: MessagesState) -> str:
+        had_success = False
         for message in reversed(state["messages"]):
             if not isinstance(message, ToolMessage):
                 break
-            if message.name in finish_tools and message.status == "success":
-                return END
+            if message.status == "success":
+                had_success = True
+                if message.name in finish_tools:
+                    return END
+        if had_success and on_success is not None:
+            on_success()
         return AGENT_NODE
 
     return route

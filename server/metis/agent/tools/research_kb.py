@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from metis.agent.llm import LLMGateway
 from metis.core.errors import MetisError, UpstreamError
 from metis.core.logging import get_logger
+from metis.helpers.dto import JsonList
 from metis.modules import research
 from metis.modules.research import NewCompetitor, NewResearchItem, ResearchItemKind
 
@@ -97,7 +98,7 @@ class ResearchFinish(BaseModel):
     no_direct_competitors: bool = Field(
         default=False, description="True when no direct competitor was found."
     )
-    needs_clarification: list[
+    needs_clarification: JsonList[
         Annotated[str, Field(min_length=1, max_length=MAX_QUESTION_LENGTH)]
     ] = Field(
         default_factory=list,

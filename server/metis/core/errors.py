@@ -84,6 +84,7 @@ class ErrorCode(StrEnum):
     RUN_CANCELLED = "run.cancelled"
     RUN_EVENT_MALFORMED = "run.event_malformed"
     RUN_STEP_LIMIT_REACHED = "run.step_limit_reached"
+    RUN_TOOL_CALL_FAILED = "run.tool_call_failed"
     RUN_FAILED = "run.failed"
     RUN_RECOVERY_EXHAUSTED = "run.recovery_exhausted"
     RUN_STALLED = "run.stalled"
@@ -372,6 +373,11 @@ ERROR_CATALOG: dict[ErrorCode, ErrorSpec] = {
     ErrorCode.RUN_STEP_LIMIT_REACHED: ErrorSpec(
         status=422,
         title="Run Step Limit Reached",
+        retryable=False,
+    ),
+    ErrorCode.RUN_TOOL_CALL_FAILED: ErrorSpec(
+        status=422,
+        title="Model Tool Call Failed",
         retryable=False,
     ),
     ErrorCode.RUN_FAILED: ErrorSpec(

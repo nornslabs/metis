@@ -420,3 +420,54 @@ async def test_a_key_that_failed_its_test_is_scored_without_the_search_tool(
 def test_the_written_scale_covers_every_parameter_with_four_anchors() -> None:
     assert set(SCALE) == set(ScoreParam)
     assert all(set(anchors) == {2, 5, 8, 10} for anchors in SCALE.values())
+
+
+async def test_stringified_json_params_are_accepted(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    import json
+
+    run = await scoring_run(engine)
+    raw_params = submit().calls[0].args["params"]
+    llm.add(Reply(calls=(Call("submit_scores", {"params": json.dumps(raw_params)}),)))
+
+    await run_job(ctx, run)
+
+    assert (await run_row(engine, run)).status == "succeeded"
+    assert await score_runs(engine, run) == [(70, "promising", "manual")]
+
+
+async def test_invalid_json_string_params_count_as_refusals(
+    engine: AsyncEngine, ctx: dict[str, Any], llm: ScriptedLLM
+) -> None:
+    run = await scoring_run(engine)
+    raw = '[{"param": "value", "reason": unquoted}]'
+    bad = Reply(calls=(Call("submit_scores", {"params": raw}),))
+    llm.add(bad, bad)
+
+    await run_job(ctx, run)
+
+    row = await run_row(engine, run)
+    assert row.status == "failed"
+    assert row.error is not None and row.error["code"] == "score.invalid_submission"
+    assert "invalid JSON" in llm.shown(1)
+
+
+def test_parse_accepts_json_string_and_rejects_invalid_json_string() -> None:
+    import json
+
+    from metis.agent.tools.scoring import _parse
+
+    raw_params = submit().calls[0].args["params"]
+    entries, problems = _parse(json.dumps(raw_params))
+    assert problems == []
+    assert len(entries) == 6
+
+    entries, problems = _parse('[{"param": "value", "reason": unquoted}]')
+    assert entries == ()
+    assert len(problems) == 1
+    assert "invalid JSON string" in problems[0]
+
+    entries, problems = _parse('{"not": "a list"}')
+    assert entries == ()
+    assert problems == ["params: must be a JSON array"]
