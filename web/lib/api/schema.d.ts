@@ -1963,11 +1963,46 @@ export interface components {
             run_id: string | null;
         };
         /**
+         * SpecHld
+         * @description The HLD written for one spec version. ``stale`` is true when the idea's latest spec text
+         *     differs from the text this HLD was written for (it is not stored).
+         */
+        SpecHld: {
+            /** Build Language */
+            build_language: string;
+            /** Content Md */
+            content_md: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Idea Id
+             * Format: uuid
+             */
+            idea_id: string;
+            /** Spec Version Number */
+            spec_version_number: number;
+            /**
+             * Stale
+             * @default false
+             */
+            stale: boolean;
+        };
+        /**
          * SpecOverview
-         * @description The latest version and the confirmed one (each ``None`` while there is none).
+         * @description The latest version and the confirmed one (each ``None`` while there is none), and the
+         *     newest HLD (``None`` for a non-software idea or before one was written).
          */
         SpecOverview: {
             confirmed: components["schemas"]["SpecVersion"] | null;
+            hld?: components["schemas"]["SpecHld"] | null;
             latest: components["schemas"]["SpecVersion"] | null;
         };
         /**

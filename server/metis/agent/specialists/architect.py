@@ -1,20 +1,33 @@
-"""The Architect: drafts the idea's spec, then waits for the user to review and confirm it.
+"""The Architect: drafts the idea's spec and, for a software idea, its HLD, then waits for the
+user to review and confirm them.
 
 At ``spec_draft`` it runs a tool-calling loop (``build_react_specialist``) over the architect
 prompt and ``save_spec``, on the run's ``spec`` chat model, seeded with the idea, its interview,
 the research, the score and the suggestions the user accepted. The saved draft is version 1 of
-the idea's spec. The node then pauses on a ``spec_review`` interrupt; the user edits (each edit
-is a new version) and confirms through the spec routes, which resume the run, and the node moves
-the run to ``spec_confirmed``. A spec that cannot be drafted (two refused ``save_spec`` calls,
-or no call) fails the run with ``spec.invalid_submission``.
+the idea's spec. For a software idea (``kind`` is ``software``, which ``save_spec`` sets) a second
+loop then writes the HLD for that version (SHIP-460): a blueprint in the build language the user
+named, or, when nothing names one, the user's answer to a single question. The node then pauses
+on a ``spec_review`` interrupt; the user edits (each edit is a new version, and the HLD is marked
+stale) and confirms through the spec routes, which resume the run. Once resumed, the node writes
+a fresh HLD only if the latest HLD is stale (the confirmed text differs from the one it was
+written for), then moves the run to ``spec_confirmed``. A spec that cannot be drafted (two
+refused ``save_spec`` calls, or no call) fails the run with ``spec.invalid_submission``. An HLD
+that cannot be written does not fail the run: it is logged and the spec review goes on without
+one.
 
-The node is safe to re-run: when the idea already has a spec (a crash re-run, the re-run after
-the interrupt resumes, or an earlier run's draft) it makes no model call and goes straight to
-the review.
+The first HLD is written only while the idea is still at ``spec_draft``. The node re-runs from
+its start on every resume, and the confirm route has moved the idea to ``spec_confirmed`` before
+it resumes the run: a re-run after the confirmation must not start a new HLD loop, whose
+question would take the confirmation as its answer.
+
+The node is safe to re-run: when the idea already has a spec and an HLD (a crash re-run, the
+re-run after the interrupt resumes, or an earlier run's draft) it makes no model call and goes
+straight to the review.
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 from uuid import UUID
 
@@ -30,6 +43,7 @@ from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
 from metis.agent.tools.ask_user import SPEC_REVIEW
+from metis.agent.tools.hld import SAVE_HLD, HldLedger, HldRefused, hld_tools
 from metis.agent.tools.research_kb import ResearchScope, SessionOpener
 from metis.agent.tools.scoring import SourceBook
 from metis.agent.tools.spec import SAVE_SPEC, SpecLedger, SpecRefused, spec_tools
@@ -37,10 +51,11 @@ from metis.core.errors import ErrorCode
 from metis.core.events import RunEventType
 from metis.core.logging import get_logger
 from metis.modules import ideas, scoring
-from metis.modules.ideas import SpecVersion, Stage
+from metis.modules.ideas import IdeaKind, SpecHld, SpecVersion, Stage
 from metis.modules.scoring import SuggestionStatus
 
 PROMPT = "architect"
+HLD_PROMPT = "architect_hld"
 PURPOSE = "spec"
 # Graph supersteps: the model call and its save, with room for one refused attempt.
 STEP_LIMIT = 15
@@ -67,7 +82,9 @@ def build_architect(gateway: LLMGateway, open_session: SessionOpener) -> Special
             if isinstance(drafted, str):
                 return _finish_node(state, {"last_error": drafted})
             latest = drafted
+        await _ensure_hld(scope)
         await _review(scope, latest)
+        await _refresh_hld(scope)
         return _finish_node(state, {"stage": Stage.SPEC_CONFIRMED})
 
     return node
@@ -95,6 +112,87 @@ async def _draft(scope: ResearchScope) -> SpecVersion | str:
         return ErrorCode.SPEC_INVALID_SUBMISSION.value
     async with scope.session() as session:
         return await ideas.get_spec(session, scope.workspace_id, scope.idea_id)
+
+
+@dataclass(frozen=True)
+class _HldState:
+    """What the HLD steps decide on, read in one session: whether the idea is software, whether
+    it is still a draft (not yet confirmed), its latest spec version and its newest HLD
+    (``stale`` already worked out)."""
+
+    software: bool
+    drafting: bool
+    latest: SpecVersion | None
+    hld: SpecHld | None
+
+
+async def _hld_state(scope: ResearchScope) -> _HldState:
+    async with scope.session() as session:
+        idea = await ideas.get_idea(session, scope.workspace_id, scope.idea_id)
+        overview = await ideas.get_spec_overview(session, scope.workspace_id, scope.idea_id)
+    return _HldState(
+        software=idea.kind is IdeaKind.SOFTWARE,
+        drafting=idea.stage is Stage.SPEC_DRAFT,
+        latest=overview.latest,
+        hld=overview.hld,
+    )
+
+
+async def _ensure_hld(scope: ResearchScope) -> None:
+    """Write the first HLD of a software idea's spec, before the review. Nothing is written for
+    another kind of idea, when an HLD already exists (a re-run adds nothing) and once the spec was
+    confirmed (a re-run after the confirmation)."""
+    state = await _hld_state(scope)
+    if state.software and state.drafting and state.hld is None and state.latest is not None:
+        await _write_hld(scope, state.latest, previous_language=None)
+
+
+async def _refresh_hld(scope: ResearchScope) -> None:
+    """After the user confirmed: write a fresh HLD when the confirmed spec text is not the one
+    the latest HLD was written for. No call when the HLD is current, and none when there is no
+    HLD (the first one could not be written; asking for a language now would be after the review).
+    """
+    state = await _hld_state(scope)
+    if state.software and state.hld is not None and state.hld.stale and state.latest is not None:
+        await _write_hld(scope, state.latest, previous_language=state.hld.build_language)
+
+
+async def _write_hld(
+    scope: ResearchScope, spec: SpecVersion, *, previous_language: str | None
+) -> None:
+    """Run the HLD loop for ``spec``. With a ``previous_language`` (the earlier HLD's) the loop
+    never asks; it keeps that language unless the spec names another. A failure is logged,
+    never raised: the review goes on without it."""
+    ledger = HldLedger()
+    async with scope.session() as session:
+        model = await scope.gateway.chat_model(session, PURPOSE)
+        seed = await _seed(session, scope)
+    seed = "\n\n".join([seed, _spec_text(spec), _language_text(previous_language)])
+    loop = build_react_specialist(
+        load_specialist_prompt(HLD_PROMPT),
+        hld_tools(scope, ledger, spec, may_ask=previous_language is None),
+        model,
+        step_limit=STEP_LIMIT,
+        finish_tools={SAVE_HLD},
+        refusals=(HldRefused,),
+    )
+    if not await invoke_loop(loop, seed):
+        logger.warning("hld.step_limit_reached", spec_number=spec.number)
+    elif ledger.saved is None:
+        logger.warning("hld.not_saved", spec_number=spec.number, refusals=ledger.refusals)
+
+
+def _spec_text(spec: SpecVersion) -> str:
+    return f"The product spec (version {spec.number}):\n\n{spec.content_md}"
+
+
+def _language_text(previous_language: str | None) -> str:
+    if previous_language is None:
+        return "Build language: not decided yet. Look for it in the idea and the interview."
+    return (
+        f"Build language: {previous_language}, from the earlier HLD. Keep it unless the spec now "
+        "names a different language or stack. Do not ask."
+    )
 
 
 async def _review(scope: ResearchScope, draft: SpecVersion) -> None:

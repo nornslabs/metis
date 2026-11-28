@@ -12,6 +12,7 @@ from pydantic import BeforeValidator, ConfigDict, Field
 
 from metis.helpers.dto import FrozenModel
 from metis.helpers.text import strip
+from metis.modules.ideas.dto.spec_hld import SpecHld
 
 MAX_SPEC_LENGTH = 50_000
 NONE_TEXT = "None."
@@ -108,10 +109,12 @@ class SpecVersionList(FrozenModel):
 
 
 class SpecOverview(FrozenModel):
-    """The latest version and the confirmed one (each ``None`` while there is none)."""
+    """The latest version and the confirmed one (each ``None`` while there is none), and the
+    newest HLD (``None`` for a non-software idea or before one was written)."""
 
     latest: SpecVersion | None
     confirmed: SpecVersion | None
+    hld: SpecHld | None = None
 
 
 class SectionDiff(FrozenModel):

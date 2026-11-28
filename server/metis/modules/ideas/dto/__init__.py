@@ -54,6 +54,7 @@ from metis.modules.ideas.dto.spec import (
     SpecVersionList,
     SpecVersionSummary,
 )
+from metis.modules.ideas.dto.spec_hld import MAX_HLD_LENGTH, NewSpecHld, SpecHld
 from metis.modules.ideas.dto.workflow_runs import (
     MAX_PROJECT_NAME_LENGTH,
     AdviceDecision,
@@ -78,16 +79,19 @@ __all__ = [
     "AdviceDecision",
     "AdviceResume",
     "CHECKLIST",
+    "MAX_HLD_LENGTH",
     "MAX_SPEC_LENGTH",
     "NONE_TEXT",
     "SECTION_HEADINGS",
     "ConfirmSpecBody",
     "DiffStatus",
     "EditSpecBody",
+    "NewSpecHld",
     "NewSpecVersion",
     "SectionDiff",
     "SpecConfirmed",
     "SpecDiff",
+    "SpecHld",
     "SpecOverview",
     "SpecSection",
     "SpecSource",

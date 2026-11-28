@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 from typing import Any
+from uuid import UUID
 
 import httpx
 import pytest
@@ -15,6 +16,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from metis.core import jobs
+from metis.modules import ideas
+from metis.modules.ideas import NewSpecHld, spec_hash
 from tests.helpers.auth import assert_problem
 from tests.modules.ideas.idea_helpers import IDEAS_URL, create, member_of, owner
 from tests.modules.ideas.spec_helpers import (
@@ -25,7 +28,7 @@ from tests.modules.ideas.spec_helpers import (
     spec_confirmed_events,
     waiting_run,
 )
-from tests.modules.scoring.scoring_helpers import Sessions
+from tests.modules.scoring.scoring_helpers import Sessions, in_workspace
 
 EDITED = DRAFT.replace("A tiny CRM.", "A tiny CRM that nags you.")
 
@@ -76,7 +79,7 @@ async def test_an_idea_without_a_spec_has_neither_latest_nor_confirmed(
     response = await client.get(_spec(idea["id"]), headers=ada.headers)
 
     assert response.status_code == 200, response.text
-    assert response.json() == {"latest": None, "confirmed": None}
+    assert response.json() == {"latest": None, "confirmed": None, "hld": None}
 
 
 async def test_any_member_reads_the_latest_version_and_the_list(
@@ -97,6 +100,39 @@ async def test_any_member_reads_the_latest_version_and_the_list(
     items = listed.json()["items"]
     assert [(i["number"], i["source"]) for i in items] == [(2, "user"), (1, "agent")]
     assert "content_md" not in items[0]
+
+
+async def _save_hld(sessions: Sessions, caller: Any, idea_id: str) -> None:
+    """The HLD the Architect wrote for version 1 (its path: the module's service)."""
+    workspace_id = UUID(caller.workspace_id)
+    async with in_workspace(sessions, workspace_id) as session:
+        await ideas.save_spec_hld(
+            session,
+            workspace_id,
+            UUID(idea_id),
+            NewSpecHld(
+                spec_version_number=1,
+                spec_hash=spec_hash(DRAFT),
+                build_language="Python",
+                content_md="## Overview\n\nA blueprint.",
+            ),
+        )
+
+
+async def test_the_overview_carries_the_hld_and_marks_it_stale_after_an_edit(
+    client: httpx.AsyncClient, engine: AsyncEngine, app_sessions: Sessions
+) -> None:
+    ada = await owner(client, engine)
+    idea = await draft_idea(client, engine, app_sessions, ada)
+    await _save_hld(app_sessions, ada, idea["id"])
+
+    fresh = (await client.get(_spec(idea["id"]), headers=ada.headers)).json()["hld"]
+    assert (await _edit(client, ada, idea["id"], 1)).status_code == 201
+    edited = (await client.get(_spec(idea["id"]), headers=ada.headers)).json()["hld"]
+
+    assert (fresh["spec_version_number"], fresh["build_language"]) == (1, "Python")
+    assert fresh["content_md"] == "## Overview\n\nA blueprint." and fresh["stale"] is False
+    assert (edited["spec_version_number"], edited["stale"]) == (1, True)
 
 
 async def test_a_version_is_read_by_number_and_an_unknown_one_is_not_found(
