@@ -167,3 +167,36 @@ async def test_a_non_resumable_loop_runs_inside_a_run_that_waits_for_each_checkp
 
     assert chunks[-1] == {"done": True}
     assert len(model.seen) == 2
+
+
+async def test_resumable_loop_interrupt_and_resume_passes_answer_to_tool() -> None:
+    from langgraph.types import Command, interrupt
+
+    @tool
+    def ask(question: str) -> str:
+        """Ask the user."""
+        return str(interrupt({"question": question}))
+
+    ask_call = {"name": "ask", "args": {"question": "lang?"}, "id": "c1"}
+    model = FakeChat([AIMessage(content="", tool_calls=[ask_call]), AIMessage(content="got it")])
+    loop = build_react_specialist("p", [ask], model, resumable=True)
+
+    async def node(_state: _RunState) -> _RunState:
+        await loop.ainvoke({"messages": [HumanMessage(content="go")]})
+        return {"done": True}
+
+    graph = StateGraph(_RunState)
+    graph.add_node("node", node)
+    graph.add_edge(START, "node")
+    graph.add_edge("node", END)
+    run = graph.compile(checkpointer=InMemorySaver())
+    cfg: RunnableConfig = {"configurable": {"thread_id": "t-int"}}
+
+    await run.ainvoke({}, cfg)
+    result = await run.ainvoke(Command(resume="TypeScript"), cfg)
+
+    assert result == {"done": True}
+    assert len(model.seen) == 2
+    assert any(
+        isinstance(m, ToolMessage) and m.content == "TypeScript" for m in model.seen[1]
+    )

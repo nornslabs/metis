@@ -11,7 +11,7 @@ settles by raising ``GraphRecursionError``. It counts per invocation: a loop tha
 
 from __future__ import annotations
 
-from collections.abc import Collection, Sequence
+from collections.abc import Callable, Collection, Sequence
 from typing import Any
 
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage, ToolMessage
@@ -81,21 +81,15 @@ def build_react_specialist(
                 return str(exc)
             raise exc
 
-        tool_node = ToolNode(list(tools), handle_tool_errors=handle_error)
-
-        async def run_tools(state: MessagesState) -> dict[str, Any]:
+        def reset_errors() -> None:
             nonlocal consecutive_errors
-            result = await tool_node.ainvoke(state)
-            if any(
-                isinstance(m, ToolMessage) and m.status == "success"
-                for m in result.get("messages", ())
-            ):
-                consecutive_errors = 0
-            return dict(result)
+            consecutive_errors = 0
 
-        graph.add_node(TOOLS_NODE, run_tools)
+        graph.add_node(TOOLS_NODE, ToolNode(list(tools), handle_tool_errors=handle_error))
         graph.add_conditional_edges(AGENT_NODE, tools_condition, {"tools": TOOLS_NODE, END: END})
-        graph.add_conditional_edges(TOOLS_NODE, _after_tools(frozenset(finish_tools)))
+        graph.add_conditional_edges(
+            TOOLS_NODE, _after_tools(frozenset(finish_tools), on_success=reset_errors)
+        )
     else:
         graph.add_edge(AGENT_NODE, END)
     if resumable:
@@ -125,15 +119,22 @@ async def invoke_loop(loop: Any, seed: str) -> bool:
     return True
 
 
-def _after_tools(finish_tools: frozenset[str]) -> Any:
+def _after_tools(
+    finish_tools: frozenset[str], on_success: Callable[[], None] | None = None
+) -> Any:
     """Route after a tool step: ``END`` when a finishing tool just succeeded, else the model."""
 
     def route(state: MessagesState) -> str:
+        had_success = False
         for message in reversed(state["messages"]):
             if not isinstance(message, ToolMessage):
                 break
-            if message.name in finish_tools and message.status == "success":
-                return END
+            if message.status == "success":
+                had_success = True
+                if message.name in finish_tools:
+                    return END
+        if had_success and on_success is not None:
+            on_success()
         return AGENT_NODE
 
     return route
