@@ -159,6 +159,20 @@ async def test_the_model_judge_reads_pass_and_reject_lines(
     assert await judge.verdict("criterion", "item") == expected
 
 
+async def test_the_model_judge_tags_calls_nostream() -> None:
+    configs: list[Any] = []
+
+    class _RecordingChat(FakeChat):
+        async def ainvoke(self, messages: Any, config: Any = None) -> AIMessage:
+            configs.append(config)
+            return await super().ainvoke(messages, config)
+
+    judge = ModelJudge(_RecordingChat([AIMessage(content="PASS")]))
+
+    assert await judge.verdict("criterion", "item") is None
+    assert configs == [{"tags": ["nostream"]}]
+
+
 @pytest.mark.parametrize("reply", ["", "maybe", "REJECT:"])
 async def test_an_unreadable_judge_reply_raises_so_the_gate_fails_open(reply: str) -> None:
     judge = ModelJudge(FakeChat([AIMessage(content=reply)]))
