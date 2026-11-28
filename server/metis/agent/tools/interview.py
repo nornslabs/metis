@@ -28,6 +28,7 @@ from metis.agent.gate import GateContext, GateRefusal
 from metis.agent.tools.interview_gates import IdeaTexts, ReviewOutcome, review_question
 from metis.agent.tools.question_options import OptionArgs, check_options, question_payload
 from metis.core.errors import QuestionAlreadyOpenError
+from metis.helpers.dto import JsonList
 from metis.modules import ideas
 from metis.modules.ideas import (
     MAX_INTERVIEW_QUESTIONS,
@@ -87,7 +88,7 @@ class InterviewScope:
 class AskUserArgs(BaseModel):
     question: str = Field(min_length=1, max_length=MAX_QUESTION_LENGTH)
     topic: InterviewTopic = Field(description=TOPICS_HELP)
-    options: list[OptionArgs] = Field(
+    options: JsonList[OptionArgs] = Field(
         default_factory=list,
         description="2 to 5 likely answers; leave empty for an open question the user types.",
     )

@@ -10,8 +10,13 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 from langgraph.errors import GraphRecursionError
 
-from metis.agent.specialists.base import build_react_specialist
+from metis.agent.specialists.base import (
+    ToolInvocationLimitError,
+    build_react_specialist,
+    invoke_loop,
+)
 from metis.core.ports import LLMProvider, ToolDefinition
+from metis.helpers.dto import JsonList
 
 
 class FakeChat:
@@ -88,3 +93,43 @@ async def test_a_finishing_tool_ends_the_loop_without_another_model_call() -> No
     messages = result["messages"]
     assert [type(m) for m in messages] == [HumanMessage, AIMessage, ToolMessage]
     assert len(model.seen) == 1
+
+
+async def test_three_consecutive_tool_invocation_errors_stop_the_loop() -> None:
+    bad = AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": 123}, "id": "c1"}])
+    model = FakeChat([bad])
+    agent = build_react_specialist("p", [echo], model, step_limit=20)
+
+    with pytest.raises(ToolInvocationLimitError):
+        await agent.ainvoke({"messages": [HumanMessage(content="go")]})
+
+    assert len(model.seen) == 3
+
+
+async def test_a_successful_tool_call_resets_the_tool_invocation_error_count() -> None:
+    bad = AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": 123}, "id": "c1"}])
+    model = FakeChat([bad, bad, _call_echo("ok", "c2"), bad, bad, AIMessage(content="done")])
+    agent = build_react_specialist("p", [echo], model, step_limit=20)
+
+    result = await agent.ainvoke({"messages": [HumanMessage(content="go")]})
+
+    assert result["messages"][-1].content == "done"
+
+
+async def test_invoke_loop_returns_true_on_tool_invocation_limit() -> None:
+    bad = AIMessage(content="", tool_calls=[{"name": "echo", "args": {"text": 123}, "id": "c1"}])
+    model = FakeChat([bad])
+    agent = build_react_specialist("p", [echo], model, step_limit=20)
+
+    assert await invoke_loop(agent, "go") is True
+
+
+def test_json_list_accepts_stringified_json_and_rejects_malformed_json() -> None:
+    from pydantic import BaseModel, ValidationError
+
+    class Args(BaseModel):
+        items: JsonList[str]
+
+    assert Args.model_validate({"items": '["a", "b"]'}).items == ["a", "b"]
+    with pytest.raises(ValidationError):
+        Args.model_validate({"items": '["a", unquoted]'})

@@ -26,6 +26,11 @@ from metis.core.ports import LLMProvider
 AGENT_NODE = "agent"
 TOOLS_NODE = "tools"
 DEFAULT_STEP_LIMIT = 12
+MAX_TOOL_INVOCATION_ERRORS = 3
+
+
+class ToolInvocationLimitError(Exception):
+    """Raised when a specialist hits ``MAX_TOOL_INVOCATION_ERRORS`` consecutive schema errors."""
 
 
 def build_react_specialist(
@@ -60,8 +65,33 @@ def build_react_specialist(
     graph.add_node(AGENT_NODE, call_model)
     graph.add_edge(START, AGENT_NODE)
     if tools:
-        handled: tuple[type[Exception], ...] = (ToolInvocationError, *refusals)
-        graph.add_node(TOOLS_NODE, ToolNode(list(tools), handle_tool_errors=handled))
+        consecutive_errors = 0
+
+        def handle_error(exc: Exception) -> str:
+            nonlocal consecutive_errors
+            if isinstance(exc, ToolInvocationError):
+                consecutive_errors += 1
+                if consecutive_errors >= MAX_TOOL_INVOCATION_ERRORS:
+                    raise ToolInvocationLimitError(str(exc)) from exc
+                return f"Error: {exc}\n Please fix your mistakes."
+            if refusals and isinstance(exc, refusals):
+                consecutive_errors = 0
+                return str(exc)
+            raise exc
+
+        tool_node = ToolNode(list(tools), handle_tool_errors=handle_error)
+
+        async def run_tools(state: MessagesState) -> dict[str, Any]:
+            nonlocal consecutive_errors
+            result = await tool_node.ainvoke(state)
+            if any(
+                isinstance(m, ToolMessage) and m.status == "success"
+                for m in result.get("messages", ())
+            ):
+                consecutive_errors = 0
+            return dict(result)
+
+        graph.add_node(TOOLS_NODE, run_tools)
         graph.add_conditional_edges(AGENT_NODE, tools_condition, {"tools": TOOLS_NODE, END: END})
         graph.add_conditional_edges(TOOLS_NODE, _after_tools(frozenset(finish_tools)))
     else:
@@ -73,6 +103,8 @@ def build_react_specialist(
 async def invoke_loop(loop: Any, seed: str) -> bool:
     """Run ``loop`` on ``seed``; ``False`` when it hit its step limit.
 
+    ``ToolInvocationLimitError`` returns ``True`` so callers treat it as a loop that ended
+    without saving a valid submission (e.g. ``*.invalid_submission``) rather than a step limit.
     The limit is caught here so a caller can call this inside an Exa session:
     ``open_mcp_session`` turns any exception that leaves its block into ``UpstreamError``,
     which would hide ``GraphRecursionError``.
@@ -81,6 +113,8 @@ async def invoke_loop(loop: Any, seed: str) -> bool:
         await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
     except GraphRecursionError:
         return False
+    except ToolInvocationLimitError:
+        return True
     return True
 
 

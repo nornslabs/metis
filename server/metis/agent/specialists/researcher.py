@@ -34,7 +34,11 @@ from metis.adapters.feature_flags import build_feature_flag_provider
 from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_specialist_prompt
-from metis.agent.specialists.base import build_react_specialist, finished_call_args
+from metis.agent.specialists.base import (
+    ToolInvocationLimitError,
+    build_react_specialist,
+    finished_call_args,
+)
 from metis.agent.specialists.stubs import SpecialistNode
 from metis.agent.state import MetisState
 from metis.agent.supervisor import Specialist
@@ -133,10 +137,16 @@ def build_researcher(
             logger.info("research.already_closed")
             return _finish_node(state, {"stage": Stage.SCORING})
         budget = ExaCallBudget(redis, scope.run_id, MAX_EXA_CALLS)
-        messages = await _research(scope, redis, make_exa_client, budget)
-        if messages is None:
-            logger.warning("research.step_limit_reached")
-            return _finish_node(state, {"last_error": ErrorCode.RUN_STEP_LIMIT_REACHED.value})
+        outcome = await _research(scope, redis, make_exa_client, budget)
+        if isinstance(outcome, ErrorCode):
+            event = (
+                "research.step_limit_reached"
+                if outcome is ErrorCode.RUN_STEP_LIMIT_REACHED
+                else "research.tool_call_failed"
+            )
+            logger.warning(event)
+            return _finish_node(state, {"last_error": outcome.value})
+        messages = outcome
         finish = _finish_args(messages)
         rounds = state.get("clarification_rounds", 0)
         if (
@@ -165,11 +175,12 @@ def build_researcher(
 
 async def _research(
     scope: ResearchScope, redis: Redis, make_exa_client: ClientFactory, budget: ExaCallBudget
-) -> list[AnyMessage] | None:
-    """The loop's messages, or ``None`` when it hit its step limit.
+) -> list[AnyMessage] | ErrorCode:
+    """The loop's messages, or the failure ``ErrorCode`` when it hit a loop limit.
 
-    The limit is caught inside the Exa session: ``open_mcp_session`` turns any exception that
-    leaves its block into ``UpstreamError``, which would hide ``GraphRecursionError``.
+    The limits are caught inside the Exa session: ``open_mcp_session`` turns any exception that
+    leaves its block into ``UpstreamError``, which would hide ``GraphRecursionError`` and
+    ``ToolInvocationLimitError``.
     """
     async with scope.session() as session:
         credentials = await get_key_for_use(session, scope.workspace_id, ProviderKind.EXA)
@@ -201,7 +212,9 @@ async def _research(
         try:
             result = await loop.ainvoke({"messages": [HumanMessage(content=seed)]})
         except GraphRecursionError:
-            return None
+            return ErrorCode.RUN_STEP_LIMIT_REACHED
+        except ToolInvocationLimitError:
+            return ErrorCode.RUN_TOOL_CALL_FAILED
     return list(result["messages"])
 
 

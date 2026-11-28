@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from metis.agent.tools.question_options import OptionArgs, check_options, question_payload
 from metis.agent.tools.research_kb import ResearchScope
 from metis.core.logging import get_logger
+from metis.helpers.dto import JsonList
 from metis.modules import ideas
 from metis.modules.ideas import (
     MAX_HLD_LENGTH,
@@ -83,7 +84,7 @@ class SaveHldArgs(BaseModel):
     stack: str = Field(
         default="", description="The main technologies of the stack, as a short markdown list."
     )
-    components: list[ComponentArg] = Field(
+    components: JsonList[ComponentArg] = Field(
         default_factory=list, description=f"The MVP broken into {MIN_COMPONENTS}-{MAX_COMPONENTS}."
     )
     connections: str = Field(
@@ -95,7 +96,7 @@ class SaveHldArgs(BaseModel):
 
 
 class AskBuildLanguageArgs(BaseModel):
-    options: list[OptionArgs] = Field(
+    options: JsonList[OptionArgs] = Field(
         default_factory=list,
         description="3 or 4 languages or stacks that fit this idea; the user may also type one.",
     )

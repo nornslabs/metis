@@ -30,6 +30,7 @@ from metis.agent.tools.issue_brief import REQUIRED_SECTIONS, heading, missing_se
 from metis.agent.tools.research_kb import ResearchScope
 from metis.core.errors import InvalidPlanError
 from metis.core.logging import get_logger
+from metis.helpers.dto import JsonList
 from metis.modules import ideas, planning
 from metis.modules.ideas import PhaseReviewResume
 from metis.modules.planning import ESTIMATES, Plan
@@ -72,7 +73,7 @@ class PhaseArg(BaseModel):
 
 
 class ProposePhasesArgs(BaseModel):
-    phases: list[PhaseArg] = Field(
+    phases: JsonList[PhaseArg] = Field(
         default_factory=list,
         description=f"{MIN_PHASES} to {MAX_PHASES} phases, from foundations to MVP, in order.",
     )
@@ -90,12 +91,12 @@ class TaskArg(BaseModel):
         ),
     )
     estimate: int = Field(default=0, description=f"One of {', '.join(map(str, ESTIMATES))}.")
-    labels: list[str] = Field(default_factory=list, description="Up to 10 short labels.")
+    labels: JsonList[str] = Field(default_factory=list, description="Up to 10 short labels.")
     component: str | None = Field(
         default=None,
         description="The one HLD component this task belongs to (exactly as listed), if given.",
     )
-    blocked_by: list[str] = Field(
+    blocked_by: JsonList[str] = Field(
         default_factory=list, description="Keys of the tasks that must finish first."
     )
     parent_key: str | None = Field(default=None, description="Key of the parent task, if any.")
@@ -105,7 +106,7 @@ class SavePlanArgs(BaseModel):
     """Fields default to empty so that a missing one is a refusal the tool counts and the model
     can fix, not an error the loop never counts."""
 
-    tasks: list[TaskArg] = Field(
+    tasks: JsonList[TaskArg] = Field(
         default_factory=list, description="Every task of every approved phase."
     )
 

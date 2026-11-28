@@ -8,7 +8,7 @@ from uuid import UUID
 
 from pydantic import Field, StringConstraints, model_validator
 
-from metis.helpers.dto import FrozenModel
+from metis.helpers.dto import FrozenModel, JsonTuple
 from metis.modules.scoring.dto._fields import Reason
 from metis.modules.scoring.dto.enums import ScoreParam, SuggestionKind, SuggestionStatus
 from metis.modules.scoring.dto.scores import MAX_EVIDENCE_ITEMS, EvidenceItem, NewEvidence
@@ -31,9 +31,9 @@ class NewSuggestion(FrozenModel):
     kind: SuggestionKind
     title: SuggestionTitle
     rationale: Reason
-    target_params: tuple[ScoreParam, ...] = Field(min_length=1, max_length=MAX_TARGET_PARAMS)
+    target_params: JsonTuple[ScoreParam] = Field(min_length=1, max_length=MAX_TARGET_PARAMS)
     expected_impact: ExpectedImpact
-    evidence: tuple[NewEvidence, ...] = Field(min_length=1, max_length=MAX_EVIDENCE_ITEMS)
+    evidence: JsonTuple[NewEvidence] = Field(min_length=1, max_length=MAX_EVIDENCE_ITEMS)
 
     @model_validator(mode="after")
     def _check_params(self) -> NewSuggestion:
