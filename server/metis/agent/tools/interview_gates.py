@@ -24,6 +24,7 @@ from typing import Any
 
 from metis.agent.gate import Gate, GateContext, GateDecisionKind, run_gate
 from metis.agent.tools.question_options import OptionArgs, check_options
+from metis.agent.tools.text_similarity import is_near_duplicate, normalised
 
 SPECIALIST = "interviewer"
 INPUT_GATE_NAME = "interview_input"
@@ -31,10 +32,8 @@ OUTPUT_GATE_NAME = "interview_output"
 # Retries are counted per question slot, not per wording: a reworded question is still the
 # same attempt to ask, so a model that keeps revising is skipped after ``MAX_RETRIES``.
 ATTEMPT_KEY = "question"
-NEAR_DUPLICATE_SIMILARITY = 0.8
 MAX_QUOTE_LENGTH = 2_000
 ANSWERED_MARKER = "answered:"
-_WORDS = re.compile(r"[a-z0-9']+")
 _QUOTE = re.compile(r"""answered:\s*["“](?P<quote>.+?)["”]\s*$""", re.IGNORECASE)
 
 INPUT_INSTRUCTION = f"""\
@@ -82,22 +81,10 @@ class IdeaTexts:
     turns: Sequence[tuple[str, str | None]]
 
 
-def _normalised(text: str) -> str:
-    return " ".join(text.casefold().replace("’", "'").split())
-
-
-def _word_set(text: str) -> frozenset[str]:
-    return frozenset(_WORDS.findall(_normalised(text)))
-
-
 def _near_duplicate(item: Any) -> str | None:
-    words = _word_set(item["question"])
-    if not words:
-        return None
     for turn in item["earlier_turns"]:
         earlier = turn["question"]
-        other = _word_set(earlier)
-        if other and len(words & other) / len(words | other) >= NEAR_DUPLICATE_SIMILARITY:
+        if is_near_duplicate(item["question"], earlier):
             return f'This repeats an earlier question: "{earlier}". Ask about something new.'
     return None
 
@@ -129,11 +116,11 @@ def verified_quote(reason: str, idea: IdeaTexts) -> str | None:
     if match is None:
         return None
     quote = match["quote"].strip()
-    needle = _normalised(quote)
+    needle = normalised(quote)
     if not needle:
         return None
     sources = [idea.text, *(answer for _, answer in idea.turns if answer)]
-    if any(needle in _normalised(source) for source in sources):
+    if any(needle in normalised(source) for source in sources):
         return quote[:MAX_QUOTE_LENGTH]
     return None
 

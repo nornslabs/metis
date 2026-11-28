@@ -179,6 +179,11 @@ def _resolve_model(recorded: Path | None, cases: Sequence[GateCase]) -> tuple[LL
     if recorded is not None:
         by_question = {c.question: c.id for c in cases}
         return RecordedChat(load_verdicts(recorded), by_question), "recorded replay"
+    return build_eval_model()
+
+
+def build_eval_model() -> tuple[LLMProvider, str]:
+    """The real judge model from ``EVAL_LLM_*`` and its name; ``SetupError`` when unset."""
     missing = [
         n
         for n in ("EVAL_LLM_BASE_URL", "EVAL_LLM_API_KEY", "EVAL_LLM_MODEL")

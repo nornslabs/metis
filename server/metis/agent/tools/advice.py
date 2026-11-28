@@ -1,23 +1,27 @@
 """The Advisor's own tools: save a suggestion, finish the advice.
 
-``save_suggestion`` refuses a suggestion past the allowed count, one that targets none of the
-weakest parameters, or one whose evidence points at a URL the run never saw (the research,
-the score's own evidence, or the Advisor's searches). A refusal is a message the model can act
-on; it never fails the run. ``finish_advice`` is the Advisor's structured end: for a score below
-55 it is refused while fewer than the minimum are saved. The first such refusal lets the model
-go on; the second closes it, and the node then fails the run rather than leave thin advice.
+``save_suggestion`` refuses a suggestion past the allowed count. Every other check is the
+``advice_output`` gate (``advice_gate.py``): a suggestion that targets none of the weakest
+parameters, repeats a saved one, cites a URL the run never saw, or is generic or unsupported is
+refused with the reason; after two retries it is skipped. A refusal is a message the model can
+act on; a skip tells the model to go on without it. Neither fails the run. ``finish_advice`` is
+the Advisor's structured end: for a score below 55 it is refused while fewer than the minimum
+are saved. The first such refusal lets the model go on; the second closes it, and the node then
+fails the run rather than leave thin advice (unless gate skips caused the shortfall).
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from uuid import UUID
 
 from langchain_core.tools import BaseTool, StructuredTool
+from redis.asyncio import Redis
 
+from metis.agent.gate import Gate, GateContext, GateDecisionKind, GateRefusal
+from metis.agent.tools.advice_gate import AdviceBrief, review_suggestion
 from metis.agent.tools.research_kb import ResearchScope
-from metis.agent.tools.scoring import NoArgs, SourceBook
+from metis.agent.tools.scoring import NoArgs
 from metis.core.logging import get_logger
 from metis.modules import scoring
 from metis.modules.scoring import (
@@ -40,6 +44,8 @@ ADVISE_TARGETS = 3
 PROMISING_TARGETS = 2
 CLOSED = "Finishing is closed: two attempts were refused. Stop."
 SAVED = "Suggestion saved."
+SKIPPED = "Suggestion skipped: it did not pass review and was not saved."
+SKIP_COUNTER_TTL_SECONDS = 24 * 3600
 FINISHED = "Advice finished."
 
 logger = get_logger(__name__)
@@ -69,6 +75,43 @@ class AdviceLedger:
 
     saved: list[UUID] = field(default_factory=list)
     refusals: int = 0
+    skipped: int = 0
+
+
+class SkipCounter:
+    """Suggestions the gate skipped for one score, kept in Redis so a re-run still knows.
+
+    A below-55 score may end short only because of skips; the node re-runs after the user's
+    decision and must then see that the shortfall is settled, not advise again.
+    """
+
+    def __init__(self, redis: Redis, run_id: UUID, score_run_id: UUID) -> None:
+        self._redis = redis
+        self._key = f"agent:advice:{run_id}:{score_run_id}:skipped"
+
+    async def record(self) -> None:
+        try:
+            await self._redis.incr(self._key)
+            await self._redis.expire(self._key, SKIP_COUNTER_TTL_SECONDS)
+        except Exception:  # noqa: BLE001  (a lost counter must not fail the suggestion)
+            logger.warning("advice.skip_counter_failed")
+
+    async def count(self) -> int:
+        try:
+            return int(await self._redis.get(self._key) or 0)
+        except Exception:  # noqa: BLE001
+            logger.warning("advice.skip_counter_failed")
+            return 0
+
+
+@dataclass(frozen=True)
+class AdviceReview:
+    """What ``save_suggestion`` needs to review a suggestion: the gate, its context and the idea."""
+
+    gate: Gate
+    context: GateContext
+    brief: AdviceBrief
+    skips: SkipCounter
 
 
 def plan_for(score: ScoreRun) -> AdvicePlan | None:
@@ -93,14 +136,14 @@ def weakest_params(score: ScoreRun, count: int) -> tuple[ScoreParam, ...]:
 
 
 def advice_tools(
-    scope: ResearchScope, plan: AdvicePlan, book: SourceBook, ledger: AdviceLedger
+    scope: ResearchScope, plan: AdvicePlan, review: AdviceReview, ledger: AdviceLedger
 ) -> list[BaseTool]:
     """The Advisor's own tools (the KB lookup and the Exa search are added by the node)."""
-    return [_save_suggestion(scope, plan, book, ledger), _finish_advice(plan, ledger)]
+    return [_save_suggestion(scope, plan, review, ledger), _finish_advice(plan, ledger)]
 
 
 def _save_suggestion(
-    scope: ResearchScope, plan: AdvicePlan, book: SourceBook, ledger: AdviceLedger
+    scope: ResearchScope, plan: AdvicePlan, review: AdviceReview, ledger: AdviceLedger
 ) -> BaseTool:
     async def save_suggestion(
         kind: SuggestionKind,
@@ -110,9 +153,11 @@ def _save_suggestion(
         expected_impact: str,
         evidence: tuple[NewEvidence, ...],
     ) -> str:
-        problem = _problem(plan, book, ledger, target_params, evidence)
-        if problem is not None:
-            raise AdviceRefused("Nothing was saved. " + problem)
+        if len(ledger.saved) >= plan.maximum:
+            raise AdviceRefused(
+                f"Nothing was saved. The limit of {plan.maximum} suggestions is reached. "
+                f"Call {FINISH_ADVICE}."
+            )
         data = NewSuggestion(
             kind=kind,
             title=title,
@@ -121,6 +166,18 @@ def _save_suggestion(
             expected_impact=expected_impact,
             evidence=evidence,
         )
+        decision = await review_suggestion(
+            review.context, review.gate, review.brief, await _saved_titles(scope, plan), data
+        )
+        if decision.kind is GateDecisionKind.RETRIED:
+            raise GateRefusal("Nothing was saved. " + decision.reason)
+        if decision.kind is GateDecisionKind.SKIPPED:
+            ledger.skipped += 1
+            await review.skips.record()
+            return (
+                f"{SKIPPED} ({decision.reason}) Suggest something different, or call "
+                f"{FINISH_ADVICE}."
+            )
         async with scope.session() as session:
             saved = await scoring.save_suggestion(
                 session, scope.workspace_id, scope.idea_id, plan.score.id, data
@@ -163,22 +220,10 @@ def _finish_advice(plan: AdvicePlan, ledger: AdviceLedger) -> BaseTool:
     )
 
 
-def _problem(
-    plan: AdvicePlan,
-    book: SourceBook,
-    ledger: AdviceLedger,
-    target_params: Sequence[ScoreParam],
-    evidence: Sequence[NewEvidence],
-) -> str | None:
-    if len(ledger.saved) >= plan.maximum:
-        return f"The limit of {plan.maximum} suggestions is reached. Call {FINISH_ADVICE}."
-    if not set(target_params) & set(plan.targets):
-        weakest = ", ".join(p.value for p in plan.targets)
-        return f"Target at least one of the weakest parameters: {weakest}."
-    unknown = [item.url for item in evidence if not book.knows(item.url)]
-    if unknown:
-        return (
-            f"Evidence {', '.join(unknown)} is not a source from the research, the score or "
-            "your searches."
+async def _saved_titles(scope: ResearchScope, plan: AdvicePlan) -> list[str]:
+    """Titles of every suggestion saved for this score, earlier passes included."""
+    async with scope.session() as session:
+        listed = await scoring.list_suggestions(
+            session, scope.workspace_id, scope.idea_id, plan.score.id
         )
-    return None
+    return [suggestion.title for suggestion in listed.items]

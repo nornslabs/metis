@@ -94,6 +94,11 @@ jobs:
         working-directory: server
         run: uv run python -m evals.run_gates --recorded --min-pass-rate 1
 
+      # The Advisor's gate over the frozen suggestions, with recorded judge verdicts.
+      - name: Recorded Advisor gate run
+        working-directory: server
+        run: uv run python -m evals.run_advice_gate --recorded --min-pass-rate 1
+
   scoring:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -159,6 +164,17 @@ jobs:
           EVAL_LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
           EVAL_LLM_MODEL: ${{ inputs.model }}
 
+      - name: Advisor gate evals
+        working-directory: server
+        run: >-
+          uv run python -m evals.run_advice_gate
+          --min-pass-rate "${{ inputs.min_pass_rate }}"
+          --json advice-gate-results.json
+        env:
+          EVAL_LLM_BASE_URL: ${{ secrets.EVAL_LLM_BASE_URL }}
+          EVAL_LLM_API_KEY: ${{ secrets.EVAL_LLM_API_KEY }}
+          EVAL_LLM_MODEL: ${{ inputs.model }}
+
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4
@@ -167,4 +183,5 @@ jobs:
           path: |
             server/results.json
             server/gate-results.json
+            server/advice-gate-results.json
           if-no-files-found: ignore

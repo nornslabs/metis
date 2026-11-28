@@ -13,9 +13,15 @@ new text (accepted suggestions appended as notes) and sends the run back to the 
 scores again once; ``continue`` goes on to the spec; ``stop`` ends the run with the idea left at
 ``advising``. A promising idea goes straight on to the spec. One Advisor pass per run.
 
-The node is safe to re-run: with enough suggestions saved for the score it makes no model call,
-so a crash re-run and the re-run after the interrupt resumes never add advice twice, and the
-revision write gives the same result when repeated.
+Every suggestion passes the ``advice_output`` gate before it is saved (``tools/advice_gate.py``);
+a suggestion the gate skips is not saved and never fails the run. A score below 55 that ends
+short of its minimum only because of skips (with at least one suggestion saved) goes on to the
+decision with what is saved.
+
+The node is safe to re-run: with enough suggestions saved for the score (or a shortfall that
+gate skips caused, counted in Redis) it makes no model call, so a crash re-run and the re-run
+after the interrupt resumes never add advice twice, and the revision write gives the same result
+when repeated.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ from langgraph.types import interrupt
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from metis.agent.gate import GateRefusal, build_gate_context
 from metis.agent.llm import LLMGateway
 from metis.agent.prompts import load_specialist_prompt
 from metis.agent.specialists.base import build_react_specialist, invoke_loop
@@ -41,9 +48,12 @@ from metis.agent.tools.advice import (
     AdviceLedger,
     AdvicePlan,
     AdviceRefused,
+    AdviceReview,
+    SkipCounter,
     advice_tools,
     plan_for,
 )
+from metis.agent.tools.advice_gate import AdviceBrief, WeakParam, build_advice_gate
 from metis.agent.tools.ask_user import ADVICE_DECISION
 from metis.agent.tools.exa import (
     ExaCallBudget,
@@ -104,8 +114,9 @@ def build_advisor(
             logger.info("advice.not_needed")
             return _finish_node(state, _go_on(state, Stage.SPEC_DRAFT))
         ledger = AdviceLedger(saved=await _saved_ids(scope, plan.score.id))
-        if len(ledger.saved) < max(plan.minimum, 1):
-            failure = await _advise(scope, redis, make_exa_client, plan, ledger)
+        skips = SkipCounter(redis, scope.run_id, plan.score.id)
+        if not _settled(plan, ledger, await skips.count()):
+            failure = await _advise(scope, redis, make_exa_client, plan, ledger, skips)
             if failure is not None:
                 return _finish_node(state, {"last_error": failure})
         if plan.score.band is not scoring.ScoreBand.ADVISE:
@@ -122,6 +133,7 @@ async def _advise(
     make_exa_client: ClientFactory,
     plan: AdvicePlan,
     ledger: AdviceLedger,
+    skips: SkipCounter,
 ) -> str | None:
     """Run the loop; the error code to fail the run with, or ``None`` when the advice is done."""
     book = SourceBook()
@@ -129,7 +141,13 @@ async def _advise(
         api_key = await ready_exa_key(session, scope.workspace_id)
         model = await scope.gateway.chat_model(session, PURPOSE)
         seed = await _seed(session, scope, book, plan, ledger, searching=api_key is not None)
-    own_tools = [kb_lookup_tool(scope), *advice_tools(scope, plan, book, ledger)]
+        review = AdviceReview(
+            gate=build_advice_gate(book),
+            context=await build_gate_context(scope.gateway, session, redis, scope.run_id),
+            brief=await _brief(session, scope, plan),
+            skips=skips,
+        )
+    own_tools = [kb_lookup_tool(scope), *advice_tools(scope, plan, review, ledger)]
     if api_key is None:
         finished = await _loop(model, own_tools, seed)
     else:
@@ -149,11 +167,21 @@ async def _advise(
         # Advice for a promising idea is optional: it never fails the run.
         return None if plan.minimum == 0 else ErrorCode.RUN_STEP_LIMIT_REACHED.value
     if len(ledger.saved) < plan.minimum:
+        if ledger.skipped and ledger.saved:
+            logger.info("advice.short_after_gate_skips", saved=len(ledger.saved))
+            return None
         logger.warning(
             "advice.too_few_suggestions", saved=len(ledger.saved), refusals=ledger.refusals
         )
         return ErrorCode.ADVICE_INVALID_SUBMISSION.value
     return None
+
+
+def _settled(plan: AdvicePlan, ledger: AdviceLedger, skipped: int) -> bool:
+    """Whether the advice for this score is done: enough saved, or short only through skips."""
+    if len(ledger.saved) >= max(plan.minimum, 1):
+        return True
+    return skipped > 0 and (bool(ledger.saved) or plan.minimum == 0)
 
 
 async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> bool:
@@ -164,7 +192,7 @@ async def _loop(model: LLMProvider, tools: list[BaseTool], seed: str) -> bool:
         model,
         step_limit=STEP_LIMIT,
         finish_tools={FINISH_ADVICE},
-        refusals=(AdviceRefused,),
+        refusals=(AdviceRefused, GateRefusal),
     )
     return await invoke_loop(loop, seed)
 
@@ -265,6 +293,16 @@ async def _seed(
     if not searching:
         parts.append(NO_SEARCH_NOTE)
     return "\n\n".join(parts)
+
+
+async def _brief(session: AsyncSession, scope: ResearchScope, plan: AdvicePlan) -> AdviceBrief:
+    """What the gate's judge reads: the idea and the weakest parameters with the score's reasons."""
+    idea = await ideas.get_idea(session, scope.workspace_id, scope.idea_id)
+    by_param = {result.param: result for result in plan.score.params}
+    weakest = tuple(
+        WeakParam(param, by_param[param].raw, by_param[param].reason) for param in plan.targets
+    )
+    return AdviceBrief(idea.title, idea.raw_text, weakest)
 
 
 def _score_text(score: ScoreRun, book: SourceBook) -> str:
