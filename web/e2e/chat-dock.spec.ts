@@ -92,7 +92,7 @@ test.describe("answer options in the dock", () => {
     await page.goto(`/ideas/${idea.id}`);
 
     await expect(picker(page)).toBeVisible();
-    await expect(picker(page).getByText("Question 2 of 5")).toBeVisible();
+    await expect(picker(page).getByText("Question 2 of up to 5")).toBeVisible();
     await expect(picker(page).getByText("1–3 to pick")).toBeVisible();
     await expect(picker(page).getByText("Best fit")).toHaveCount(1);
     await expect(composer(page)).toHaveCount(0);
@@ -197,7 +197,7 @@ test.describe("answer options in the dock", () => {
     const { idea } = await fakeRun(page, [], SINGLE);
     await page.goto(`/ideas/${idea.id}`);
     await page.reload();
-    await expect(picker(page).getByText("Question 2 of 5")).toBeVisible();
+    await expect(picker(page).getByText("Question 2 of up to 5")).toBeVisible();
     await expect(picker(page).getByRole("button", { name: /Solo freelancers/ })).toBeVisible();
   });
 
@@ -336,5 +336,31 @@ test.describe("on a phone", () => {
     await expect(picker(page)).toBeVisible();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(overflow).toBeLessThanOrEqual(0);
+  });
+});
+
+test.describe("gate skips", () => {
+  test("a skipped question shows as a muted line in the step list and never in the chat", async ({ page }) => {
+    const { idea } = await fakeRun(page, [
+      { type: "node_started", data: { node: "interviewer" } },
+      {
+        type: "gate",
+        data: { specialist: "interviewer", gate: "interview_input", decision: "skipped", reason: "It repeats an answer." },
+      },
+      {
+        type: "gate",
+        data: { specialist: "interviewer", gate: "interview_input", decision: "passed", reason: "Fine." },
+      },
+      ...ask(SINGLE),
+    ]);
+    await page.goto(`/ideas/${idea.id}`);
+    await expect(picker(page)).toBeVisible();
+
+    await page.getByRole("button", { name: /Worked through 1 step/ }).click();
+    const skip = page.getByTestId("gate-skip");
+    await expect(skip).toHaveCount(1);
+    await expect(skip).toHaveText("Interviewer skipped a question: It repeats an answer.");
+    await expect(page.getByRole("list", { name: "Steps" }).getByText("Fine.")).toHaveCount(0);
+    await expect(page.getByText("It repeats an answer.")).toHaveCount(1);
   });
 });

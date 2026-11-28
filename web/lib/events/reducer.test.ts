@@ -352,3 +352,38 @@ describe("runReducer, export", () => {
     expect(state.interrupt).toMatchObject({ kind: "choose_team", savedTeamId: null });
   });
 });
+
+describe("runReducer, gate skips", () => {
+  const started: RunEvent = { type: "node_started", node: "interviewer" };
+  const gate = (decision: "passed" | "retried" | "skipped", reason = "It repeats an answer."): RunEvent => ({
+    type: "gate",
+    specialist: "interviewer",
+    gate: "interview_input",
+    decision,
+    reason,
+  });
+
+  test("a skipped decision adds one skip to the specialist's step", () => {
+    const state = play([started, gate("skipped")]);
+    expect(state.steps).toEqual([
+      { node: "interviewer", done: false, tools: [], skips: [{ gate: "interview_input", reason: "It repeats an answer." }] },
+    ]);
+  });
+
+  test("passed and retried decisions change nothing", () => {
+    const before = play([started]);
+    expect(play([gate("passed"), gate("retried")], before)).toBe(before);
+  });
+
+  test("the same skip replayed shows once, a different reason shows too", () => {
+    const state = play([started, gate("skipped"), gate("skipped"), gate("skipped", "Too generic.")]);
+    expect(state.steps[0]?.skips).toHaveLength(2);
+  });
+
+  test("a skip with no step yet starts one and leaves the chat text and notices alone", () => {
+    const state = play([gate("skipped")]);
+    expect(state.steps).toHaveLength(1);
+    expect(state.text).toBe("");
+    expect(state.notices).toEqual([]);
+  });
+});

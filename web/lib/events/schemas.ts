@@ -24,6 +24,7 @@ export const RUN_EVENT_TYPES = [
   "score",
   "export_progress",
   "export_finished",
+  "gate",
 ] as const;
 
 export type RunEventType = (typeof RUN_EVENT_TYPES)[number];
@@ -192,6 +193,10 @@ export const interruptSchema = z
 
 const nodeSchema = z.object({ node: z.string() });
 
+export const gateDecisionSchema = z.enum(["passed", "retried", "skipped"]);
+
+export type GateDecision = z.infer<typeof gateDecisionSchema>;
+
 const payloadSchemas = {
   run_status: z
     .object({ status: runStatusSchema, error: runErrorSchema.optional() })
@@ -240,6 +245,20 @@ const payloadSchemas = {
       created,
       updated,
       links,
+    })),
+  gate: z
+    .object({
+      specialist: z.string(),
+      gate: z.string(),
+      decision: gateDecisionSchema,
+      reason: z.string(),
+    })
+    .transform(({ specialist, gate, decision, reason }) => ({
+      type: "gate" as const,
+      specialist,
+      gate,
+      decision,
+      reason,
     })),
 } satisfies Record<RunEventType, z.ZodType>;
 

@@ -36,6 +36,18 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   save_research_item: "Save finding",
 };
 
+/** What a gate guards, as it reads in "skipped a question"; keyed by the server's gate names. */
+const GATE_ITEM_LABELS: Readonly<Record<string, string>> = {
+  interview_input: "a question",
+  interview_output: "a question",
+  research_input: "a search",
+  advice_output: "a suggestion",
+};
+
+export function gateItemLabel(gate: string): string {
+  return GATE_ITEM_LABELS[gate] ?? "an item";
+}
+
 export function toolLabel(name: string): string {
   return TOOL_LABELS[name] ?? titleCase(name);
 }

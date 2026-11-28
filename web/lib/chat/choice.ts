@@ -46,10 +46,10 @@ export function pickedLabel(options: readonly QuestionOption[], ids: readonly st
     .join(LABEL_SEPARATOR);
 }
 
-/** "Question 2 of 5", "Question 2" when the total is unknown, else "Pick an answer". */
+/** "Question 2 of up to 8", "Question 2" when the total is unknown, else "Pick an answer". */
 export function questionHeading(index: number | undefined, total: number | undefined): string {
   if (index === undefined) return "Pick an answer";
-  return total === undefined ? `Question ${index}` : `Question ${index} of ${Math.max(index, total)}`;
+  return total === undefined ? `Question ${index}` : `Question ${index} of up to ${Math.max(index, total)}`;
 }
 
 /** The key hint under the heading: "1–4 to pick", "1 to pick" or, for several, "1–4 to toggle · Enter to continue". */

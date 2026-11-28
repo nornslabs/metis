@@ -18,7 +18,12 @@ export type RunStep = {
   /** Set by a `notice` that says the step did no work (research without an Exa key). */
   readonly skipped?: boolean;
   readonly tools: readonly string[];
+  /** Items a gate skipped during this step, shown as muted lines (never in the chat). */
+  readonly skips?: readonly GateSkip[];
 };
+
+/** One item a gate dropped: which gate (it names the kind of item) and the gate's short reason. */
+export type GateSkip = { readonly gate: string; readonly reason: string };
 
 /** A server note about the run (`notice` event), shown under the steps. */
 export type RunNotice = { readonly code: string; readonly text: string };
@@ -169,6 +174,16 @@ function addTool(steps: readonly RunStep[], node: string, name: string): readonl
   return replaceStep(steps, index, { ...last, tools: [...last.tools, name] });
 }
 
+function addSkip(steps: readonly RunStep[], node: string, skip: GateSkip): readonly RunStep[] {
+  const index = lastIndexOfNode(steps, node);
+  const last = steps[index];
+  if (!last) return [...steps, { node, done: false, tools: [], skips: [skip] }];
+  const skips = last.skips ?? [];
+  // A replay can deliver the same decision again; it shows once.
+  if (skips.some((seen) => seen.gate === skip.gate && seen.reason === skip.reason)) return steps;
+  return replaceStep(steps, index, { ...last, skips: [...skips, skip] });
+}
+
 function appendToLast(segments: readonly string[], text: string): readonly string[] {
   return [...segments.slice(0, -1), `${segments.at(-1) ?? ""}${text}`];
 }
@@ -218,6 +233,9 @@ export function runReducer(state: RunState, event: RunAction): RunState {
       return { ...state, steps: finishStep(state.steps, event.node) };
     case "tool_call":
       return { ...state, steps: addTool(state.steps, event.node, event.name) };
+    case "gate":
+      if (event.decision !== "skipped") return state;
+      return { ...state, steps: addSkip(state.steps, event.specialist, { gate: event.gate, reason: event.reason }) };
     case "token":
       return { ...state, text: state.text + event.text, segments: appendToLast(state.segments, event.text) };
     case "notice":
