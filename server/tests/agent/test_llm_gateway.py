@@ -365,6 +365,24 @@ def test_the_call_timeout_follows_the_purpose(purpose: str, expected: float) -> 
     assert chat._model.request_timeout == expected  # type: ignore[attr-defined]  # noqa: SLF001
 
 
+@pytest.mark.parametrize(
+    ("purpose", "expected"),
+    [("gate", 512), ("advise", None), ("score", None), ("spec", None)],
+)
+def test_only_the_gate_purpose_gets_an_output_cap(purpose: str, expected: int | None) -> None:
+    chat = build_chat_model(
+        base_url="https://llm.example.com/v1",
+        api_key=LLM_KEY,
+        model=LLM_MODEL,
+        purpose=purpose,
+        timeout_seconds=11.0,
+        long_timeout_seconds=22.0,
+        gate_max_output_tokens=512,
+    )
+
+    assert chat._model.max_tokens == expected  # type: ignore[attr-defined]  # noqa: SLF001
+
+
 @pytest.mark.usefixtures("no_retries")
 async def test_a_failing_call_keeps_the_usage_of_earlier_calls_and_logs_no_secret(
     engine: AsyncEngine,

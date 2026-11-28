@@ -115,6 +115,7 @@ class LLMGateway:
         self._embedding_model = settings.llm_embedding_model
         self._call_timeout = settings.llm_call_timeout_seconds
         self._long_call_timeout = settings.llm_long_call_timeout_seconds
+        self._gate_max_output_tokens = settings.gate_judge_max_output_tokens
         self._embedder: Embedder | None = None
         self._embeddings_unavailable = False
         self._request_counts: dict[str, int] = {}
@@ -254,6 +255,7 @@ class LLMGateway:
             purpose=purpose,
             timeout_seconds=self._call_timeout,
             long_timeout_seconds=self._long_call_timeout,
+            gate_max_output_tokens=self._gate_max_output_tokens,
             callbacks=[*self._tracing, self._usage_recorder(model_name)],
             http_client=self._http_client,
         )

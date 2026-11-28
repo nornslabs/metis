@@ -22,6 +22,7 @@ from metis.agent.text_match import is_near_duplicate
 from metis.agent.tools.exa import FETCH_TOOL, SEARCH_TOOL, ExaCallBudget, with_call_cap
 from metis.agent.tools.research_gates import (
     CallMemory,
+    KbJudge,
     RunKnowledge,
     normalised_url,
     with_kb_matches,
@@ -324,6 +325,27 @@ async def test_a_failing_kb_lookup_lets_the_judge_decide_without_matches() -> No
 
     assert await harness.search(SPECIFIC) == "hits"
     assert "kb_matches" not in json.loads(judge.items[0])
+
+
+@pytest.mark.parametrize("target", ["", "   "])
+async def test_an_empty_target_makes_no_kb_lookup_and_logs_no_warning(
+    target: str, caplog: pytest.LogCaptureFixture
+) -> None:
+    looked_up: list[str] = []
+
+    async def lookup(query: str) -> list[dict[str, Any]]:
+        looked_up.append(query)
+        return []
+
+    inner = FakeJudge(None)
+    kb_judge = KbJudge(inner, lookup)
+    item = json.dumps({"target": target})
+
+    await kb_judge.verdict("criterion", item)
+
+    assert looked_up == []
+    assert inner.items == [item]
+    assert "research_gate.kb_lookup_failed" not in caplog.text
 
 
 @pytest.mark.parametrize(

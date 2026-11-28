@@ -152,6 +152,12 @@ class Settings(BaseSettings):
         default=240.0, ge=10, validation_alias="LLM_LONG_CALL_TIMEOUT_SECONDS"
     )
 
+    # Most tokens a gate judge call may write (reasoning included). The verdict is one word and
+    # a short reason; without a cap a reasoning model writes thousands of tokens per call.
+    gate_judge_max_output_tokens: int = Field(
+        default=2048, ge=64, validation_alias="GATE_JUDGE_MAX_OUTPUT_TOKENS"
+    )
+
     # Most judge calls a run's gates may make (retries count); past it the judge is skipped
     # and an item that passed its code checks goes through.
     gate_judge_max_calls_per_run: int = Field(

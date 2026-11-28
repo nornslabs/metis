@@ -39,6 +39,7 @@ RETRYABLE_REASONS = frozenset(
 )
 # These write a whole document in one answer, so they get the long timeout.
 LONG_OUTPUT_PURPOSES = frozenset({"spec", "plan"})
+GATE_PURPOSE = "gate"
 DEFAULT_TEMPERATURE = 0.3
 # Steadier for scoring and structured output, looser for conversation.
 TEMPERATURE_BY_PURPOSE: dict[str, float] = {
@@ -103,15 +104,19 @@ def build_chat_model(
     purpose: str,
     timeout_seconds: float,
     long_timeout_seconds: float,
+    gate_max_output_tokens: int | None = None,
     callbacks: Sequence[BaseCallbackHandler] = (),
     http_client: httpx.AsyncClient | None = None,
 ) -> OpenAICompatibleChat:
     """A chat model for one workspace's endpoint, key and model.
 
     ``purpose`` picks the temperature and the call timeout (``long_timeout_seconds`` for
-    spec and plan, else ``timeout_seconds``). Retries are ours, not the SDK's, so a timeout
-    is not retried. ``http_client`` lets tests route to a fake server.
+    spec and plan, else ``timeout_seconds``). The ``gate`` purpose also gets
+    ``gate_max_output_tokens`` as its output cap (other purposes are never capped). Retries are
+    ours, not the SDK's, so a timeout is not retried. ``http_client`` lets tests route to a
+    fake server.
     """
+    max_tokens = gate_max_output_tokens if purpose == GATE_PURPOSE else None
     client = http_client or httpx.AsyncClient(follow_redirects=False)
     chat = ChatOpenAI(
         base_url=base_url,
@@ -120,6 +125,7 @@ def build_chat_model(
         temperature=TEMPERATURE_BY_PURPOSE.get(purpose, DEFAULT_TEMPERATURE),
         timeout=long_timeout_seconds if purpose in LONG_OUTPUT_PURPOSES else timeout_seconds,
         max_retries=0,
+        max_completion_tokens=max_tokens,
         http_async_client=client,
         callbacks=list(callbacks),
     )
