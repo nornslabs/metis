@@ -227,8 +227,10 @@ async def test_a_deduped_enqueue_does_not_count_as_a_recovery(
     redis: Redis,
     arq_pool: ArqRedis,
     app_sessions: async_sessionmaker[AsyncSession],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     run, _, _ = await _killed_run(engine, redis, app_sessions)
+    monkeypatch.setattr("metis.agent.recovery.time.time", lambda: 1_700_000_000.0)
 
     await recover_stuck_runs(arq_pool, app_sessions, grace_seconds=0)
     await recover_stuck_runs(arq_pool, app_sessions, grace_seconds=0)  # same second: same job id
