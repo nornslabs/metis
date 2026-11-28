@@ -97,6 +97,12 @@ def build_react_specialist(
     else:
         graph.add_edge(AGENT_NODE, END)
     compiled = graph.compile() if resumable else graph.compile(checkpointer=False)
+    if not resumable:
+        # LangGraph inherits the parent's durability="sync", which crashes when checkpointer=False
+        # because AsyncPregelLoop has no _put_checkpoint_fut.
+        return compiled.with_config(
+            {"recursion_limit": step_limit, "configurable": {"__pregel_durability": "async"}}
+        )
     return compiled.with_config({"recursion_limit": step_limit})
 
 

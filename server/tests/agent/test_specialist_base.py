@@ -133,3 +133,32 @@ def test_json_list_accepts_stringified_json_and_rejects_malformed_json() -> None
     assert Args.model_validate({"items": '["a", "b"]'}).items == ["a", "b"]
     with pytest.raises(ValidationError):
         Args.model_validate({"items": '["a", unquoted]'})
+
+
+async def test_non_resumable_specialist_runs_inside_sync_durability_parent() -> None:
+    from langgraph.checkpoint.memory import InMemorySaver
+    from langgraph.graph import END, START, MessagesState, StateGraph
+
+    model = FakeChat([AIMessage(content="ok")])
+    sub = build_react_specialist("p", [], model, resumable=False)
+
+    parent = StateGraph(MessagesState)
+
+    async def call_sub(state: MessagesState) -> dict[str, list[BaseMessage]]:
+        return dict(await sub.ainvoke({"messages": state["messages"]}))
+
+    parent.add_node("sub", call_sub)
+    parent.add_edge(START, "sub")
+    parent.add_edge("sub", END)
+    compiled = parent.compile(checkpointer=InMemorySaver())
+
+    chunks = [
+        chunk
+        async for chunk in compiled.astream(
+            {"messages": [HumanMessage(content="go")]},
+            {"configurable": {"thread_id": "t-sync"}},
+            durability="sync",
+            subgraphs=True,
+        )
+    ]
+    assert chunks
